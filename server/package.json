@@ -2,12 +2,11 @@
   "name": "memory-game-server",
   "version": "1.0.0",
   "description": "Memory Card Game Multiplayer Server",
-  "main": "dist/index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node --esm src/index.ts",
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["memory game", "socket.io", "multiplayer", "mern"],
@@ -28,14 +27,6 @@
     "morgan": "^1.10.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.5",
-    "@types/express": "^5.0.0",
-    "@types/cors": "^2.8.17",
-    "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.7",
-    "@types/morgan": "^1.9.9",
-    "nodemon": "^3.1.9",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.2"
+    "nodemon": "^3.1.9"
   }
 }

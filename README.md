@@ -57,10 +57,10 @@ A comprehensive multiplayer memory card game built with the MERN stack, featurin
 - **MongoDB** with **Mongoose** ODM
 - **JWT** authentication
 - **bcryptjs** for password hashing
-- **TypeScript** for type safety
+- **JavaScript ES6+** with ES modules
 
 ### Frontend
-- **React 18** with **TypeScript**
+- **React 18** with **JSX**
 - **Vite** for fast development
 - **Tailwind CSS** for styling
 - **Socket.IO Client** for real-time features
@@ -188,7 +188,6 @@ memory-card-game/
 ### Backend Scripts
 ```bash
 npm run dev      # Start development server with nodemon
-npm run build    # Build TypeScript to JavaScript
 npm start        # Start production server
 ```
 
@@ -266,8 +265,7 @@ When games are tied at time expiration:
 
 ### Backend (Node.js)
 1. Set production environment variables
-2. Build TypeScript: `npm run build`
-3. Start server: `npm start`
+2. Start server: `npm start`
 
 ### Frontend (Static Site)
 1. Build for production: `npm run build`

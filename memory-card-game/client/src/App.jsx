@@ -6,6 +6,7 @@ import { SocketProvider } from './contexts/SocketContext.jsx';
 import { ToastProvider } from './contexts/ToastContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import PublicRoute from './components/PublicRoute.jsx';
 import Navbar from './components/layout/Navbar.jsx';
 import Home from './pages/Home.jsx';
 import Login from './pages/Login.jsx';
@@ -13,6 +14,7 @@ import Register from './pages/Register.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Game from './pages/Game.jsx';
 import Lobby from './pages/Lobby.jsx';
+import WaitingArea from './pages/WaitingArea.jsx';
 import Profile from './pages/Profile.jsx';
 import Leaderboard from './pages/Leaderboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
@@ -33,8 +35,8 @@ function App() {
                     <Routes>
                       {/* Public routes */}
                       <Route path="/" element={<Home />} />
-                      <Route path="/login" element={<Login />} />
-                      <Route path="/register" element={<Register />} />
+                      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+                      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
                       <Route path="/leaderboard" element={<Leaderboard />} />
                       
                       {/* Protected routes */}
@@ -46,6 +48,11 @@ function App() {
                       <Route path="/lobby" element={
                         <ProtectedRoute>
                           <Lobby />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/waiting/:roomId" element={
+                        <ProtectedRoute>
+                          <WaitingArea />
                         </ProtectedRoute>
                       } />
                       <Route path="/game/:roomId" element={

@@ -1,15 +1,28 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-
-const express = require("express");
-import { Game } from "../models/Game.js";
-import { User } from "../models/User.js";
-import { authenticate, requireAdmin } from "../middleware/auth.js";
+const express = require('express');
+const { Game } = require('../models/Game.js');
+const { User } = require('../models/User.js');
+const auth = require('../middleware/auth.js');
 
 const router = express.Router();
 
+// Admin middleware to check admin privileges
+const requireAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ message: 'Admin privileges required' });
+  }
+  
+  next();
+};
+
+// Combined auth + admin middleware
+const adminAuth = [auth, requireAdmin];
+
 // All admin routes require authentication and admin privileges
-router.use(authenticate);
+router.use(auth);
 router.use(requireAdmin);
 
 // Get admin dashboard statistics - REQUIRES ADMIN AUTH
@@ -216,7 +229,7 @@ router.patch("/users/:userId/admin", async (req, res) => {
     }
 
     // Prevent admin from removing their own admin status
-    if (userId === req.userId && !isAdmin) {
+    if (userId === req.user.id && !isAdmin) {
       return res
         .status(400)
         .json({ message: "Cannot remove your own admin privileges" });
@@ -253,7 +266,7 @@ router.delete("/users/:userId", async (req, res) => {
     const { userId } = req.params;
 
     // Prevent admin from deleting their own account
-    if (userId === req.userId) {
+    if (userId === req.user.id) {
       return res
         .status(400)
         .json({ message: "Cannot delete your own account" });
@@ -383,4 +396,4 @@ router.get("/stats/system", async (req, res) => {
   }
 });
 
-export default router;
+module.exports = router;

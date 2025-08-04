@@ -1,16 +1,13 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-
-const express = require("express");
-import { User } from "../models/User.js";
-import { authenticate } from "../middleware/auth.js";
+const express = require('express');
+const { User } = require('../models/User.js');
+const auth = require('../middleware/auth.js');
 
 const router = express.Router();
 
 // Get user's personal stats - REQUIRES AUTH
-router.get("/stats", authenticate, async (req, res) => {
+router.get("/stats", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select("stats achievements");
+    const user = await User.findById(req.user.id).select("stats achievements");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -73,4 +70,4 @@ router.get("/:userId/profile", async (req, res) => {
   }
 });
 
-export default router;
+module.exports = router;

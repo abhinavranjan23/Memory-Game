@@ -1,65 +1,128 @@
-import express from "express";
-import bcrypt from "bcryptjs";
-import { User } from "../models/User.js";
-import {
-  generateToken,
-  createGuestUser,
-  authenticate,
-} from "../middleware/auth.js";
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const { User } = require('../models/User.js');
+const {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} = require('../utils/auth.js');
+const auth = require('../middleware/auth.js');
 
 const router = express.Router();
 
 // Guest login - NO AUTH REQUIRED
-router.post("/guest", async (req, res) => {
+router.post('/guest', async (req, res) => {
   try {
-    const guestUser = await createGuestUser();
-    const token = generateToken(guestUser._id.toString());
+    const { username } = req.body;
 
-    res.status(200).json({
-      token,
-      user: {
-        id: guestUser._id,
-        username: guestUser.username,
-        isGuest: true,
-        avatar: guestUser.avatar,
-        stats: guestUser.stats,
-      },
+    if (!username || username.trim().length < 2) {
+      return res.status(400).json({
+        message: 'Username must be at least 2 characters long'
+      });
+    }
+
+    // Check if username already exists
+    const existingUser = await User.findOne({ 
+      username: username.trim(),
+      isGuest: false 
     });
+
+    if (existingUser) {
+      return res.status(409).json({
+        message: 'Username already taken by a registered user'
+      });
+    }
+
+    // Create guest user (temporary, not saved to DB in most cases)
+    const guestUser = {
+      id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      username: username.trim(),
+      isGuest: true,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username.trim()}`,
+      stats: {
+        gamesPlayed: 0,
+        gamesWon: 0,
+        totalScore: 0,
+        winRate: 0,
+        averageScore: 0,
+        bestScore: 0,
+        totalFlips: 0,
+        totalMatches: 0,
+        averageFlipTime: 0,
+        longestMatchStreak: 0,
+        powerUpsUsed: 0,
+        perfectGames: 0
+      },
+      achievements: [],
+      createdAt: new Date(),
+      lastActive: new Date()
+    };
+
+    // Generate tokens for guest session
+    const accessToken = generateAccessToken(guestUser.id, true);
+    const refreshToken = generateRefreshToken(guestUser.id, true);
+
+    res.status(201).json({
+      message: 'Guest session created successfully',
+      user: guestUser,
+      tokens: {
+        accessToken,
+        refreshToken
+      }
+    });
+
   } catch (error) {
-    console.error("Guest login error:", error);
-    res.status(500).json({ message: "Failed to create guest account" });
+    console.error('Guest login error:', error);
+    res.status(500).json({
+      message: 'Failed to create guest session'
+    });
   }
 });
 
 // Register new user - NO AUTH REQUIRED
-router.post("/register", async (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
-    // Validate input
+    // Validation
     if (!username || !email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Username, email, and password are required" });
+      return res.status(400).json({
+        message: 'Username, email, and password are required'
+      });
+    }
+
+    if (username.length < 2) {
+      return res.status(400).json({
+        message: 'Username must be at least 2 characters long'
+      });
     }
 
     if (password.length < 6) {
-      return res
-        .status(400)
-        .json({ message: "Password must be at least 6 characters long" });
+      return res.status(400).json({
+        message: 'Password must be at least 6 characters long'
+      });
     }
 
-    // Check if user already exists
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        message: 'Please provide a valid email address'
+      });
+    }
+
+    // Check for existing user
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
+      $or: [
+        { email: email.toLowerCase() },
+        { username: username }
+      ]
     });
 
     if (existingUser) {
-      return res.status(400).json({
-        message:
-          existingUser.email === email
-            ? "Email already registered"
-            : "Username already taken",
+      return res.status(409).json({
+        message: existingUser.email === email.toLowerCase() ? 
+          'Email already registered' : 'Username already taken'
       });
     }
 
@@ -67,311 +130,252 @@ router.post("/register", async (req, res) => {
     const saltRounds = 12;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Create new user
+    // Create user
     const user = new User({
       username,
-      email,
+      email: email.toLowerCase(),
       password: hashedPassword,
-      isGuest: false,
-      stats: {
-        gamesPlayed: 0,
-        gamesWon: 0,
-        winRate: 0,
-        totalScore: 0,
-        averageFlipTime: 0,
-        bestMatchStreak: 0,
-        perfectGames: 0,
-        powerUpsUsed: 0,
-      },
-      achievements: [],
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+      isGuest: false
     });
 
     await user.save();
 
-    // Generate token
-    const token = generateToken(user._id.toString());
+    // Generate tokens
+    const accessToken = generateAccessToken(user._id, false);
+    const refreshToken = generateRefreshToken(user._id, false);
+
+    // Return user data (excluding password)
+    const userResponse = {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      isGuest: false,
+      stats: user.stats,
+      achievements: user.achievements,
+      createdAt: user.createdAt
+    };
 
     res.status(201).json({
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        isGuest: false,
-        avatar: user.avatar,
-        stats: user.stats,
-        achievements: user.achievements,
-      },
+      message: 'User registered successfully',
+      user: userResponse,
+      tokens: {
+        accessToken,
+        refreshToken
+      }
     });
+
   } catch (error) {
-    console.error("Registration error:", error);
-    res.status(500).json({ message: "Registration failed" });
+    console.error('Registration error:', error);
+    res.status(500).json({
+      message: 'Registration failed'
+    });
   }
 });
 
-// Login user - NO AUTH REQUIRED
-router.post("/login", async (req, res) => {
+// Login existing user - NO AUTH REQUIRED
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required" });
+      return res.status(400).json({
+        message: 'Email and password are required'
+      });
     }
 
-    // Find user by email
-    const user = await User.findOne({ email }).select("+password");
+    // Find user
+    const user = await User.findOne({ 
+      email: email.toLowerCase(),
+      isGuest: false 
+    }).select('+password');
+
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({
+        message: 'Invalid email or password'
+      });
     }
 
-    // Check if user has a password (not OAuth user)
-    if (!user.password) {
-      return res
-        .status(401)
-        .json({ message: "Please use Google login for this account" });
-    }
-
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ message: "Invalid credentials" });
+    // Check password
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        message: 'Invalid email or password'
+      });
     }
 
     // Update last active
     user.lastActive = new Date();
     await user.save();
 
-    // Generate token
-    const token = generateToken(user._id.toString());
+    // Generate tokens
+    const accessToken = generateAccessToken(user._id, false);
+    const refreshToken = generateRefreshToken(user._id, false);
+
+    // Return user data (excluding password)
+    const userResponse = {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      isGuest: false,
+      stats: user.stats,
+      achievements: user.achievements,
+      createdAt: user.createdAt,
+      lastActive: user.lastActive
+    };
 
     res.status(200).json({
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        isGuest: false,
-        avatar: user.avatar,
-        stats: user.stats,
-        achievements: user.achievements,
-      },
+      message: 'Login successful',
+      user: userResponse,
+      tokens: {
+        accessToken,
+        refreshToken
+      }
     });
+
   } catch (error) {
-    console.error("Login error:", error);
-    res.status(500).json({ message: "Login failed" });
+    console.error('Login error:', error);
+    res.status(500).json({
+      message: 'Login failed'
+    });
   }
 });
 
-// Google OAuth callback - NO AUTH REQUIRED
-router.post("/google", async (req, res) => {
+// Refresh access token - NO AUTH REQUIRED (uses refresh token)
+router.post('/refresh', async (req, res) => {
   try {
-    const { googleId, email, name, picture } = req.body;
+    const { refreshToken } = req.body;
 
-    if (!googleId || !email) {
-      return res
-        .status(400)
-        .json({ message: "Google ID and email are required" });
-    }
-
-    // Check if user exists
-    let user = await User.findOne({
-      $or: [{ googleId }, { email }],
-    });
-
-    if (user) {
-      // Update Google ID if not set
-      if (!user.googleId) {
-        user.googleId = googleId;
-      }
-
-      // Update avatar if provided
-      if (picture && !user.avatar) {
-        user.avatar = picture;
-      }
-
-      user.lastActive = new Date();
-      await user.save();
-    } else {
-      // Create new user
-      user = new User({
-        username: name || email.split("@")[0],
-        email,
-        googleId,
-        avatar: picture,
-        isGuest: false,
-        stats: {
-          gamesPlayed: 0,
-          gamesWon: 0,
-          winRate: 0,
-          totalScore: 0,
-          averageFlipTime: 0,
-          bestMatchStreak: 0,
-          perfectGames: 0,
-          powerUpsUsed: 0,
-        },
-        achievements: [],
+    if (!refreshToken) {
+      return res.status(400).json({
+        message: 'Refresh token is required'
       });
-
-      await user.save();
     }
 
-    // Generate token
-    const token = generateToken(user._id.toString());
-
-    res.status(200).json({
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        isGuest: false,
-        avatar: user.avatar,
-        stats: user.stats,
-        achievements: user.achievements,
-      },
-    });
-  } catch (error) {
-    console.error("Google auth error:", error);
-    res.status(500).json({ message: "Google authentication failed" });
-  }
-});
-
-// Get current user - REQUIRES AUTH
-router.get("/me", authenticate, async (req, res) => {
-  try {
-    const user = await User.findById(req.userId).select("-password");
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json({
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        isGuest: user.isGuest,
-        avatar: user.avatar,
-        stats: user.stats,
-        achievements: user.achievements,
-        isAdmin: user.isAdmin,
-      },
-    });
-  } catch (error) {
-    console.error("Get user error:", error);
-    res.status(500).json({ message: "Failed to get user data" });
-  }
-});
-
-// Update user profile - REQUIRES AUTH
-router.patch("/profile", authenticate, async (req, res) => {
-  try {
-    const { username, avatar } = req.body;
-    const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Update fields if provided
-    if (username && username !== user.username) {
-      // Check if username is already taken
-      const existingUser = await User.findOne({
-        username,
-        _id: { $ne: user._id },
+    // Verify refresh token
+    const decoded = verifyRefreshToken(refreshToken);
+    if (!decoded) {
+      return res.status(401).json({
+        message: 'Invalid refresh token'
       });
-      if (existingUser) {
-        return res.status(400).json({ message: "Username already taken" });
-      }
-      user.username = username;
     }
 
-    if (avatar !== undefined) {
-      user.avatar = avatar;
+    // For guest users, generate new tokens
+    if (decoded.isGuest) {
+      const newAccessToken = generateAccessToken(decoded.userId, true);
+      const newRefreshToken = generateRefreshToken(decoded.userId, true);
+
+      return res.status(200).json({
+        message: 'Tokens refreshed successfully',
+        tokens: {
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken
+        }
+      });
     }
 
-    await user.save();
+    // For registered users, check if user still exists
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({
+        message: 'User not found'
+      });
+    }
+
+    // Generate new tokens
+    const newAccessToken = generateAccessToken(user._id, false);
+    const newRefreshToken = generateRefreshToken(user._id, false);
 
     res.status(200).json({
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        isGuest: user.isGuest,
-        avatar: user.avatar,
-        stats: user.stats,
-        achievements: user.achievements,
-      },
+      message: 'Tokens refreshed successfully',
+      tokens: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+      }
+    });
+
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({
+      message: 'Failed to refresh token'
+    });
+  }
+});
+
+// Logout user - REQUIRES AUTH
+router.post('/logout', auth, async (req, res) => {
+  try {
+    // For registered users, update last active time
+    if (!req.user.isGuest) {
+      await User.findByIdAndUpdate(req.user.id, {
+        lastActive: new Date()
+      });
+    }
+
+    res.status(200).json({
+      message: 'Logout successful'
     });
   } catch (error) {
-    console.error("Profile update error:", error);
-    res.status(500).json({ message: "Failed to update profile" });
+    console.error('Logout error:', error);
+    res.status(500).json({
+      message: 'Logout failed'
+    });
   }
 });
 
-// Change password - REQUIRES AUTH
-router.patch("/password", authenticate, async (req, res) => {
+// Get current user info - REQUIRES AUTH
+router.get('/me', auth, async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res
-        .status(400)
-        .json({ message: "Current password and new password are required" });
+    if (req.user.isGuest) {
+      // For guest users, return the basic info
+      return res.status(200).json({
+        user: {
+          id: req.user.id,
+          username: req.user.username,
+          isGuest: true,
+          avatar: req.user.avatar,
+          stats: req.user.stats || {
+            gamesPlayed: 0,
+            gamesWon: 0,
+            totalScore: 0,
+            winRate: 0
+          }
+        }
+      });
     }
 
-    if (newPassword.length < 6) {
-      return res
-        .status(400)
-        .json({ message: "New password must be at least 6 characters long" });
-    }
-
-    const user = await User.findById(req.userId).select("+password");
+    // For registered users, get from database
+    const user = await User.findById(req.user.id);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({
+        message: 'User not found'
+      });
     }
 
-    // Check if user has a password (not OAuth user)
-    if (!user.password) {
-      return res
-        .status(400)
-        .json({ message: "Cannot change password for OAuth accounts" });
-    }
+    const userResponse = {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      isGuest: false,
+      stats: user.stats,
+      achievements: user.achievements,
+      createdAt: user.createdAt,
+      lastActive: user.lastActive
+    };
 
-    // Verify current password
-    const isValidPassword = await bcrypt.compare(
-      currentPassword,
-      user.password
-    );
-    if (!isValidPassword) {
-      return res.status(401).json({ message: "Current password is incorrect" });
-    }
+    res.status(200).json({
+      user: userResponse
+    });
 
-    // Hash new password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
-
-    user.password = hashedPassword;
-    await user.save();
-
-    res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
-    console.error("Password change error:", error);
-    res.status(500).json({ message: "Failed to change password" });
+    console.error('Get user info error:', error);
+    res.status(500).json({
+      message: 'Failed to get user information'
+    });
   }
 });
 
-// Logout - REQUIRES AUTH
-router.post("/logout", authenticate, async (req, res) => {
-  try {
-    // Update last active time
-    await User.findByIdAndUpdate(req.userId, { lastActive: new Date() });
-    res.status(200).json({ message: "Logged out successfully" });
-  } catch (error) {
-    console.error("Logout error:", error);
-    res.status(500).json({ message: "Logout failed" });
-  }
-});
-
-export default router;
+module.exports = router;

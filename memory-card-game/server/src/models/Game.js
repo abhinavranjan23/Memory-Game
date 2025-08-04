@@ -1,16 +1,16 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const powerUpSchema = new mongoose.Schema({
-  type: { 
-    type: String, 
-    enum: ['extraTurn', 'peek', 'swap', 'revealOne', 'freeze', 'shuffle'],
-    required: true 
+  type: {
+    type: String,
+    enum: ["extraTurn", "peek", "swap", "revealOne", "freeze", "shuffle"],
+    required: true,
   },
   name: { type: String, required: true },
   description: { type: String, required: true },
   icon: { type: String, required: true },
   duration: { type: Number },
-  uses: { type: Number, default: 1 }
+  uses: { type: Number, default: 1 },
 });
 
 const cardSchema = new mongoose.Schema({
@@ -19,7 +19,7 @@ const cardSchema = new mongoose.Schema({
   isFlipped: { type: Boolean, default: false },
   isMatched: { type: Boolean, default: false },
   powerUp: { type: powerUpSchema, default: null },
-  theme: { type: String, required: true }
+  theme: { type: String, required: true },
 });
 
 const playerSchema = new mongoose.Schema({
@@ -34,43 +34,47 @@ const playerSchema = new mongoose.Schema({
   memoryMeter: { type: Number, default: 0 },
   isCurrentTurn: { type: Boolean, default: false },
   lastFlipTime: { type: Date },
-  matchStreak: { type: Number, default: 0 }
+  matchStreak: { type: Number, default: 0 },
 });
 
 const gameStateSchema = new mongoose.Schema({
-  status: { 
-    type: String, 
-    enum: ['waiting', 'starting', 'playing', 'paused', 'finished'],
-    default: 'waiting'
+  status: {
+    type: String,
+    enum: ["waiting", "starting", "playing", "paused", "finished"],
+    default: "waiting",
   },
   currentPlayerIndex: { type: Number, default: 0 },
   board: [cardSchema],
   flippedCards: [{ type: Number }],
   matchedPairs: [{ type: Number }],
   timeLeft: { type: Number, default: 0 },
-  gameMode: { 
-    type: String, 
-    enum: ['classic', 'blitz', 'sudden-death', 'powerup-frenzy'],
-    default: 'classic'
+  gameMode: {
+    type: String,
+    enum: ["classic", "blitz", "sudden-death", "powerup-frenzy"],
+    default: "classic",
   },
   round: { type: Number, default: 1 },
   lastActivity: { type: Date, default: Date.now },
-  powerUpPool: [powerUpSchema]
+  powerUpPool: [powerUpSchema],
 });
 
 const gameSettingsSchema = new mongoose.Schema({
-  boardSize: { type: Number, enum: [4, 6, 8], default: 4 },
-  theme: { type: String, default: 'emojis' },
-  gameMode: { 
-    type: String, 
-    enum: ['classic', 'blitz', 'sudden-death', 'powerup-frenzy'],
-    default: 'classic'
+  boardSize: {
+    type: String,
+    enum: ["4x4", "6x6", "8x8"],
+    default: "4x4",
+  },
+  theme: { type: String, default: "emojis" },
+  gameMode: {
+    type: String,
+    enum: ["classic", "blitz", "sudden-death", "powerup-frenzy"],
+    default: "classic",
   },
   timeLimit: { type: Number, default: 300 }, // 5 minutes
   maxPlayers: { type: Number, default: 2, min: 2, max: 4 },
   powerUpsEnabled: { type: Boolean, default: true },
   chatEnabled: { type: Boolean, default: true },
-  isRanked: { type: Boolean, default: true }
+  isRanked: { type: Boolean, default: true },
 });
 
 const chatMessageSchema = new mongoose.Schema({
@@ -79,33 +83,36 @@ const chatMessageSchema = new mongoose.Schema({
   username: { type: String, required: true },
   message: { type: String, required: true, maxlength: 500 },
   timestamp: { type: Date, default: Date.now },
-  type: { type: String, enum: ['user', 'system', 'admin'], default: 'user' }
+  type: { type: String, enum: ["user", "system", "admin"], default: "user" },
 });
 
-const gameSchema = new mongoose.Schema({
-  roomId: { type: String, required: true, unique: true },
-  players: [playerSchema],
-  gameState: { type: gameStateSchema, default: () => ({}) },
-  settings: { type: gameSettingsSchema, default: () => ({}) },
-  chat: [chatMessageSchema],
-  endedAt: { type: Date },
-  isPrivate: { type: Boolean, default: false },
-  password: { type: String }
-}, {
-  timestamps: true
-});
+const gameSchema = new mongoose.Schema(
+  {
+    roomId: { type: String, required: true, unique: true },
+    players: [playerSchema],
+    gameState: { type: gameStateSchema, default: () => ({}) },
+    settings: { type: gameSettingsSchema, default: () => ({}) },
+    chat: [chatMessageSchema],
+    endedAt: { type: Date },
+    isPrivate: { type: Boolean, default: false },
+    password: { type: String },
+  },
+  {
+    timestamps: true,
+  }
+);
 
 // Game methods
-gameSchema.methods.addPlayer = function(userId, username, avatar) {
+gameSchema.methods.addPlayer = function (userId, username, avatar) {
   if (this.players.length >= this.settings.maxPlayers) {
-    throw new Error('Game is full');
+    throw new Error("Game is full");
   }
-  
-  const playerExists = this.players.find(p => p.userId === userId);
+
+  const playerExists = this.players.find((p) => p.userId === userId);
   if (playerExists) {
-    throw new Error('Player already in game');
+    throw new Error("Player already in game");
   }
-  
+
   this.players.push({
     userId,
     username,
@@ -117,44 +124,49 @@ gameSchema.methods.addPlayer = function(userId, username, avatar) {
     powerUps: [],
     memoryMeter: 0,
     isCurrentTurn: this.players.length === 0,
-    matchStreak: 0
+    matchStreak: 0,
   });
 };
 
-gameSchema.methods.removePlayer = function(userId) {
-  this.players = this.players.filter(p => p.userId !== userId);
+gameSchema.methods.removePlayer = function (userId) {
+  this.players = this.players.filter((p) => p.userId !== userId);
   if (this.players.length === 0) {
-    this.gameState.status = 'finished';
+    this.gameState.status = "finished";
   }
 };
 
-gameSchema.methods.togglePlayerReady = function(userId) {
-  const player = this.players.find(p => p.userId === userId);
+gameSchema.methods.togglePlayerReady = function (userId) {
+  const player = this.players.find((p) => p.userId === userId);
   if (player) {
     player.isReady = !player.isReady;
   }
-  
+
   // Check if all players are ready
-  const allReady = this.players.every(p => p.isReady);
+  const allReady = this.players.every((p) => p.isReady);
   if (allReady && this.players.length >= 2) {
-    this.gameState.status = 'starting';
+    this.gameState.status = "starting";
   }
 };
 
-gameSchema.methods.addChatMessage = function(userId, username, message, type = 'user') {
+gameSchema.methods.addChatMessage = function (
+  userId,
+  username,
+  message,
+  type = "user"
+) {
   this.chat.push({
     id: new mongoose.Types.ObjectId().toString(),
     userId,
     username,
     message,
     timestamp: new Date(),
-    type
+    type,
   });
-  
+
   // Keep only last 100 messages
   if (this.chat.length > 100) {
     this.chat = this.chat.slice(-100);
   }
 };
 
-module.exports = { Game: mongoose.model('Game', gameSchema) };
+module.exports = { Game: mongoose.model("Game", gameSchema) };

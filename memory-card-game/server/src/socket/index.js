@@ -6,6 +6,7 @@ const { authenticateSocket } = require('../middleware/auth.js');
 const activeGames = new Map(); // roomId -> GameEngine
 const userSockets = new Map(); // userId -> socketId
 const socketUsers = new Map(); // socketId -> userId
+const activePlayers = new Set(); // Set of active user IDs
 
 function initializeSocket(io) {
   // Authentication middleware
@@ -17,6 +18,10 @@ function initializeSocket(io) {
     if (socket.userId) {
       userSockets.set(socket.userId, socket.id);
       socketUsers.set(socket.id, socket.userId);
+      activePlayers.add(socket.userId);
+      
+      // Emit active players count to all clients
+      io.emit('active-players', { count: activePlayers.size });
     }
 
     // Join a game room
@@ -27,6 +32,11 @@ function initializeSocket(io) {
         if (!roomId) {
           socket.emit('error', { message: 'Room ID is required' });
           return;
+        }
+
+        // Leave current room if in one
+        if (socket.currentRoom) {
+          await handleLeaveRoom(socket, socket.currentRoom);
         }
 
         // Find the game
@@ -107,6 +117,39 @@ function initializeSocket(io) {
             isReady: false
           }
         });
+
+        // Notify all clients about the room update
+        io.emit('room-updated', {
+          roomId: game.roomId,
+          playerCount: game.players.length,
+          maxPlayers: game.settings.maxPlayers,
+          isJoinable: game.players.length < game.settings.maxPlayers,
+          gameMode: game.settings.gameMode,
+          status: game.gameState.status
+        });
+        
+        // Auto-start game if room has reached 2 players
+        if (game.players.length === 2 && game.gameState.status === 'waiting') {
+          // Set all players as ready
+          game.players.forEach(player => {
+            player.isReady = true;
+          });
+          game.gameState.status = 'starting';
+          await game.save();
+          
+          // Emit game-start event to all players in the room
+          io.to(roomId).emit('game-start', {
+            roomId: game.roomId,
+            players: game.players,
+            gameState: game.gameState
+          });
+          
+          // Start the game
+          const gameEngine = activeGames.get(roomId);
+          if (gameEngine) {
+            await gameEngine.startGame();
+          }
+        }
 
         console.log(`${socket.username} joined room ${roomId}`);
       } catch (error) {
@@ -262,6 +305,13 @@ function initializeSocket(io) {
             boardSize: game.settings.boardSize,
             theme: game.settings.theme,
             status: game.gameState.status,
+            isJoinable: game.players.length < game.settings.maxPlayers,
+            players: game.players.map(p => ({
+              userId: p.userId,
+              username: p.username,
+              avatar: p.avatar,
+              isHost: p.isHost
+            })),
             createdAt: game.createdAt
           }))
         });
@@ -319,6 +369,10 @@ function initializeSocket(io) {
       if (socket.userId) {
         userSockets.delete(socket.userId);
         socketUsers.delete(socket.id);
+        activePlayers.delete(socket.userId);
+        
+        // Emit updated active players count to all clients
+        io.emit('active-players', { count: activePlayers.size });
       }
 
       if (socket.currentRoom) {

@@ -13,17 +13,19 @@ const router = express.Router();
 // Guest login - NO AUTH REQUIRED
 router.post('/guest', async (req, res) => {
   try {
-    const { username } = req.body;
+    let { username } = req.body;
 
+    // Generate random username if not provided
     if (!username || username.trim().length < 2) {
-      return res.status(400).json({
-        message: 'Username must be at least 2 characters long'
-      });
+      const randomId = Math.random().toString(36).substr(2, 6);
+      username = `Guest${randomId}`;
+    } else {
+      username = username.trim();
     }
 
     // Check if username already exists
     const existingUser = await User.findOne({ 
-      username: username.trim(),
+      username: username,
       isGuest: false 
     });
 
@@ -36,9 +38,9 @@ router.post('/guest', async (req, res) => {
     // Create guest user (temporary, not saved to DB in most cases)
     const guestUser = {
       id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      username: username.trim(),
+      username: username,
       isGuest: true,
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username.trim()}`,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
       stats: {
         gamesPlayed: 0,
         gamesWon: 0,
@@ -65,10 +67,8 @@ router.post('/guest', async (req, res) => {
     res.status(201).json({
       message: 'Guest session created successfully',
       user: guestUser,
-      tokens: {
-        accessToken,
-        refreshToken
-      }
+      token: accessToken,
+      refreshToken
     });
 
   } catch (error) {
@@ -160,10 +160,8 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       message: 'User registered successfully',
       user: userResponse,
-      tokens: {
-        accessToken,
-        refreshToken
-      }
+      token: accessToken,
+      refreshToken
     });
 
   } catch (error) {
@@ -229,10 +227,8 @@ router.post('/login', async (req, res) => {
     res.status(200).json({
       message: 'Login successful',
       user: userResponse,
-      tokens: {
-        accessToken,
-        refreshToken
-      }
+      token: accessToken,
+      refreshToken
     });
 
   } catch (error) {

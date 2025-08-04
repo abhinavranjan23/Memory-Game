@@ -22,6 +22,7 @@ const achievementSchema = new mongoose.Schema({
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, trim: true },
   email: { type: String, sparse: true, lowercase: true },
+  password: { type: String, select: false },
   googleId: { type: String, sparse: true },
   avatar: { type: String, default: null },
   isGuest: { type: Boolean, default: false },
@@ -42,7 +43,7 @@ userSchema.methods.updateStats = function(gameResult) {
   this.stats.winRate = (this.stats.gamesWon / this.stats.gamesPlayed) * 100;
   this.stats.totalScore += gameResult.score;
   
-  if (gameResult.flipTimes.length > 0) {
+  if (gameResult.flipTimes && gameResult.flipTimes.length > 0) {
     const avgTime = gameResult.flipTimes.reduce((a, b) => a + b, 0) / gameResult.flipTimes.length;
     this.stats.averageFlipTime = (this.stats.averageFlipTime + avgTime) / 2;
   }
@@ -55,7 +56,7 @@ userSchema.methods.updateStats = function(gameResult) {
     this.stats.perfectGames += 1;
   }
   
-  this.stats.powerUpsUsed += gameResult.powerUpsUsed;
+  this.stats.powerUpsUsed += gameResult.powerUpsUsed || 0;
   this.lastActive = new Date();
 };
 

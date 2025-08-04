@@ -1,23 +1,10 @@
-import { Request, Response, NextFunction } from 'express';
-import { Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key';
 
-export interface AuthenticatedRequest extends Request {
-  userId?: string;
-  user?: any;
-}
-
-export interface AuthenticatedSocket extends Socket {
-  userId?: string;
-  username?: string;
-  isGuest?: boolean;
-}
-
 // HTTP Authentication Middleware
-export const authenticate = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
@@ -25,7 +12,7 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
       return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.userId).select('-password');
     
     if (!user) {
@@ -41,12 +28,12 @@ export const authenticate = async (req: AuthenticatedRequest, res: Response, nex
 };
 
 // Optional authentication (allows guest users)
-export const optionalAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const optionalAuth = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
     if (token) {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, JWT_SECRET);
       const user = await User.findById(decoded.userId).select('-password');
       
       if (user) {
@@ -63,7 +50,7 @@ export const optionalAuth = async (req: AuthenticatedRequest, res: Response, nex
 };
 
 // Admin authentication
-export const requireAdmin = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+export const requireAdmin = async (req, res, next) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: 'Access denied. Authentication required.' });
@@ -80,7 +67,7 @@ export const requireAdmin = async (req: AuthenticatedRequest, res: Response, nex
 };
 
 // Socket.IO Authentication Middleware
-export const verifySocketToken = async (socket: AuthenticatedSocket, next: any) => {
+export const verifySocketToken = async (socket, next) => {
   try {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
     
@@ -91,7 +78,7 @@ export const verifySocketToken = async (socket: AuthenticatedSocket, next: any) 
       return next();
     }
 
-    const decoded = jwt.verify(token as string, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET);
     const user = await User.findById(decoded.userId).select('-password');
     
     if (!user) {
@@ -117,17 +104,17 @@ export const verifySocketToken = async (socket: AuthenticatedSocket, next: any) 
 };
 
 // Generate JWT token
-export const generateToken = (userId: string, expiresIn: string = '7d'): string => {
+export const generateToken = (userId, expiresIn = '7d') => {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn });
 };
 
 // Verify JWT token
-export const verifyToken = (token: string): any => {
+export const verifyToken = (token) => {
   return jwt.verify(token, JWT_SECRET);
 };
 
 // Create guest user
-export const createGuestUser = async (): Promise<any> => {
+export const createGuestUser = async () => {
   const guestUsername = `Guest${Math.floor(Math.random() * 100000)}`;
   
   const guestUser = new User({

@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
-import { generateToken, createGuestUser, authenticate } from '../middleware/auth.js';
+import { generateToken, createGuestUser, authenticate, AuthenticatedRequest } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -225,7 +225,7 @@ router.post('/google', async (req, res) => {
 });
 
 // Get current user
-router.get('/me', authenticate, async (req, res) => {
+router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
     if (!user) {
@@ -251,7 +251,7 @@ router.get('/me', authenticate, async (req, res) => {
 });
 
 // Update user profile
-router.patch('/profile', authenticate, async (req, res) => {
+router.patch('/profile', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { username, avatar } = req.body;
     const user = await User.findById(req.userId);
@@ -294,8 +294,50 @@ router.patch('/profile', authenticate, async (req, res) => {
   }
 });
 
+// Change password
+router.patch('/password', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new passwords are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    const user = await User.findById(req.userId).select('+password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user has a password (not OAuth only)
+    if (!user.password) {
+      return res.status(400).json({ message: 'Cannot change password for OAuth account' });
+    }
+
+    // Verify current password
+    const isValidPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const saltRounds = 12;
+    user.password = await bcrypt.hash(newPassword, saltRounds);
+    await user.save();
+
+    res.status(200).json({ message: 'Password updated successfully' });
+
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({ message: 'Failed to change password' });
+  }
+});
+
 // Logout (client-side token removal, but we can track it)
-router.post('/logout', authenticate, async (req, res) => {
+router.post('/logout', authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     // Update last active time
     await User.findByIdAndUpdate(req.userId, { lastActive: new Date() });

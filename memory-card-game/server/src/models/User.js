@@ -1,6 +1,7 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
+import { User as IUser, UserStats, Achievement } from '../types/index.js';
 
-const userStatsSchema = new mongoose.Schema({
+const userStatsSchema = new Schema<UserStats>({
   gamesPlayed: { type: Number, default: 0 },
   gamesWon: { type: Number, default: 0 },
   winRate: { type: Number, default: 0 },
@@ -11,7 +12,7 @@ const userStatsSchema = new mongoose.Schema({
   powerUpsUsed: { type: Number, default: 0 }
 });
 
-const achievementSchema = new mongoose.Schema({
+const achievementSchema = new Schema<Achievement>({
   id: { type: String, required: true },
   name: { type: String, required: true },
   description: { type: String, required: true },
@@ -19,10 +20,9 @@ const achievementSchema = new mongoose.Schema({
   unlockedAt: { type: Date, required: true }
 });
 
-const userSchema = new mongoose.Schema({
+const userSchema = new Schema<IUser & Document>({
   username: { type: String, required: true, unique: true, trim: true },
   email: { type: String, sparse: true, lowercase: true },
-  password: { type: String, select: false },
   googleId: { type: String, sparse: true },
   avatar: { type: String, default: null },
   isGuest: { type: Boolean, default: false },
@@ -35,7 +35,16 @@ const userSchema = new mongoose.Schema({
 });
 
 // Update stats after each game
-userSchema.methods.updateStats = function(gameResult) {
+userSchema.methods.updateStats = function(gameResult: {
+  won: boolean;
+  score: number;
+  flips: number;
+  matches: number;
+  flipTimes: number[];
+  matchStreak: number;
+  powerUpsUsed: number;
+  isPerfect: boolean;
+}) {
   this.stats.gamesPlayed += 1;
   if (gameResult.won) {
     this.stats.gamesWon += 1;
@@ -61,8 +70,8 @@ userSchema.methods.updateStats = function(gameResult) {
 };
 
 // Add achievement
-userSchema.methods.addAchievement = function(achievement) {
-  const exists = this.achievements.find(a => a.id === achievement.id);
+userSchema.methods.addAchievement = function(achievement: Omit<Achievement, 'unlockedAt'>) {
+  const exists = this.achievements.find((a: Achievement) => a.id === achievement.id);
   if (!exists) {
     this.achievements.push({
       ...achievement,
@@ -71,4 +80,4 @@ userSchema.methods.addAchievement = function(achievement) {
   }
 };
 
-export const User = mongoose.model('User', userSchema);
+export const User = mongoose.model<IUser & Document>('User', userSchema);

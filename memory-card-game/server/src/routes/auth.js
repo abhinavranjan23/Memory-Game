@@ -1,11 +1,11 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
-import { generateToken, createGuestUser, authenticate, AuthenticatedRequest } from '../middleware/auth.js';
+import { generateToken, createGuestUser, authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Guest login
+// Guest login - NO AUTH REQUIRED
 router.post('/guest', async (req, res) => {
   try {
     const guestUser = await createGuestUser();
@@ -27,7 +27,7 @@ router.post('/guest', async (req, res) => {
   }
 });
 
-// Register new user
+// Register new user - NO AUTH REQUIRED
 router.post('/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -99,7 +99,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login user
+// Login user - NO AUTH REQUIRED
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -151,7 +151,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Google OAuth callback (simplified - in production, use passport.js)
+// Google OAuth callback - NO AUTH REQUIRED
 router.post('/google', async (req, res) => {
   try {
     const { googleId, email, name, picture } = req.body;
@@ -224,8 +224,8 @@ router.post('/google', async (req, res) => {
   }
 });
 
-// Get current user
-router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
+// Get current user - REQUIRES AUTH
+router.get('/me', authenticate, async (req, res) => {
   try {
     const user = await User.findById(req.userId).select('-password');
     if (!user) {
@@ -250,8 +250,8 @@ router.get('/me', authenticate, async (req: AuthenticatedRequest, res) => {
   }
 });
 
-// Update user profile
-router.patch('/profile', authenticate, async (req: AuthenticatedRequest, res) => {
+// Update user profile - REQUIRES AUTH
+router.patch('/profile', authenticate, async (req, res) => {
   try {
     const { username, avatar } = req.body;
     const user = await User.findById(req.userId);
@@ -294,13 +294,13 @@ router.patch('/profile', authenticate, async (req: AuthenticatedRequest, res) =>
   }
 });
 
-// Change password
-router.patch('/password', authenticate, async (req: AuthenticatedRequest, res) => {
+// Change password - REQUIRES AUTH
+router.patch('/password', authenticate, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
     
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: 'Current and new passwords are required' });
+      return res.status(400).json({ message: 'Current password and new password are required' });
     }
 
     if (newPassword.length < 6) {
@@ -312,9 +312,9 @@ router.patch('/password', authenticate, async (req: AuthenticatedRequest, res) =
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if user has a password (not OAuth only)
+    // Check if user has a password (not OAuth user)
     if (!user.password) {
-      return res.status(400).json({ message: 'Cannot change password for OAuth account' });
+      return res.status(400).json({ message: 'Cannot change password for OAuth accounts' });
     }
 
     // Verify current password
@@ -325,7 +325,9 @@ router.patch('/password', authenticate, async (req: AuthenticatedRequest, res) =
 
     // Hash new password
     const saltRounds = 12;
-    user.password = await bcrypt.hash(newPassword, saltRounds);
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+    
+    user.password = hashedPassword;
     await user.save();
 
     res.status(200).json({ message: 'Password updated successfully' });
@@ -336,8 +338,8 @@ router.patch('/password', authenticate, async (req: AuthenticatedRequest, res) =
   }
 });
 
-// Logout (client-side token removal, but we can track it)
-router.post('/logout', authenticate, async (req: AuthenticatedRequest, res) => {
+// Logout - REQUIRES AUTH
+router.post('/logout', authenticate, async (req, res) => {
   try {
     // Update last active time
     await User.findByIdAndUpdate(req.userId, { lastActive: new Date() });

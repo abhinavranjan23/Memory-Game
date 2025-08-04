@@ -1,24 +1,17 @@
-import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Game } from '../models/Game.js';
 import { User } from '../models/User.js';
 import { GameEngine } from './gameEngine.js';
 import { verifySocketToken } from '../middleware/auth.js';
 
-interface AuthenticatedSocket extends Socket {
-  userId?: string;
-  username?: string;
-  isGuest?: boolean;
-}
+const activeGames = new Map(); // roomId -> GameEngine
+const userSockets = new Map(); // userId -> socketId
+const socketUsers = new Map(); // socketId -> userId
 
-const activeGames = new Map<string, GameEngine>();
-const userSockets = new Map<string, string>(); // userId -> socketId
-const socketUsers = new Map<string, string>(); // socketId -> userId
-
-export function initializeSocket(io: SocketIOServer) {
+export function initializeSocket(io) {
   // Authentication middleware
   io.use(verifySocketToken);
 
-  io.on('connection', (socket: AuthenticatedSocket) => {
+  io.on('connection', (socket) => {
     console.log(`User connected: ${socket.username} (${socket.id})`);
     
     if (socket.userId) {
@@ -27,25 +20,41 @@ export function initializeSocket(io: SocketIOServer) {
     }
 
     // Join a game room
-    socket.on('join-room', async (data: { roomId: string; password?: string }) => {
+    socket.on('join-room', async (data) => {
       try {
         const { roomId, password } = data;
-        let game = await Game.findOne({ roomId }).exec();
+        
+        if (!roomId) {
+          socket.emit('error', { message: 'Room ID is required' });
+          return;
+        }
+
+        // Find the game
+        let game = await Game.findOne({ roomId });
         
         if (!game) {
-          // Create new game
+          // Create new game if it doesn't exist
           game = new Game({
             roomId,
-            players: [],
+            settings: {
+              boardSize: 4,
+              theme: 'emojis',
+              gameMode: 'classic',
+              timeLimit: 300,
+              maxPlayers: 2,
+              powerUpsEnabled: true,
+              chatEnabled: true,
+              isRanked: true
+            },
             isPrivate: !!password,
-            password
+            password: password || undefined
           });
           await game.save();
         }
 
         // Check password for private rooms
-        if (game.isPrivate && game.password !== password) {
-          socket.emit('error', { message: 'Invalid password' });
+        if (game.isPrivate && game.password && game.password !== password) {
+          socket.emit('error', { message: 'Invalid room password' });
           return;
         }
 
@@ -55,222 +64,250 @@ export function initializeSocket(io: SocketIOServer) {
           return;
         }
 
-        // Add player to game
-        try {
-          game.addPlayer(socket.userId!, socket.username!, socket.data?.avatar);
-          await game.save();
-          
-          // Join socket room
-          socket.join(roomId);
-          
-          // Initialize game engine if not exists
-          if (!activeGames.has(roomId)) {
-            activeGames.set(roomId, new GameEngine(game, io));
+        // Check if user is already in the game
+        const existingPlayer = game.players.find(p => p.userId === socket.userId);
+        if (!existingPlayer) {
+          try {
+            game.addPlayer(socket.userId, socket.username, socket.data?.avatar);
+            await game.save();
+          } catch (error) {
+            socket.emit('error', { message: error.message });
+            return;
           }
-          
-          const gameEngine = activeGames.get(roomId)!;
-          gameEngine.addPlayer(socket);
-          
-          // Notify all players in room
-          io.to(roomId).emit('player-joined', {
-            player: game.players.find(p => p.userId === socket.userId),
-            gameState: game.gameState
-          });
-          
-          socket.emit('room-joined', {
-            roomId,
-            game: game.toObject()
-          });
-          
-        } catch (error: any) {
-          socket.emit('error', { message: error.message });
         }
-        
+
+        // Join the socket room
+        socket.join(roomId);
+        socket.currentRoom = roomId;
+
+        // Initialize game engine if not exists
+        if (!activeGames.has(roomId)) {
+          const gameEngine = new GameEngine(roomId, io);
+          activeGames.set(roomId, gameEngine);
+        }
+
+        // Emit successful join
+        socket.emit('room-joined', {
+          roomId,
+          game: {
+            roomId: game.roomId,
+            players: game.players,
+            gameState: game.gameState,
+            settings: game.settings,
+            chat: game.chat.slice(-50)
+          }
+        });
+
+        // Notify other players
+        socket.to(roomId).emit('player-joined', {
+          player: {
+            userId: socket.userId,
+            username: socket.username,
+            avatar: socket.data?.avatar,
+            isReady: false
+          }
+        });
+
+        console.log(`${socket.username} joined room ${roomId}`);
       } catch (error) {
-        console.error('Error joining room:', error);
+        console.error('Join room error:', error);
         socket.emit('error', { message: 'Failed to join room' });
       }
     });
 
-    // Leave room
-    socket.on('leave-room', async (data: { roomId: string }) => {
+    // Leave current room
+    socket.on('leave-room', async () => {
+      if (socket.currentRoom) {
+        await handleLeaveRoom(socket, socket.currentRoom);
+      }
+    });
+
+    // Toggle ready status
+    socket.on('toggle-ready', async () => {
+      if (!socket.currentRoom) {
+        socket.emit('error', { message: 'Not in a room' });
+        return;
+      }
+
       try {
-        const { roomId } = data;
-        const game = await Game.findOne({ roomId }).exec();
-        
-        if (game && socket.userId) {
-          game.removePlayer(socket.userId);
-          await game.save();
-          
-          socket.leave(roomId);
-          
-          const gameEngine = activeGames.get(roomId);
+        const game = await Game.findOne({ roomId: socket.currentRoom });
+        if (!game) {
+          socket.emit('error', { message: 'Game not found' });
+          return;
+        }
+
+        game.togglePlayerReady(socket.userId);
+        await game.save();
+
+        // Emit updated game state
+        io.to(socket.currentRoom).emit('game-state', {
+          players: game.players,
+          gameState: game.gameState
+        });
+
+        // Start game if all players are ready
+        if (game.gameState.status === 'starting') {
+          const gameEngine = activeGames.get(socket.currentRoom);
           if (gameEngine) {
-            gameEngine.removePlayer(socket.userId);
-            
-            // Remove game engine if no players left
-            if (game.players.length === 0) {
-              activeGames.delete(roomId);
-            }
-          }
-          
-          // Notify remaining players
-          io.to(roomId).emit('player-left', {
-            userId: socket.userId,
-            gameState: game.gameState
-          });
-        }
-      } catch (error) {
-        console.error('Error leaving room:', error);
-      }
-    });
-
-    // Player ready toggle
-    socket.on('toggle-ready', async (data: { roomId: string }) => {
-      try {
-        const { roomId } = data;
-        const game = await Game.findOne({ roomId }).exec();
-        
-        if (game && socket.userId) {
-          game.togglePlayerReady(socket.userId);
-          await game.save();
-          
-          io.to(roomId).emit('player-ready-changed', {
-            userId: socket.userId,
-            gameState: game.gameState
-          });
-          
-          // Start game if all players ready
-          if (game.gameState.status === 'starting') {
-            const gameEngine = activeGames.get(roomId);
-            if (gameEngine) {
-              await gameEngine.startGame();
-            }
+            await gameEngine.startGame();
           }
         }
       } catch (error) {
-        console.error('Error toggling ready:', error);
+        console.error('Toggle ready error:', error);
+        socket.emit('error', { message: 'Failed to toggle ready status' });
       }
     });
 
-    // Flip card
-    socket.on('flip-card', async (data: { roomId: string; cardId: number }) => {
+    // Flip a card
+    socket.on('flip-card', async (data) => {
+      const { cardId } = data;
+      const gameEngine = activeGames.get(socket.currentRoom);
+      
+      if (!gameEngine) {
+        socket.emit('error', { message: 'Game not active' });
+        return;
+      }
+
       try {
-        const { roomId, cardId } = data;
-        const gameEngine = activeGames.get(roomId);
-        
-        if (gameEngine && socket.userId) {
-          await gameEngine.flipCard(socket.userId, cardId);
-        }
+        await gameEngine.flipCard(socket.userId, cardId);
       } catch (error) {
-        console.error('Error flipping card:', error);
-        socket.emit('error', { message: 'Invalid move' });
+        socket.emit('error', { message: error.message });
       }
     });
 
-    // Use power-up
-    socket.on('use-powerup', async (data: { 
-      roomId: string; 
-      powerUpType: string; 
-      target?: any;
-    }) => {
+    // Use a power-up
+    socket.on('use-powerup', async (data) => {
+      const { powerUpType, target } = data;
+      const gameEngine = activeGames.get(socket.currentRoom);
+      
+      if (!gameEngine) {
+        socket.emit('error', { message: 'Game not active' });
+        return;
+      }
+
       try {
-        const { roomId, powerUpType, target } = data;
-        const gameEngine = activeGames.get(roomId);
-        
-        if (gameEngine && socket.userId) {
-          await gameEngine.usePowerUp(socket.userId, powerUpType, target);
-        }
+        await gameEngine.usePowerUp(socket.userId, powerUpType, target);
       } catch (error) {
-        console.error('Error using power-up:', error);
-        socket.emit('error', { message: 'Failed to use power-up' });
+        socket.emit('error', { message: error.message });
       }
     });
 
     // Send chat message
-    socket.on('send-chat', async (data: { roomId: string; message: string }) => {
+    socket.on('send-chat', async (data) => {
+      if (!socket.currentRoom) {
+        socket.emit('error', { message: 'Not in a room' });
+        return;
+      }
+
       try {
-        const { roomId, message } = data;
-        const game = await Game.findOne({ roomId }).exec();
+        const { message } = data;
         
-        if (game && socket.userId && socket.username) {
-          // Basic message filtering
-          const cleanMessage = message.trim().substring(0, 500);
-          if (cleanMessage.length === 0) return;
-          
-          game.addChatMessage(socket.userId, socket.username, cleanMessage);
-          await game.save();
-          
-          io.to(roomId).emit('chat-message', {
-            id: game.chat[game.chat.length - 1].id,
-            userId: socket.userId,
-            username: socket.username,
-            message: cleanMessage,
-            timestamp: new Date(),
-            type: 'user'
-          });
+        if (!message || message.trim().length === 0) {
+          socket.emit('error', { message: 'Message cannot be empty' });
+          return;
         }
+
+        if (message.length > 500) {
+          socket.emit('error', { message: 'Message too long' });
+          return;
+        }
+
+        const game = await Game.findOne({ roomId: socket.currentRoom });
+        if (!game) {
+          socket.emit('error', { message: 'Game not found' });
+          return;
+        }
+
+        if (!game.settings.chatEnabled) {
+          socket.emit('error', { message: 'Chat is disabled in this room' });
+          return;
+        }
+
+        game.addChatMessage(socket.userId, socket.username, message.trim());
+        await game.save();
+
+        // Broadcast chat message
+        io.to(socket.currentRoom).emit('chat-message', {
+          id: game.chat[game.chat.length - 1].id,
+          userId: socket.userId,
+          username: socket.username,
+          message: message.trim(),
+          timestamp: new Date(),
+          type: 'user'
+        });
       } catch (error) {
-        console.error('Error sending chat:', error);
+        console.error('Chat error:', error);
+        socket.emit('error', { message: 'Failed to send message' });
       }
     });
 
     // Get available rooms
     socket.on('get-rooms', async () => {
       try {
-        const games = await Game.find({
+        const rooms = await Game.find({
           'gameState.status': { $in: ['waiting', 'starting'] },
           isPrivate: false
         })
         .limit(20)
         .select('roomId players gameState settings createdAt')
+        .sort({ createdAt: -1 })
         .exec();
-        
-        const rooms = games.map(game => ({
-          roomId: game.roomId,
-          playerCount: game.players.length,
-          maxPlayers: game.settings.maxPlayers,
-          gameMode: game.settings.gameMode,
-          boardSize: game.settings.boardSize,
-          status: game.gameState.status,
-          createdAt: game.createdAt
-        }));
-        
-        socket.emit('rooms-list', rooms);
+
+        socket.emit('rooms-list', {
+          rooms: rooms.map(game => ({
+            roomId: game.roomId,
+            playerCount: game.players.length,
+            maxPlayers: game.settings.maxPlayers,
+            gameMode: game.settings.gameMode,
+            boardSize: game.settings.boardSize,
+            theme: game.settings.theme,
+            status: game.gameState.status,
+            createdAt: game.createdAt
+          }))
+        });
       } catch (error) {
-        console.error('Error getting rooms:', error);
+        console.error('Get rooms error:', error);
+        socket.emit('error', { message: 'Failed to fetch rooms' });
       }
     });
 
     // Create private room
-    socket.on('create-private-room', async (data: {
-      roomName: string;
-      password: string;
-      settings: any;
-    }) => {
+    socket.on('create-private-room', async (data) => {
       try {
-        const { roomName, password, settings } = data;
-        const roomId = `private-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
+        const { password, settings = {} } = data;
+        const roomId = generateRoomId();
+
+        const gameSettings = {
+          boardSize: settings.boardSize || 4,
+          theme: settings.theme || 'emojis',
+          gameMode: settings.gameMode || 'classic',
+          timeLimit: settings.timeLimit || 300,
+          maxPlayers: settings.maxPlayers || 2,
+          powerUpsEnabled: settings.powerUpsEnabled !== false,
+          chatEnabled: settings.chatEnabled !== false,
+          isRanked: settings.isRanked !== false
+        };
+
         const game = new Game({
           roomId,
-          players: [],
+          settings: gameSettings,
           isPrivate: true,
-          password,
-          settings: {
-            ...settings,
-            maxPlayers: Math.min(Math.max(settings.maxPlayers || 2, 2), 4)
-          }
+          password: password || undefined
         });
-        
+
+        // Add creator as first player
+        game.addPlayer(socket.userId, socket.username, socket.data?.avatar);
         await game.save();
-        
+
         socket.emit('private-room-created', {
           roomId,
-          password
+          password,
+          settings: gameSettings
         });
+
+        console.log(`Private room ${roomId} created by ${socket.username}`);
       } catch (error) {
-        console.error('Error creating private room:', error);
+        console.error('Create private room error:', error);
         socket.emit('error', { message: 'Failed to create private room' });
       }
     });
@@ -282,52 +319,75 @@ export function initializeSocket(io: SocketIOServer) {
       if (socket.userId) {
         userSockets.delete(socket.userId);
         socketUsers.delete(socket.id);
-        
-        // Find and leave any active games
-        const games = await Game.find({
-          'players.userId': socket.userId,
-          'gameState.status': { $in: ['waiting', 'starting', 'playing'] }
-        }).exec();
-        
-        for (const game of games) {
-          const gameEngine = activeGames.get(game.roomId);
-          if (gameEngine) {
-            gameEngine.handlePlayerDisconnect(socket.userId);
-          }
-        }
-        
-        // Update user's last active time
-        await User.findByIdAndUpdate(socket.userId, {
-          lastActive: new Date()
-        }).exec();
+      }
+
+      if (socket.currentRoom) {
+        await handleLeaveRoom(socket, socket.currentRoom);
       }
     });
   });
 
-  // Cleanup inactive games every 5 minutes
-  setInterval(async () => {
+  // Helper function to handle leaving room
+  async function handleLeaveRoom(socket, roomId) {
     try {
-      const cutoffTime = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes ago
-      
-      const inactiveGames = await Game.find({
-        'gameState.lastActivity': { $lt: cutoffTime },
-        'gameState.status': { $ne: 'finished' }
-      }).exec();
-      
-      for (const game of inactiveGames) {
-        game.gameState.status = 'finished';
-        await game.save();
+      const game = await Game.findOne({ roomId });
+      if (game) {
+        game.removePlayer(socket.userId);
         
-        const gameEngine = activeGames.get(game.roomId);
-        if (gameEngine) {
-          gameEngine.endGame('timeout');
-          activeGames.delete(game.roomId);
+        if (game.players.length === 0) {
+          // Delete empty game
+          await Game.findOneAndDelete({ roomId });
+          activeGames.delete(roomId);
+        } else {
+          await game.save();
+          
+          // Notify remaining players
+          socket.to(roomId).emit('player-left', {
+            userId: socket.userId,
+            username: socket.username
+          });
+
+          // Update game state
+          socket.to(roomId).emit('game-state', {
+            players: game.players,
+            gameState: game.gameState
+          });
         }
       }
-      
-      console.log(`Cleaned up ${inactiveGames.length} inactive games`);
+
+      socket.leave(roomId);
+      socket.currentRoom = null;
+      console.log(`${socket.username} left room ${roomId}`);
     } catch (error) {
-      console.error('Error cleaning up inactive games:', error);
+      console.error('Leave room error:', error);
     }
-  }, 5 * 60 * 1000);
+  }
+
+  // Helper function to generate room ID
+  function generateRoomId() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
 }
+
+// Clean up inactive games periodically
+setInterval(async () => {
+  try {
+    const cutoffTime = new Date(Date.now() - 30 * 60 * 1000); // 30 minutes
+    
+    // Remove inactive games
+    await Game.deleteMany({
+      'gameState.lastActivity': { $lt: cutoffTime },
+      'gameState.status': { $in: ['waiting', 'starting'] }
+    });
+
+    // Clean up active games map
+    for (const [roomId, gameEngine] of activeGames) {
+      const game = await Game.findOne({ roomId });
+      if (!game || game.gameState.status === 'finished') {
+        activeGames.delete(roomId);
+      }
+    }
+  } catch (error) {
+    console.error('Game cleanup error:', error);
+  }
+}, 5 * 60 * 1000); // Every 5 minutes

@@ -1,7 +1,6 @@
-import mongoose, { Schema, Document } from 'mongoose';
-import { Game as IGame, Player, GameState, GameSettings, ChatMessage, Card, PowerUp } from '../types/index.js';
+import mongoose from 'mongoose';
 
-const powerUpSchema = new Schema<PowerUp>({
+const powerUpSchema = new mongoose.Schema({
   type: { 
     type: String, 
     enum: ['extraTurn', 'peek', 'swap', 'revealOne', 'freeze', 'shuffle'],
@@ -14,7 +13,7 @@ const powerUpSchema = new Schema<PowerUp>({
   uses: { type: Number, default: 1 }
 });
 
-const cardSchema = new Schema<Card>({
+const cardSchema = new mongoose.Schema({
   id: { type: Number, required: true },
   value: { type: String, required: true },
   isFlipped: { type: Boolean, default: false },
@@ -23,7 +22,7 @@ const cardSchema = new Schema<Card>({
   theme: { type: String, required: true }
 });
 
-const playerSchema = new Schema<Player>({
+const playerSchema = new mongoose.Schema({
   userId: { type: String, required: true },
   username: { type: String, required: true },
   avatar: { type: String },
@@ -38,7 +37,7 @@ const playerSchema = new Schema<Player>({
   matchStreak: { type: Number, default: 0 }
 });
 
-const gameStateSchema = new Schema<GameState>({
+const gameStateSchema = new mongoose.Schema({
   status: { 
     type: String, 
     enum: ['waiting', 'starting', 'playing', 'paused', 'finished'],
@@ -59,7 +58,7 @@ const gameStateSchema = new Schema<GameState>({
   powerUpPool: [powerUpSchema]
 });
 
-const gameSettingsSchema = new Schema<GameSettings>({
+const gameSettingsSchema = new mongoose.Schema({
   boardSize: { type: Number, enum: [4, 6, 8], default: 4 },
   theme: { type: String, default: 'emojis' },
   gameMode: { 
@@ -74,7 +73,7 @@ const gameSettingsSchema = new Schema<GameSettings>({
   isRanked: { type: Boolean, default: true }
 });
 
-const chatMessageSchema = new Schema<ChatMessage>({
+const chatMessageSchema = new mongoose.Schema({
   id: { type: String, required: true },
   userId: { type: String, required: true },
   username: { type: String, required: true },
@@ -83,7 +82,7 @@ const chatMessageSchema = new Schema<ChatMessage>({
   type: { type: String, enum: ['user', 'system', 'admin'], default: 'user' }
 });
 
-const gameSchema = new Schema<IGame & Document>({
+const gameSchema = new mongoose.Schema({
   roomId: { type: String, required: true, unique: true },
   players: [playerSchema],
   gameState: { type: gameStateSchema, default: () => ({}) },
@@ -97,12 +96,12 @@ const gameSchema = new Schema<IGame & Document>({
 });
 
 // Game methods
-gameSchema.methods.addPlayer = function(userId: string, username: string, avatar?: string) {
+gameSchema.methods.addPlayer = function(userId, username, avatar) {
   if (this.players.length >= this.settings.maxPlayers) {
     throw new Error('Game is full');
   }
   
-  const playerExists = this.players.find((p: Player) => p.userId === userId);
+  const playerExists = this.players.find(p => p.userId === userId);
   if (playerExists) {
     throw new Error('Player already in game');
   }
@@ -122,27 +121,27 @@ gameSchema.methods.addPlayer = function(userId: string, username: string, avatar
   });
 };
 
-gameSchema.methods.removePlayer = function(userId: string) {
-  this.players = this.players.filter((p: Player) => p.userId !== userId);
+gameSchema.methods.removePlayer = function(userId) {
+  this.players = this.players.filter(p => p.userId !== userId);
   if (this.players.length === 0) {
     this.gameState.status = 'finished';
   }
 };
 
-gameSchema.methods.togglePlayerReady = function(userId: string) {
-  const player = this.players.find((p: Player) => p.userId === userId);
+gameSchema.methods.togglePlayerReady = function(userId) {
+  const player = this.players.find(p => p.userId === userId);
   if (player) {
     player.isReady = !player.isReady;
   }
   
   // Check if all players are ready
-  const allReady = this.players.every((p: Player) => p.isReady);
+  const allReady = this.players.every(p => p.isReady);
   if (allReady && this.players.length >= 2) {
     this.gameState.status = 'starting';
   }
 };
 
-gameSchema.methods.addChatMessage = function(userId: string, username: string, message: string, type: 'user' | 'system' | 'admin' = 'user') {
+gameSchema.methods.addChatMessage = function(userId, username, message, type = 'user') {
   this.chat.push({
     id: new mongoose.Types.ObjectId().toString(),
     userId,
@@ -158,4 +157,4 @@ gameSchema.methods.addChatMessage = function(userId: string, username: string, m
   }
 };
 
-export const Game = mongoose.model<IGame & Document>('Game', gameSchema);
+export const Game = mongoose.model('Game', gameSchema);

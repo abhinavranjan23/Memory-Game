@@ -1,5 +1,3 @@
-import { Card, PowerUp, GameMode } from '../types/index.js';
-
 // Game themes with their card values
 export const THEMES = {
   emojis: [
@@ -14,11 +12,17 @@ export const THEMES = {
     '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺',
     '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞'
   ],
-  techLogos: [
+  tech: [
     '⚛️', '🅰️', '🔷', '📱', '💻', '⌨️', '🖥️', '🖨️',
     '📡', '🔌', '🔋', '📷', '📹', '📞', '☎️', '📠',
     '💾', '💿', '📀', '🎮', '🕹️', '📱', '⌚', '💻',
     '🖥️', '⌨️', '🖱️', '🖨️', '📷', '📹', '🔍', '💡'
+  ],
+  nature: [
+    '🌲', '🌳', '🌴', '🌵', '🌶️', '🌷', '🌸', '🌺',
+    '🌻', '🌼', '🌽', '🍀', '🍁', '🍂', '🍃', '🌿',
+    '☘️', '🌱', '🌾', '💐', '🌙', '☀️', '⭐', '🌟',
+    '💫', '⚡', '☄️', '🌈', '☔', '❄️', '🔥', '💧'
   ],
   food: [
     '🍎', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐',
@@ -28,83 +32,206 @@ export const THEMES = {
   ]
 };
 
-// Power-ups definitions
-export const POWER_UPS: { [key: string]: Omit<PowerUp, 'uses'> } = {
-  extraTurn: {
+// Power-up definitions
+export const POWER_UPS = [
+  {
     type: 'extraTurn',
     name: 'Extra Turn',
-    description: 'Get another turn even if you miss',
-    icon: '🔄'
+    description: 'Get an additional turn after a miss',
+    icon: '🔄',
+    uses: 1,
+    rarity: 0.1
   },
-  peek: {
+  {
     type: 'peek',
     name: 'Peek',
-    description: 'Briefly see all unmatched cards',
+    description: 'Reveal all cards for 3 seconds',
     icon: '👁️',
-    duration: 3000
+    uses: 1,
+    rarity: 0.08
   },
-  swap: {
+  {
     type: 'swap',
-    name: 'Card Swap',
-    description: 'Swap positions of two cards',
-    icon: '🔀'
+    name: 'Swap',
+    description: 'Swap the positions of two cards',
+    icon: '🔀',
+    uses: 1,
+    rarity: 0.06
   },
-  revealOne: {
+  {
     type: 'revealOne',
     name: 'Reveal One',
     description: 'Permanently reveal one card',
-    icon: '💡'
+    icon: '💡',
+    uses: 1,
+    rarity: 0.05
   },
-  freeze: {
+  {
     type: 'freeze',
-    name: 'Time Freeze',
+    name: 'Freeze Timer',
     description: 'Freeze the timer for 10 seconds',
     icon: '❄️',
-    duration: 10000
+    duration: 10000,
+    uses: 1,
+    rarity: 0.04
   },
-  shuffle: {
+  {
     type: 'shuffle',
-    name: 'Shuffle Cards',
+    name: 'Shuffle',
     description: 'Shuffle all unmatched cards',
-    icon: '🌀'
+    icon: '🔀',
+    uses: 1,
+    rarity: 0.03
   }
-};
+];
 
-// Generate a game board
-export function generateBoard(
-  boardSize: 4 | 6 | 8, 
-  theme: string = 'emojis',
-  powerUpsEnabled: boolean = true
-): Card[] {
+// Generate game board
+export function generateBoard(boardSize, theme = 'emojis', powerUpsEnabled = true) {
   const totalCards = boardSize * boardSize;
-  const pairsNeeded = totalCards / 2;
+  const pairs = totalCards / 2;
   
-  const themeCards = THEMES[theme as keyof typeof THEMES] || THEMES.emojis;
+  if (!THEMES[theme]) {
+    theme = 'emojis';
+  }
   
-  // Select cards for this game
-  const selectedValues = themeCards.slice(0, pairsNeeded);
+  const themeCards = THEMES[theme];
+  if (themeCards.length < pairs) {
+    throw new Error(`Theme ${theme} doesn't have enough cards for ${boardSize}x${boardSize} board`);
+  }
+  
+  // Select random cards for this game
+  const selectedCards = shuffleArray(themeCards).slice(0, pairs);
   
   // Create pairs
-  const cardValues = [...selectedValues, ...selectedValues];
+  const cardPairs = [];
+  selectedCards.forEach((card, index) => {
+    cardPairs.push(
+      { id: index * 2, value: card, theme, isFlipped: false, isMatched: false },
+      { id: index * 2 + 1, value: card, theme, isFlipped: false, isMatched: false }
+    );
+  });
   
-  // Shuffle the array
-  const shuffledValues = shuffleArray(cardValues);
+  // Add power-ups to random cards
+  if (powerUpsEnabled) {
+    const powerUpCount = Math.floor(pairs * 0.15); // 15% of pairs get power-ups
+    const powerUpCards = shuffleArray(cardPairs).slice(0, powerUpCount);
+    
+    powerUpCards.forEach(card => {
+      const randomPowerUp = getRandomPowerUp();
+      if (randomPowerUp) {
+        card.powerUp = randomPowerUp;
+      }
+    });
+  }
   
-  // Create card objects
-  const cards: Card[] = shuffledValues.map((value, index) => ({
-    id: index,
-    value,
-    isFlipped: false,
-    isMatched: false,
-    theme,
-    powerUp: powerUpsEnabled && Math.random() < 0.15 ? getRandomPowerUp() : undefined
-  }));
-  
-  return cards;
+  // Shuffle the final board
+  return shuffleArray(cardPairs);
 }
 
-// Fisher-Yates shuffle algorithm
-export function shuffleArray<T>(array: T[]): T[] {
+// Get random power-up based on rarity
+export function getRandomPowerUp() {
+  const roll = Math.random();
+  let cumulativeRarity = 0;
+  
+  for (const powerUp of POWER_UPS) {
+    cumulativeRarity += powerUp.rarity;
+    if (roll <= cumulativeRarity) {
+      return { ...powerUp };
+    }
+  }
+  
+  return null;
+}
+
+// Check if two cards match
+export function cardsMatch(card1, card2) {
+  return card1.value === card2.value && card1.theme === card2.theme;
+}
+
+// Calculate score based on game mode and performance
+export function calculateScore(gameMode, matchStreak, lastFlipTime) {
+  let baseScore = 100;
+  
+  // Streak bonus
+  if (matchStreak > 1) {
+    baseScore += (matchStreak - 1) * 25;
+  }
+  
+  // Speed bonus (if flip was quick)
+  if (lastFlipTime) {
+    const timeDiff = Date.now() - lastFlipTime.getTime();
+    if (timeDiff < 2000) { // Less than 2 seconds
+      baseScore += 50;
+    } else if (timeDiff < 5000) { // Less than 5 seconds
+      baseScore += 25;
+    }
+  }
+  
+  // Game mode multiplier
+  switch (gameMode) {
+    case 'blitz':
+      baseScore *= 1.5;
+      break;
+    case 'sudden-death':
+      baseScore *= 1.2;
+      break;
+    case 'powerup-frenzy':
+      baseScore *= 0.8;
+      break;
+    default: // classic
+      baseScore *= 1.0;
+  }
+  
+  return Math.floor(baseScore);
+}
+
+// Get time limit based on game mode
+export function getTimeLimit(gameMode, customTimeLimit) {
+  switch (gameMode) {
+    case 'blitz':
+      return 120; // 2 minutes
+    case 'sudden-death':
+      return 300; // 5 minutes
+    case 'powerup-frenzy':
+      return 420; // 7 minutes
+    default: // classic
+      return customTimeLimit || 600; // 10 minutes default
+  }
+}
+
+// Calculate memory meter (0-100)
+export function calculateMemoryMeter(matches, flips, matchStreak) {
+  if (flips === 0) return 0;
+  
+  const accuracy = (matches * 2) / flips;
+  const streakBonus = Math.min(matchStreak * 5, 25);
+  const meter = (accuracy * 75) + streakBonus;
+  
+  return Math.min(Math.floor(meter), 100);
+}
+
+// Check if sudden death should trigger
+export function shouldTriggerSuddenDeath(players, timeLeft) {
+  if (timeLeft > 0) return false;
+  
+  // Check if there's a tie for first place
+  const scores = players.map(p => p.score).sort((a, b) => b - a);
+  return scores[0] === scores[1];
+}
+
+// Generate sudden death board (single pair)
+export function generateSuddenDeathCards(theme = 'emojis') {
+  const themeCards = THEMES[theme] || THEMES.emojis;
+  const randomCard = themeCards[Math.floor(Math.random() * themeCards.length)];
+  
+  return [
+    { id: 0, value: randomCard, theme, isFlipped: false, isMatched: false },
+    { id: 1, value: randomCard, theme, isFlipped: false, isMatched: false }
+  ];
+}
+
+// Shuffle array utility
+export function shuffleArray(array) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -113,170 +240,98 @@ export function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-// Get a random power-up
-export function getRandomPowerUp(): PowerUp {
-  const powerUpKeys = Object.keys(POWER_UPS);
-  const randomKey = powerUpKeys[Math.floor(Math.random() * powerUpKeys.length)];
-  return {
-    ...POWER_UPS[randomKey],
-    uses: 1
-  };
+// Validate board size
+export function isValidBoardSize(size) {
+  return [4, 6, 8].includes(size) && (size * size) % 2 === 0;
 }
 
-// Check if two cards match
-export function cardsMatch(card1: Card, card2: Card): boolean {
-  return card1.value === card2.value && card1.id !== card2.id;
+// Get difficulty level based on board size
+export function getDifficultyLevel(boardSize) {
+  switch (boardSize) {
+    case 4:
+      return 'Easy';
+    case 6:
+      return 'Medium';
+    case 8:
+      return 'Hard';
+    default:
+      return 'Unknown';
+  }
 }
 
-// Calculate score based on game mode and performance
-export function calculateScore(
-  gameMode: GameMode,
-  matches: number,
-  flips: number,
-  timeBonus: number,
-  matchStreak: number,
-  powerUpsUsed: number
-): number {
-  let baseScore = matches * 100;
+// Calculate achievement progress
+export function checkAchievements(player, gameResult) {
+  const achievements = [];
   
-  // Efficiency bonus (fewer flips = higher score)
-  const efficiency = Math.max(0, (matches * 2 - flips) / (matches * 2));
-  const efficiencyBonus = Math.floor(efficiency * 200);
-  
-  // Streak bonus
-  const streakBonus = matchStreak > 1 ? (matchStreak - 1) * 50 : 0;
-  
-  // Time bonus varies by game mode
-  let timeBonusMultiplier = 1;
-  if (gameMode === 'blitz') {
-    timeBonusMultiplier = 2;
-  } else if (gameMode === 'sudden-death') {
-    timeBonusMultiplier = 1.5;
+  // First win
+  if (gameResult.won && player.stats.gamesWon === 1) {
+    achievements.push({
+      id: 'first_win',
+      name: 'First Victory',
+      description: 'Win your first game',
+      iconUrl: '🥇'
+    });
   }
   
-  const adjustedTimeBonus = Math.floor(timeBonus * timeBonusMultiplier);
-  
-  // Power-up penalty (using power-ups reduces score slightly)
-  const powerUpPenalty = powerUpsUsed * 25;
-  
-  const totalScore = Math.max(0, 
-    baseScore + 
-    efficiencyBonus + 
-    streakBonus + 
-    adjustedTimeBonus - 
-    powerUpPenalty
-  );
-  
-  return totalScore;
-}
-
-// Get time limit based on game mode and board size
-export function getTimeLimit(gameMode: GameMode, boardSize: number): number {
-  const baseTimes = {
-    4: 180,  // 3 minutes for 4x4
-    6: 300,  // 5 minutes for 6x6
-    8: 420   // 7 minutes for 8x8
-  };
-  
-  let timeLimit = baseTimes[boardSize as keyof typeof baseTimes];
-  
-  switch (gameMode) {
-    case 'blitz':
-      timeLimit = 60; // 1 minute for all sizes in blitz
-      break;
-    case 'sudden-death':
-      timeLimit = Math.floor(timeLimit * 0.7); // 30% less time
-      break;
-    case 'powerup-frenzy':
-      timeLimit = Math.floor(timeLimit * 1.2); // 20% more time
-      break;
-  }
-  
-  return timeLimit;
-}
-
-// Check if game should trigger sudden death mode
-export function shouldTriggerSuddenDeath(players: any[], timeLeft: number): boolean {
-  if (timeLeft > 0) return false;
-  
-  // Check for tie in scores
-  const scores = players.map(p => p.score);
-  const maxScore = Math.max(...scores);
-  const playersWithMaxScore = scores.filter(score => score === maxScore);
-  
-  return playersWithMaxScore.length > 1;
-}
-
-// Generate cards for sudden death (single pair)
-export function generateSuddenDeathCards(theme: string = 'emojis'): Card[] {
-  const themeCards = THEMES[theme as keyof typeof THEMES] || THEMES.emojis;
-  const randomValue = themeCards[Math.floor(Math.random() * themeCards.length)];
-  
-  return [
-    { id: 0, value: randomValue, isFlipped: false, isMatched: false, theme },
-    { id: 1, value: randomValue, isFlipped: false, isMatched: false, theme }
-  ].sort(() => Math.random() - 0.5); // Shuffle the two cards
-}
-
-// Memory meter calculation
-export function calculateMemoryMeter(
-  flips: number,
-  matches: number,
-  averageFlipTime: number,
-  matchStreak: number
-): number {
-  const efficiency = matches > 0 ? (matches * 2) / flips : 0;
-  const speedBonus = averageFlipTime < 2000 ? 1.2 : averageFlipTime < 4000 ? 1.0 : 0.8;
-  const streakBonus = Math.min(matchStreak * 0.1, 0.5);
-  
-  const memoryScore = (efficiency * speedBonus + streakBonus) * 100;
-  return Math.min(Math.max(memoryScore, 0), 100);
-}
-
-// Check for achievements
-export function checkAchievements(gameResult: {
-  won: boolean;
-  score: number;
-  flips: number;
-  matches: number;
-  gameMode: GameMode;
-  boardSize: number;
-  timeLeft: number;
-  matchStreak: number;
-  powerUpsUsed: number;
-  isPerfect: boolean;
-}, userStats: any): string[] {
-  const newAchievements: string[] = [];
-  
-  // First Win
-  if (gameResult.won && userStats.gamesWon === 0) {
-    newAchievements.push('first-win');
-  }
-  
-  // Perfect Memory (no wrong flips)
+  // Perfect memory
   if (gameResult.isPerfect) {
-    newAchievements.push('perfect-memory');
+    achievements.push({
+      id: 'perfect_memory',
+      name: 'Perfect Memory',
+      description: 'Complete a game without any wrong matches',
+      iconUrl: '🧠'
+    });
   }
   
-  // Speed Demon (won blitz mode)
+  // Speed demon (blitz mode win)
   if (gameResult.won && gameResult.gameMode === 'blitz') {
-    newAchievements.push('speed-demon');
+    achievements.push({
+      id: 'speed_demon',
+      name: 'Speed Demon',
+      description: 'Win a Blitz mode game',
+      iconUrl: '⚡'
+    });
   }
   
-  // Memory Master (5+ match streak)
+  // Combo master
   if (gameResult.matchStreak >= 5) {
-    newAchievements.push('memory-master');
+    achievements.push({
+      id: 'combo_master',
+      name: 'Combo Master',
+      description: 'Get a 5+ match streak',
+      iconUrl: '🔥'
+    });
   }
   
-  // Power Player (won using 3+ power-ups)
+  // Power player
   if (gameResult.won && gameResult.powerUpsUsed >= 3) {
-    newAchievements.push('power-player');
+    achievements.push({
+      id: 'power_player',
+      name: 'Power Player',
+      description: 'Win a game using 3+ power-ups',
+      iconUrl: '🎮'
+    });
   }
   
-  // Grandmaster (won 8x8 board)
+  // Grandmaster (8x8 board win)
   if (gameResult.won && gameResult.boardSize === 8) {
-    newAchievements.push('grandmaster');
+    achievements.push({
+      id: 'grandmaster',
+      name: 'Grandmaster',
+      description: 'Win an 8x8 board game',
+      iconUrl: '👑'
+    });
   }
   
-  return newAchievements;
+  // Marathon player
+  if (player.stats.gamesPlayed >= 100) {
+    achievements.push({
+      id: 'marathon_player',
+      name: 'Marathon Player',
+      description: 'Play 100 games',
+      iconUrl: '🏃'
+    });
+  }
+  
+  return achievements;
 }

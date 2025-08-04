@@ -1,0 +1,25 @@
+/* App-specific styles */
+.App {
+  text-align: center;
+}
+
+/* Custom styles for game components */
+.card-flip {
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+
+.card-flip.flipped {
+  transform: rotateY(180deg);
+}
+
+/* Animation for matched cards */
+@keyframes matchedPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.matched-card {
+  animation: matchedPulse 0.5s ease-in-out;
+}

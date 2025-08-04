@@ -1,6 +1,6 @@
-import { Game } from '../models/Game.js';
-import { User } from '../models/User.js';
-import { 
+const { Game } = require('../models/Game.js');
+const { User } = require('../models/User.js');
+const { 
   generateBoard, 
   cardsMatch, 
   calculateScore, 
@@ -9,9 +9,9 @@ import {
   generateSuddenDeathCards,
   calculateMemoryMeter,
   shuffleArray
-} from '../utils/gameLogic.js';
+} = require('../utils/gameLogic.js');
 
-export class GameEngine {
+class GameEngine {
   constructor(roomId, io) {
     this.roomId = roomId;
     this.io = io;
@@ -532,3 +532,5 @@ export class GameEngine {
     }
   }
 }
+
+module.exports = { GameEngine };

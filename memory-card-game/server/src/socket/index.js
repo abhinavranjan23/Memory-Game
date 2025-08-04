@@ -1,15 +1,15 @@
-import { Game } from '../models/Game.js';
-import { User } from '../models/User.js';
-import { GameEngine } from './gameEngine.js';
-import { verifySocketToken } from '../middleware/auth.js';
+const { Game } = require('../models/Game.js');
+const { User } = require('../models/User.js');
+const { GameEngine } = require('./gameEngine.js');
+const { authenticateSocket } = require('../middleware/auth.js');
 
 const activeGames = new Map(); // roomId -> GameEngine
 const userSockets = new Map(); // userId -> socketId
 const socketUsers = new Map(); // socketId -> userId
 
-export function initializeSocket(io) {
+function initializeSocket(io) {
   // Authentication middleware
-  io.use(verifySocketToken);
+  io.use(authenticateSocket);
 
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.username} (${socket.id})`);
@@ -391,3 +391,5 @@ setInterval(async () => {
     console.error('Game cleanup error:', error);
   }
 }, 5 * 60 * 1000); // Every 5 minutes
+
+module.exports = { initializeSocket };

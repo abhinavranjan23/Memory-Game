@@ -1,5 +1,5 @@
 // Game themes with their card values
-export const THEMES = {
+const THEMES = {
   emojis: [
     '🎮', '🎯', '🎲', '🎪', '🎨', '🎭', '🎪', '🎊',
     '🚀', '⭐', '🌟', '💫', '🔥', '⚡', '💎', '🏆',
@@ -33,7 +33,7 @@ export const THEMES = {
 };
 
 // Power-up definitions
-export const POWER_UPS = [
+const POWER_UPS = [
   {
     type: 'extraTurn',
     name: 'Extra Turn',
@@ -86,7 +86,7 @@ export const POWER_UPS = [
 ];
 
 // Generate game board
-export function generateBoard(boardSize, theme = 'emojis', powerUpsEnabled = true) {
+function generateBoard(boardSize, theme = 'emojis', powerUpsEnabled = true) {
   const totalCards = boardSize * boardSize;
   const pairs = totalCards / 2;
   
@@ -129,7 +129,7 @@ export function generateBoard(boardSize, theme = 'emojis', powerUpsEnabled = tru
 }
 
 // Get random power-up based on rarity
-export function getRandomPowerUp() {
+function getRandomPowerUp() {
   const roll = Math.random();
   let cumulativeRarity = 0;
   
@@ -144,12 +144,12 @@ export function getRandomPowerUp() {
 }
 
 // Check if two cards match
-export function cardsMatch(card1, card2) {
+function cardsMatch(card1, card2) {
   return card1.value === card2.value && card1.theme === card2.theme;
 }
 
 // Calculate score based on game mode and performance
-export function calculateScore(gameMode, matchStreak, lastFlipTime) {
+function calculateScore(gameMode, matchStreak, lastFlipTime) {
   let baseScore = 100;
   
   // Streak bonus
@@ -186,7 +186,7 @@ export function calculateScore(gameMode, matchStreak, lastFlipTime) {
 }
 
 // Get time limit based on game mode
-export function getTimeLimit(gameMode, customTimeLimit) {
+function getTimeLimit(gameMode, customTimeLimit) {
   switch (gameMode) {
     case 'blitz':
       return 120; // 2 minutes
@@ -200,7 +200,7 @@ export function getTimeLimit(gameMode, customTimeLimit) {
 }
 
 // Calculate memory meter (0-100)
-export function calculateMemoryMeter(matches, flips, matchStreak) {
+function calculateMemoryMeter(matches, flips, matchStreak) {
   if (flips === 0) return 0;
   
   const accuracy = (matches * 2) / flips;
@@ -211,7 +211,7 @@ export function calculateMemoryMeter(matches, flips, matchStreak) {
 }
 
 // Check if sudden death should trigger
-export function shouldTriggerSuddenDeath(players, timeLeft) {
+function shouldTriggerSuddenDeath(players, timeLeft) {
   if (timeLeft > 0) return false;
   
   // Check if there's a tie for first place
@@ -220,7 +220,7 @@ export function shouldTriggerSuddenDeath(players, timeLeft) {
 }
 
 // Generate sudden death board (single pair)
-export function generateSuddenDeathCards(theme = 'emojis') {
+function generateSuddenDeathCards(theme = 'emojis') {
   const themeCards = THEMES[theme] || THEMES.emojis;
   const randomCard = themeCards[Math.floor(Math.random() * themeCards.length)];
   
@@ -231,7 +231,7 @@ export function generateSuddenDeathCards(theme = 'emojis') {
 }
 
 // Shuffle array utility
-export function shuffleArray(array) {
+function shuffleArray(array) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -241,12 +241,12 @@ export function shuffleArray(array) {
 }
 
 // Validate board size
-export function isValidBoardSize(size) {
+function isValidBoardSize(size) {
   return [4, 6, 8].includes(size) && (size * size) % 2 === 0;
 }
 
 // Get difficulty level based on board size
-export function getDifficultyLevel(boardSize) {
+function getDifficultyLevel(boardSize) {
   switch (boardSize) {
     case 4:
       return 'Easy';
@@ -260,7 +260,7 @@ export function getDifficultyLevel(boardSize) {
 }
 
 // Calculate achievement progress
-export function checkAchievements(player, gameResult) {
+function checkAchievements(player, gameResult) {
   const achievements = [];
   
   // First win
@@ -335,3 +335,20 @@ export function checkAchievements(player, gameResult) {
   
   return achievements;
 }
+
+module.exports = {
+  THEMES,
+  POWER_UPS,
+  generateBoard,
+  getRandomPowerUp,
+  cardsMatch,
+  calculateScore,
+  getTimeLimit,
+  calculateMemoryMeter,
+  shouldTriggerSuddenDeath,
+  generateSuddenDeathCards,
+  shuffleArray,
+  isValidBoardSize,
+  getDifficultyLevel,
+  checkAchievements
+};

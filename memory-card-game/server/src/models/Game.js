@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const powerUpSchema = new mongoose.Schema({
   type: { 
@@ -157,4 +157,4 @@ gameSchema.methods.addChatMessage = function(userId, username, message, type = '
   }
 };
 
-export const Game = mongoose.model('Game', gameSchema);
+module.exports = { Game: mongoose.model('Game', gameSchema) };

@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const userStatsSchema = new mongoose.Schema({
   gamesPlayed: { type: Number, default: 0 },
@@ -70,4 +70,4 @@ userSchema.methods.addAchievement = function(achievement) {
   }
 };
 
-export const User = mongoose.model('User', userSchema);
+module.exports = { User: mongoose.model('User', userSchema) };

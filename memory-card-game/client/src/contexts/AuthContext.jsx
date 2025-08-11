@@ -7,6 +7,25 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 // Setup axios defaults
 axios.defaults.baseURL = API_BASE_URL;
+console.log('API Base URL:', API_BASE_URL);
+
+// Add request interceptor for debugging
+axios.interceptors.request.use(request => {
+  console.log('Starting Request:', request.url);
+  return request;
+});
+
+// Add response interceptor for debugging
+axios.interceptors.response.use(
+  response => {
+    console.log('Response:', response);
+    return response;
+  },
+  error => {
+    console.error('API Error:', error.response || error.message);
+    return Promise.reject(error);
+  }
+);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -45,36 +64,72 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post('/auth/login', { email, password });
+      console.log('Attempting login...');
+      // Use full URL to avoid any path issues
+      const fullUrl = `${API_BASE_URL}/auth/login`;
+      console.log('Login URL:', fullUrl);
+      
+      const response = await axios.post(fullUrl, { email, password }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Login response:', response.data);
       const { token: newToken, user: userData } = response.data;
       
       setToken(newToken);
       setUser(userData);
     } catch (error) {
+      console.error('Login error details:', error);
       throw new Error(error.response?.data?.message || 'Login failed');
     }
   };
 
   const register = async (username, email, password) => {
     try {
-      const response = await axios.post('/auth/register', { username, email, password });
+      console.log('Attempting registration...');
+      // Use full URL to avoid any path issues
+      const fullUrl = `${API_BASE_URL}/auth/register`;
+      console.log('Register URL:', fullUrl);
+      
+      const response = await axios.post(fullUrl, { username, email, password }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Registration response:', response.data);
       const { token: newToken, user: userData } = response.data;
       
       setToken(newToken);
       setUser(userData);
     } catch (error) {
+      console.error('Registration error details:', error);
       throw new Error(error.response?.data?.message || 'Registration failed');
     }
   };
 
   const loginAsGuest = async () => {
     try {
-      const response = await axios.post('/auth/guest');
+      console.log('Attempting guest login...');
+      // Use full URL to avoid any path issues
+      const fullUrl = `${API_BASE_URL}/auth/guest`;
+      console.log('Guest login URL:', fullUrl);
+      
+      const response = await axios.post(fullUrl, {}, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('Guest login response:', response.data);
       const { token: newToken, user: userData } = response.data;
       
       setToken(newToken);
       setUser(userData);
     } catch (error) {
+      console.error('Guest login error details:', error);
       throw new Error(error.response?.data?.message || 'Guest login failed');
     }
   };

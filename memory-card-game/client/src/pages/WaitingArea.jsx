@@ -26,26 +26,35 @@ const WaitingArea = () => {
       socket.on('room-joined', handleRoomJoined);
       socket.on('player-joined', handlePlayerJoined);
       socket.on('game-started', handleGameStarted);
-      socket.on('game-start', handleGameStart); // Add new event listener
+      socket.on('game-start', handleGameStart);
       socket.on('error', handleError);
+
+      // Set a timeout to check if we're still loading after 5 seconds
+      const loadingTimeout = setTimeout(() => {
+        if (loading) {
+          // If still loading after timeout, try to rejoin the room
+          socket.emit('join-room', { roomId });
+        }
+      }, 5000);
 
       return () => {
         socket.off('room-joined', handleRoomJoined);
         socket.off('player-joined', handlePlayerJoined);
         socket.off('game-started', handleGameStarted);
-        socket.off('game-start', handleGameStart); // Remove event listener on cleanup
+        socket.off('game-start', handleGameStart);
         socket.off('error', handleError);
+        clearTimeout(loadingTimeout);
       };
     }
-  }, [socket, roomId]);
+  }, [socket, roomId, loading]);
 
   const handleRoomJoined = (data) => {
     setLoading(false);
     setRoom(data.game);
     setPlayers(data.game.players);
 
-    // If there are already 2 or more players, automatically start the game
-    if (data.game.players.length >= 2) {
+    // If there are already enough players to start the game, automatically start it
+    if (data.game.players.length >= (data.game.settings?.maxPlayers || 2)) {
       socket.emit('start-game', { roomId });
     }
   };
@@ -61,8 +70,8 @@ const WaitingArea = () => {
         newPlayers.push(data.player);
       }
 
-      // If we now have 2 or more players, automatically start the game
-      if (newPlayers.length >= 2) {
+      // If we now have enough players to start the game, automatically start it
+      if (room && newPlayers.length >= (room.settings?.maxPlayers || 2)) {
         socket.emit('start-game', { roomId });
       }
 

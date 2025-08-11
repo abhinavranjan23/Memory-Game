@@ -86,18 +86,27 @@ const Lobby = () => {
 
     // Socket event listeners
     if (socket) {
+      console.log("socket started", socket);
       socket.on("room-updated", handleRoomUpdate);
       socket.on("room-deleted", handleRoomDelete);
       socket.on("joined-room", handleJoinedRoom);
       socket.on("join-room-error", handleJoinError);
-      socket.on("active-players", handleActivePlayers);
+      socket.on("error", handleJoinError); // Also listen for general error events
+      socket.on(
+        "active-players",
+        handleActivePlayers,
+        console.log("active players emiited")
+      );
 
-      // Request initial rooms data
+      // Request initial rooms data and active players
+      // socket.emit("get-rooms");
+      socket.emit("get-active-players");
       socket.emit("get-rooms");
 
       // Set up periodic room refresh
       const refreshInterval = setInterval(() => {
         socket.emit("get-rooms");
+        socket.emit("get-active-players");
       }, 5000); // Refresh every 5 seconds
 
       return () => {
@@ -105,6 +114,7 @@ const Lobby = () => {
         socket.off("room-deleted", handleRoomDelete);
         socket.off("joined-room", handleJoinedRoom);
         socket.off("join-room-error", handleJoinError);
+        socket.off("error", handleJoinError);
         socket.off("active-players", handleActivePlayers);
         clearInterval(refreshInterval);
       };
@@ -131,11 +141,23 @@ const Lobby = () => {
   };
 
   const handleRoomUpdate = (updatedRoom) => {
-    setRooms((prev) =>
-      prev.map((room) =>
-        room.roomId === updatedRoom.roomId ? updatedRoom : room
-      )
-    );
+    setRooms((prevRooms) => {
+      const existingRoomIndex = prevRooms.findIndex(
+        (r) => r.roomId === updatedRoom.roomId
+      );
+
+      if (existingRoomIndex >= 0) {
+        const updatedRooms = [...prevRooms];
+        updatedRooms[existingRoomIndex] = {
+          ...updatedRooms[existingRoomIndex],
+          ...updatedRoom,
+        };
+        return updatedRooms;
+      } else {
+        // Add the room if it doesn't exist yet
+        return [...prevRooms, updatedRoom];
+      }
+    });
   };
 
   const handleRoomDelete = (roomId) => {
@@ -147,7 +169,7 @@ const Lobby = () => {
     setSelectedRoom(null);
     setRoomPassword("");
     addToast(`Joined room successfully!`, "success");
-    navigate(`/waiting/${data.roomId}`);
+    // Navigation is now handled directly in the join functions
   };
 
   const handleJoinError = (error) => {
@@ -156,6 +178,7 @@ const Lobby = () => {
   };
 
   const handleActivePlayers = (data) => {
+    console.log("i am called on active player ", data.count);
     setActivePlayers(data.count);
   };
 
@@ -193,9 +216,10 @@ const Lobby = () => {
         timeLimit: 60,
       });
 
-      // Join the created room
+      // Join the created room and navigate to waiting area
       if (socket) {
         socket.emit("join-room", { roomId: response.data.game.roomId });
+        navigate(`/waiting/${response.data.game.roomId}`);
       }
     } catch (error) {
       // Error already handled by handleApiCall
@@ -203,12 +227,29 @@ const Lobby = () => {
   };
 
   const joinGameRoom = (room) => {
+    console.log(room);
     if (room.isPrivate) {
       setSelectedRoom(room);
     } else {
       setJoinLoading(room.roomId);
       if (socket) {
-        socket.emit("join-room", { roomId: room.roomId });
+        try {
+          // Use the joinRoom function from SocketContext
+          const success = joinRoom({ roomId: room.roomId });
+          if (success) {
+            // Navigate directly to waiting area
+            navigate(`/waiting/${room.roomId}`);
+          } else {
+            setJoinLoading(null);
+            addToast("Failed to join room - Socket not connected", "error");
+          }
+        } catch (error) {
+          setJoinLoading(null);
+          addToast(error.message || "Failed to join room", "error");
+        }
+      } else {
+        setJoinLoading(null);
+        addToast("Socket connection not available", "error");
       }
     }
   };
@@ -221,10 +262,30 @@ const Lobby = () => {
 
     setJoinLoading(selectedRoom.roomId);
     if (socket) {
-      socket.emit("join-room", {
-        roomId: selectedRoom.roomId,
-        password: roomPassword.trim(),
-      });
+      try {
+        // Use the joinRoom function from SocketContext
+        const success = joinRoom({
+          roomId: selectedRoom.roomId,
+          password: roomPassword.trim(),
+        });
+
+        if (success) {
+          // Navigate directly to waiting area
+          navigate(`/waiting/${selectedRoom.roomId}`);
+        } else {
+          setJoinLoading(null);
+          addToast(
+            "Failed to join private room - Socket not connected",
+            "error"
+          );
+        }
+      } catch (error) {
+        setJoinLoading(null);
+        addToast(error.message || "Failed to join private room", "error");
+      }
+    } else {
+      setJoinLoading(null);
+      addToast("Socket connection not available", "error");
     }
   };
 

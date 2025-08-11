@@ -87,7 +87,20 @@ const POWER_UPS = [
 
 // Generate game board
 function generateBoard(boardSize, theme = 'emojis', powerUpsEnabled = true) {
-  const totalCards = boardSize * boardSize;
+  // Convert string boardSize (e.g., "4x4") to number if needed
+  let size;
+  if (typeof boardSize === 'string') {
+    // Extract the first number from formats like "4x4"
+    size = parseInt(boardSize.split('x')[0], 10);
+    if (isNaN(size)) {
+      // Default to 4 if parsing fails
+      size = 4;
+    }
+  } else {
+    size = boardSize;
+  }
+  
+  const totalCards = size * size;
   const pairs = totalCards / 2;
   
   if (!THEMES[theme]) {
@@ -96,7 +109,7 @@ function generateBoard(boardSize, theme = 'emojis', powerUpsEnabled = true) {
   
   const themeCards = THEMES[theme];
   if (themeCards.length < pairs) {
-    throw new Error(`Theme ${theme} doesn't have enough cards for ${boardSize}x${boardSize} board`);
+    throw new Error(`Theme ${theme} doesn't have enough cards for ${size}x${size} board`);
   }
   
   // Select random cards for this game
@@ -242,12 +255,34 @@ function shuffleArray(array) {
 
 // Validate board size
 function isValidBoardSize(size) {
-  return [4, 6, 8].includes(size) && (size * size) % 2 === 0;
+  // Handle string board sizes like "4x4"
+  let numericSize;
+  if (typeof size === 'string') {
+    numericSize = parseInt(size.split('x')[0], 10);
+    if (isNaN(numericSize)) {
+      return false;
+    }
+  } else {
+    numericSize = size;
+  }
+  
+  return [4, 6, 8].includes(numericSize) && (numericSize * numericSize) % 2 === 0;
 }
 
 // Get difficulty level based on board size
 function getDifficultyLevel(boardSize) {
-  switch (boardSize) {
+  // Handle string board sizes like "4x4"
+  let size;
+  if (typeof boardSize === 'string') {
+    size = parseInt(boardSize.split('x')[0], 10);
+    if (isNaN(size)) {
+      return 'Unknown';
+    }
+  } else {
+    size = boardSize;
+  }
+  
+  switch (size) {
     case 4:
       return 'Easy';
     case 6:
@@ -314,7 +349,12 @@ function checkAchievements(player, gameResult) {
   }
   
   // Grandmaster (8x8 board win)
-  if (gameResult.won && gameResult.boardSize === 8) {
+  let boardSize = gameResult.boardSize;
+  if (typeof boardSize === 'string') {
+    boardSize = parseInt(boardSize.split('x')[0], 10);
+  }
+  
+  if (gameResult.won && boardSize === 8) {
     achievements.push({
       id: 'grandmaster',
       name: 'Grandmaster',

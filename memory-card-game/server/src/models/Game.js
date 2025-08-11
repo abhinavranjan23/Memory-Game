@@ -1,17 +1,20 @@
 const mongoose = require("mongoose");
 
-const powerUpSchema = new mongoose.Schema({
-  type: {
-    type: String,
-    enum: ["extraTurn", "peek", "swap", "revealOne", "freeze", "shuffle"],
-    required: true,
+const powerUpSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["extraTurn", "peek", "swap", "revealOne", "freeze", "shuffle"],
+      required: true,
+    },
+    name: { type: String, required: true },
+    description: { type: String, required: true },
+    icon: { type: String, required: true },
+    duration: { type: Number },
+    uses: { type: Number, default: 1 },
   },
-  name: { type: String, required: true },
-  description: { type: String, required: true },
-  icon: { type: String, required: true },
-  duration: { type: Number },
-  uses: { type: Number, default: 1 },
-});
+  { optimisticConcurrency: false }
+);
 
 const cardSchema = new mongoose.Schema({
   id: { type: Number, required: true },

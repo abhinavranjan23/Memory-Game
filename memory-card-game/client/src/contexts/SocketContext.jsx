@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext.jsx";
 
@@ -7,55 +7,78 @@ const SocketContext = createContext();
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 
 export const SocketProvider = ({ children }) => {
+  const { token, user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-  const { token, user } = useAuth();
+  const hasConnectedRef = useRef(false);
+  const lastJoinPayloadRef = useRef(null);
+  const joinCooldownRef = useRef(0);
 
   useEffect(() => {
-    if (user && token) {
-      const newSocket = io(SOCKET_URL, {
-        auth: {
-          token,
-        },
-      });
-
-      newSocket.on("connect", () => {
-        console.log("Connected to server");
-        setIsConnected(true);
-      });
-
-      newSocket.on("disconnect", () => {
-        console.log("Disconnected from server");
-        setIsConnected(false);
-      });
-
-      newSocket.on("error", (error) => {
-        console.error("Socket error 123:", error);
-      });
-
-      setSocket(newSocket);
-
-      return () => {
-        newSocket.close();
-      };
-    } else {
+    if (!user || !token) {
       if (socket) {
         socket.close();
         setSocket(null);
         setIsConnected(false);
       }
+      hasConnectedRef.current = false;
+      return;
     }
+
+    // Prevent duplicate socket connections under React.StrictMode
+    if (hasConnectedRef.current) {
+      return;
+    }
+    hasConnectedRef.current = true;
+
+    const newSocket = io(SOCKET_URL, {
+      auth: { token },
+      autoConnect: true,
+    });
+
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+    const onError = (error) => console.error("Socket error:", error);
+
+    newSocket.on("connect", onConnect);
+    newSocket.on("disconnect", onDisconnect);
+    newSocket.on("error", onError);
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.off("connect", onConnect);
+      newSocket.off("disconnect", onDisconnect);
+      newSocket.off("error", onError);
+      newSocket.close();
+      setSocket(null);
+      setIsConnected(false);
+      hasConnectedRef.current = false;
+      lastJoinPayloadRef.current = null;
+      joinCooldownRef.current = 0;
+    };
   }, [user, token]);
 
-  // Function to join a room
+  // Debounced join to avoid flooding the server
   const joinRoom = (roomData) => {
     if (!socket) {
       console.error("Socket not connected");
       return false;
     }
 
+    const now = Date.now();
+    const samePayload =
+      lastJoinPayloadRef.current &&
+      JSON.stringify(lastJoinPayloadRef.current) === JSON.stringify(roomData);
+
+    // 500ms cooldown for same join payload
+    if (samePayload && now - joinCooldownRef.current < 500) {
+      return true;
+    }
+
     try {
-      console.log("Joining room with data:", roomData);
+      lastJoinPayloadRef.current = roomData;
+      joinCooldownRef.current = now;
       socket.emit("join-room", roomData);
       return true;
     } catch (error) {
@@ -64,10 +87,13 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
+  const value = useMemo(
+    () => ({ socket, isConnected, joinRoom }),
+    [socket, isConnected]
+  );
+
   return (
-    <SocketContext.Provider value={{ socket, isConnected, joinRoom }}>
-      {children}
-    </SocketContext.Provider>
+    <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
   );
 };
 

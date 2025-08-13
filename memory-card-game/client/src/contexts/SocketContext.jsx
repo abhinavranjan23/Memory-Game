@@ -9,63 +9,114 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+
+  // Game-related state
+  const [rooms, setRooms] = useState([]);
+  const [activePlayers, setActivePlayers] = useState([]);
+  const [error, setError] = useState(null);
+
   const { token, user } = useAuth();
 
   useEffect(() => {
-    if (user && token) {
-      const newSocket = io(SOCKET_URL, {
-        auth: {
-          token,
-        },
-      });
-
-      newSocket.on("connect", () => {
-        console.log("Connected to server");
-        setIsConnected(true);
-      });
-
-      newSocket.on("disconnect", () => {
-        console.log("Disconnected from server");
-        setIsConnected(false);
-      });
-
-      newSocket.on("error", (error) => {
-        console.error("Socket error 123:", error);
-      });
-
-      setSocket(newSocket);
-
-      return () => {
-        newSocket.close();
-      };
-    } else {
+    if (!user || !token) {
       if (socket) {
         socket.close();
         setSocket(null);
         setIsConnected(false);
       }
+      return;
     }
+
+    const newSocket = io(SOCKET_URL, {
+      auth: { token },
+    });
+
+    setSocket(newSocket);
+
+    // Attach all listeners ONCE
+    newSocket.on("connect", () => {
+      console.log("Connected to server");
+      setIsConnected(true);
+      newSocket.emit("get-rooms");
+      newSocket.emit("get-active-players");
+    });
+
+    newSocket.on("disconnect", () => {
+      console.log("Disconnected from server");
+      setIsConnected(false);
+    });
+
+    newSocket.on("error", (err) => {
+      console.error("Socket error:", err);
+      setError(err);
+    });
+
+    newSocket.on("room-updated", (updatedRoom) => {
+      setRooms((prev) => {
+        const exists = prev.find((room) => room.id === updatedRoom.id);
+        return exists
+          ? prev.map((room) =>
+              room.id === updatedRoom.id ? updatedRoom : room
+            )
+          : [...prev, updatedRoom];
+      });
+    });
+
+    newSocket.on("room-deleted", (deletedRoomId) => {
+      setRooms((prev) => prev.filter((room) => room.id !== deletedRoomId));
+    });
+
+    newSocket.on("joined-room", (room) => {
+      console.log("Joined room:", room);
+    });
+
+    newSocket.on("join-room-error", (errMsg) => {
+      console.error("Join room error:", errMsg);
+      setError(errMsg);
+    });
+
+    newSocket.on("active-players", (players) => {
+      setActivePlayers(players);
+    });
+
+    // Refresh every 5 seconds
+    const refreshInterval = setInterval(() => {
+      newSocket.emit("get-rooms");
+      newSocket.emit("get-active-players");
+    }, 5000);
+
+    return () => {
+      clearInterval(refreshInterval);
+      newSocket.close();
+    };
   }, [user, token]);
 
-  // Function to join a room
+  // API for joining a room
   const joinRoom = (roomData) => {
     if (!socket) {
       console.error("Socket not connected");
       return false;
     }
-
     try {
-      console.log("Joining room with data:", roomData);
       socket.emit("join-room", roomData);
       return true;
-    } catch (error) {
-      console.error("Error joining room:", error);
+    } catch (err) {
+      console.error("Error joining room:", err);
       return false;
     }
   };
 
   return (
-    <SocketContext.Provider value={{ socket, isConnected, joinRoom }}>
+    <SocketContext.Provider
+      value={{
+        socket,
+        isConnected,
+        rooms,
+        activePlayers,
+        error,
+        joinRoom,
+      }}
+    >
       {children}
     </SocketContext.Provider>
   );
@@ -73,7 +124,7 @@ export const SocketProvider = ({ children }) => {
 
 export const useSocket = () => {
   const context = useContext(SocketContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useSocket must be used within a SocketProvider");
   }
   return context;

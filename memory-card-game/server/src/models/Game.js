@@ -45,6 +45,7 @@ const gameStateSchema = new mongoose.Schema({
     type: String,
     enum: ["waiting", "starting", "playing", "paused", "finished"],
     default: "waiting",
+    required: true,
   },
   currentPlayerIndex: { type: Number, default: 0 },
   board: [cardSchema],
@@ -137,7 +138,6 @@ gameSchema.methods.removePlayer = function (userId) {
     this.gameState.status = "finished";
   }
 };
-
 gameSchema.methods.togglePlayerReady = function (userId) {
   const player = this.players.find((p) => p.userId === userId);
   if (player) {

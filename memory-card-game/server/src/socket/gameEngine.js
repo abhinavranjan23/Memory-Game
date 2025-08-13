@@ -20,6 +20,7 @@ class GameEngine {
     this.flipTimer = null;
     this.currentFlippedCards = [];
     this.isProcessingFlip = false;
+    this.isStarting = false;
   }
 
   async initialize() {
@@ -30,15 +31,23 @@ class GameEngine {
   }
 
   async startGame() {
-    if (!this.game) {
-      await this.initialize();
+    if (this.isStarting) {
+      return; // Prevent re-entrance
     }
-
-    // Check if all players are ready
-    const allReady = this.game.players.every((p) => p.isReady);
-    if (!allReady || this.game.players.length < 2) {
-      throw new Error("Not all players are ready or insufficient players");
-    }
+    this.isStarting = true;
+    try {
+      if (!this.game) {
+        await this.initialize();
+      }
+  
+      // Refresh the latest game state in case of races
+      this.game = await Game.findOne({ roomId: this.roomId });
+  
+      // Check if all players are ready
+      const allReady = this.game.players.every(p => p.isReady);
+      if (!allReady || this.game.players.length < 2) {
+        throw new Error('Not all players are ready or insufficient players');
+      }
 
     // Generate game board
     const board = generateBoard(
@@ -81,6 +90,8 @@ class GameEngine {
     });
 
     console.log(`Game started in room ${this.roomId}`);
+  } finally {
+    this.isStarting = false;
   }
 
   async flipCard(userId, cardId) {

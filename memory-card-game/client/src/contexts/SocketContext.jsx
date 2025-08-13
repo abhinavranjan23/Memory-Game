@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext.jsx";
 
@@ -7,15 +14,12 @@ const SocketContext = createContext();
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 
 export const SocketProvider = ({ children }) => {
+  const { token, user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
-
-  // Game-related state
-  const [rooms, setRooms] = useState([]);
-  const [activePlayers, setActivePlayers] = useState([]);
-  const [error, setError] = useState(null);
-
-  const { token, user } = useAuth();
+  const hasConnectedRef = useRef(false);
+  const lastJoinPayloadRef = useRef(null);
+  const joinCooldownRef = useRef(0);
 
   useEffect(() => {
     if (!user || !token) {
@@ -24,80 +28,73 @@ export const SocketProvider = ({ children }) => {
         setSocket(null);
         setIsConnected(false);
       }
+      hasConnectedRef.current = false;
       return;
     }
 
+    // Prevent duplicate socket connections under React.StrictMode
+    if (hasConnectedRef.current) {
+      return;
+    }
+    hasConnectedRef.current = true;
+
     const newSocket = io(SOCKET_URL, {
       auth: { token },
+      autoConnect: true,
     });
+
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+    const onError = (error) => {
+      // Suppress benign start-game race messages
+      if (
+        error?.message === "Game already started or not enough players" ||
+        /already started/i.test(error?.message || "")
+      ) {
+        return;
+      }
+      console.error("Socket error:", error);
+    };
+
+    newSocket.on("connect", onConnect);
+    newSocket.on("disconnect", onDisconnect);
+    newSocket.on("error", onError);
 
     setSocket(newSocket);
 
-    // Attach all listeners ONCE
-    newSocket.on("connect", () => {
-      console.log("Connected to server");
-      setIsConnected(true);
-      newSocket.emit("get-rooms");
-      newSocket.emit("get-active-players");
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("Disconnected from server");
-      setIsConnected(false);
-    });
-
-    newSocket.on("error", (err) => {
-      console.error("Socket error:", err);
-      setError(err);
-    });
-
-    newSocket.on("room-updated", (updatedRoom) => {
-      setRooms((prev) => {
-        const exists = prev.find((room) => room.id === updatedRoom.id);
-        return exists
-          ? prev.map((room) =>
-              room.id === updatedRoom.id ? updatedRoom : room
-            )
-          : [...prev, updatedRoom];
-      });
-    });
-
-    newSocket.on("room-deleted", (deletedRoomId) => {
-      setRooms((prev) => prev.filter((room) => room.id !== deletedRoomId));
-    });
-
-    newSocket.on("joined-room", (room) => {
-      console.log("Joined room:", room);
-    });
-
-    newSocket.on("join-room-error", (errMsg) => {
-      console.error("Join room error:", errMsg);
-      setError(errMsg);
-    });
-
-    newSocket.on("active-players", (players) => {
-      setActivePlayers(players);
-    });
-
-    // Refresh every 5 seconds
-    const refreshInterval = setInterval(() => {
-      newSocket.emit("get-rooms");
-      newSocket.emit("get-active-players");
-    }, 5000);
-
     return () => {
-      clearInterval(refreshInterval);
+      newSocket.off("connect", onConnect);
+      newSocket.off("disconnect", onDisconnect);
+      newSocket.off("error", onError);
       newSocket.close();
+      setSocket(null);
+      setIsConnected(false);
+      hasConnectedRef.current = false;
+      lastJoinPayloadRef.current = null;
+      joinCooldownRef.current = 0;
     };
   }, [user, token]);
 
-  // API for joining a room
+  // Debounced join to avoid flooding the server
   const joinRoom = (roomData) => {
     if (!socket) {
       console.error("Socket not connected");
       return false;
     }
+
+    const now = Date.now();
+    const samePayload =
+      lastJoinPayloadRef.current &&
+      JSON.stringify(lastJoinPayloadRef.current) === JSON.stringify(roomData);
+
+    // 500ms cooldown for same join payload
+    if (samePayload && now - joinCooldownRef.current < 500) {
+      return true;
+    }
+
     try {
+      lastJoinPayloadRef.current = roomData;
+      joinCooldownRef.current = now;
       socket.emit("join-room", roomData);
       return true;
     } catch (err) {
@@ -106,19 +103,13 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
+  const value = useMemo(
+    () => ({ socket, isConnected, joinRoom }),
+    [socket, isConnected]
+  );
+
   return (
-    <SocketContext.Provider
-      value={{
-        socket,
-        isConnected,
-        rooms,
-        activePlayers,
-        error,
-        joinRoom,
-      }}
-    >
-      {children}
-    </SocketContext.Provider>
+    <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
   );
 };
 

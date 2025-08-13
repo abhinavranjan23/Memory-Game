@@ -43,8 +43,8 @@ function initializeSocket(io) {
           return;
         }
 
-        // Leave current room if in one
-        if (socket.currentRoom) {
+        // Leave current room if switching to a different room
+        if (socket.currentRoom && socket.currentRoom !== roomId) {
           await handleLeaveRoom(socket, socket.currentRoom);
         }
 
@@ -153,14 +153,15 @@ function initializeSocket(io) {
         }
 
         // Emit successful join
+        const freshGame = await Game.findOne({ roomId });
         const joinData = {
           roomId,
           game: {
-            roomId: game.roomId,
-            players: game.players,
-            gameState: game.gameState,
-            settings: game.settings,
-            chat: game.chat.slice(-50),
+            roomId: freshGame.roomId,
+            players: freshGame.players,
+            gameState: freshGame.gameState,
+            settings: freshGame.settings,
+            chat: freshGame.chat.slice(-50),
           },
         };
 
@@ -223,7 +224,21 @@ function initializeSocket(io) {
 
               const gameEngine = activeGames.get(roomId);
               if (gameEngine) {
-                await gameEngine.startGame();
+                try {
+                  await gameEngine.startGame();
+                } catch (e) {
+                  console.warn("Auto-start game warning:", e.message);
+                }
+              }
+            } else {
+              // If already starting/playing, do not error; just echo state
+              const current = await Game.findOne({ roomId });
+              if (current && ["starting", "playing"].includes(current.gameState.status)) {
+                io.to(roomId).emit("game-start", {
+                  roomId: current.roomId,
+                  players: current.players,
+                  gameState: current.gameState,
+                });
               }
             }
           } catch (autoStartError) {
@@ -267,9 +282,15 @@ function initializeSocket(io) {
         );
 
         if (!updatedGame) {
-          socket.emit("error", {
-            message: "Game already started or not enough players",
-          });
+          // Fetch current game state and emit without error to avoid noisy client errors
+          const current = await Game.findOne({ roomId: socket.currentRoom });
+          if (current && ["starting", "playing"].includes(current.gameState.status)) {
+            io.to(socket.currentRoom).emit("game-start", {
+              roomId: current.roomId,
+              players: current.players,
+              gameState: current.gameState,
+            });
+          }
           return;
         }
 
@@ -539,27 +560,48 @@ function initializeSocket(io) {
   // Helper function to handle leaving room
   async function handleLeaveRoom(socket, roomId) {
     try {
-      const game = await Game.findOne({ roomId });
-      if (game) {
-        game.removePlayer(socket.userId);
+      // Atomically pull the player from the room's players list
+      const updated = await Game.findOneAndUpdate(
+        { roomId },
+        { $pull: { players: { userId: socket.userId } } },
+        { new: true }
+      );
 
-        if (game.players.length === 0) {
+      if (updated) {
+        // If game was starting and now lacks required players, revert to waiting and clear readiness
+        if (updated.gameState.status === "starting" && updated.players.length < updated.settings.maxPlayers) {
+          await Game.findOneAndUpdate(
+            { roomId, "gameState.status": "starting" },
+            { $set: { "gameState.status": "waiting", "players.$[].isReady": false } }
+          );
+        }
+
+        // If active game engine exists and the game is playing, notify it about disconnect
+        const gameEngine = activeGames.get(roomId);
+        if (gameEngine && updated.gameState.status === "playing") {
+          try {
+            await gameEngine.handlePlayerDisconnect(socket.userId);
+          } catch (e) {
+            console.error("Game engine disconnect handling error:", e);
+          }
+        }
+
+        if (updated.players.length === 0) {
           // Delete empty game
           await Game.findOneAndDelete({ roomId });
           activeGames.delete(roomId);
         } else {
-          await game.save();
-
           // Notify remaining players
           socket.to(roomId).emit("player-left", {
             userId: socket.userId,
             username: socket.username,
           });
 
-          // Update game state
+          // Update game state for remaining players
+          const fresh = await Game.findOne({ roomId });
           socket.to(roomId).emit("game-state", {
-            players: game.players,
-            gameState: game.gameState,
+            players: fresh.players,
+            gameState: fresh.gameState,
           });
         }
       }

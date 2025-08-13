@@ -79,22 +79,61 @@ function initializeSocket(io) {
           return;
         }
 
-        // Check if room is full
-        if (game.players.length >= game.settings.maxPlayers) {
-          console.log(`Join room error: Room ${roomId} is full`);
-          socket.emit("error", { message: "Room is full" });
-          socket.emit("join-room-error", { message: "Room is full" });
-          return;
-        }
-
-        // Check if user is already in the game
-        const existingPlayer = game.players.find(
-          (p) => p.userId === socket.userId
-        );
+        // Attempt to add player atomically to avoid version conflicts
+        const existingPlayer = game.players.find((p) => p.userId === socket.userId);
         if (!existingPlayer) {
           try {
-            game.addPlayer(socket.userId, socket.username, socket.data?.avatar);
-            await game.save();
+            const updatedGameForJoin = await Game.findOneAndUpdate(
+              {
+                roomId,
+                $expr: { $lt: [{ $size: "$players" }, "$settings.maxPlayers"] },
+                "players.userId": { $ne: socket.userId },
+              },
+              {
+                $push: {
+                  players: {
+                    userId: socket.userId,
+                    username: socket.username,
+                    avatar: socket.data?.avatar,
+                    isReady: false,
+                    score: 0,
+                    matches: 0,
+                    flips: 0,
+                    powerUps: [],
+                    memoryMeter: 0,
+                    isCurrentTurn: false,
+                    matchStreak: 0,
+                  },
+                },
+              },
+              { new: true }
+            );
+
+            if (updatedGameForJoin) {
+              game = updatedGameForJoin;
+            } else {
+              // Determine why update failed
+              const alreadyInGame = await Game.exists({
+                roomId,
+                "players.userId": socket.userId,
+              });
+              if (alreadyInGame) {
+                game = await Game.findOne({ roomId });
+              } else {
+                const isFull = await Game.exists({
+                  roomId,
+                  $expr: { $gte: [{ $size: "$players" }, "$settings.maxPlayers"] },
+                });
+                if (isFull) {
+                  console.log(`Join room error: Room ${roomId} is full`);
+                  socket.emit("error", { message: "Room is full" });
+                  socket.emit("join-room-error", { message: "Room is full" });
+                  return;
+                }
+                // Fallback: fetch latest game state
+                game = await Game.findOne({ roomId });
+              }
+            }
           } catch (error) {
             console.log(`Join room error: ${error.message}`);
             socket.emit("error", { message: error.message });
@@ -155,31 +194,40 @@ function initializeSocket(io) {
           game.players.length >= game.settings.maxPlayers &&
           game.gameState.status === "waiting"
         ) {
-          // Set all players as ready
-          game.players.forEach((player) => {
-            player.isReady = true;
-          });
-          game.gameState.status = "starting";
-          await game.save();
+          try {
+            const updatedGame = await Game.findOneAndUpdate(
+              {
+                roomId,
+                "gameState.status": "waiting",
+                $expr: { $gte: [{ $size: "$players" }, "$settings.maxPlayers"] },
+              },
+              {
+                $set: { "players.$[].isReady": true, "gameState.status": "starting" },
+              },
+              { new: true }
+            );
 
-          // Emit game-start event to all players in the room
-          io.to(roomId).emit("game-start", {
-            roomId: game.roomId,
-            players: game.players,
-            gameState: game.gameState,
-          });
+            if (updatedGame) {
+              io.to(roomId).emit("game-start", {
+                roomId: updatedGame.roomId,
+                players: updatedGame.players,
+                gameState: updatedGame.gameState,
+              });
 
-          // Also emit game-started for backward compatibility
-          io.to(roomId).emit("game-started", {
-            roomId: game.roomId,
-            players: game.players,
-            gameState: game.gameState,
-          });
+              // Also emit game-started for backward compatibility
+              io.to(roomId).emit("game-started", {
+                roomId: updatedGame.roomId,
+                players: updatedGame.players,
+                gameState: updatedGame.gameState,
+              });
 
-          // Start the game
-          const gameEngine = activeGames.get(roomId);
-          if (gameEngine) {
-            await gameEngine.startGame();
+              const gameEngine = activeGames.get(roomId);
+              if (gameEngine) {
+                await gameEngine.startGame();
+              }
+            }
+          } catch (autoStartError) {
+            console.error("Auto-start game error:", autoStartError);
           }
         }
 
@@ -207,33 +255,28 @@ function initializeSocket(io) {
       }
 
       try {
-        // First, find the game
-        const game = await Game.findOne({
-          roomId: socket.currentRoom,
-          "gameState.status": "waiting",
-        });
+        // Atomically mark all players ready and move to starting if still waiting and has enough players
+        const updatedGame = await Game.findOneAndUpdate(
+          {
+            roomId: socket.currentRoom,
+            "gameState.status": "waiting",
+            $expr: { $gte: [{ $size: "$players" }, "$settings.maxPlayers"] },
+          },
+          { $set: { "players.$[].isReady": true, "gameState.status": "starting" } },
+          { new: true }
+        );
 
-        if (!game) {
+        if (!updatedGame) {
           socket.emit("error", {
-            message: "Game already started or not found",
+            message: "Game already started or not enough players",
           });
           return;
         }
 
-        if (!game.players || game.players.length === 0) {
-          socket.emit("error", { message: "No players in game" });
-          return;
-        }
-
-        // Update players and status
-        game.players.forEach((p) => (p.isReady = true));
-        game.gameState.status = "starting";
-        await game.save();
-
         io.to(socket.currentRoom).emit("game-start", {
-          roomId: game.roomId,
-          players: game.players,
-          gameState: game.gameState,
+          roomId: updatedGame.roomId,
+          players: updatedGame.players,
+          gameState: updatedGame.gameState,
         });
 
         const gameEngine = activeGames.get(socket.currentRoom);

@@ -224,7 +224,21 @@ function initializeSocket(io) {
 
               const gameEngine = activeGames.get(roomId);
               if (gameEngine) {
-                await gameEngine.startGame();
+                try {
+                  await gameEngine.startGame();
+                } catch (e) {
+                  console.warn("Auto-start game warning:", e.message);
+                }
+              }
+            } else {
+              // If already starting/playing, do not error; just echo state
+              const current = await Game.findOne({ roomId });
+              if (current && ["starting", "playing"].includes(current.gameState.status)) {
+                io.to(roomId).emit("game-start", {
+                  roomId: current.roomId,
+                  players: current.players,
+                  gameState: current.gameState,
+                });
               }
             }
           } catch (autoStartError) {
@@ -268,9 +282,15 @@ function initializeSocket(io) {
         );
 
         if (!updatedGame) {
-          socket.emit("error", {
-            message: "Game already started or not enough players",
-          });
+          // Fetch current game state and emit without error to avoid noisy client errors
+          const current = await Game.findOne({ roomId: socket.currentRoom });
+          if (current && ["starting", "playing"].includes(current.gameState.status)) {
+            io.to(socket.currentRoom).emit("game-start", {
+              roomId: current.roomId,
+              players: current.players,
+              gameState: current.gameState,
+            });
+          }
           return;
         }
 

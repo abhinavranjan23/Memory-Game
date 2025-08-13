@@ -38,7 +38,16 @@ export const SocketProvider = ({ children }) => {
 
     const onConnect = () => setIsConnected(true);
     const onDisconnect = () => setIsConnected(false);
-    const onError = (error) => console.error("Socket error:", error);
+    const onError = (error) => {
+      // Suppress benign start-game race messages
+      if (
+        error?.message === "Game already started or not enough players" ||
+        /already started/i.test(error?.message || "")
+      ) {
+        return;
+      }
+      console.error("Socket error:", error);
+    };
 
     newSocket.on("connect", onConnect);
     newSocket.on("disconnect", onDisconnect);

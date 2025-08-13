@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSocket } from '../contexts/SocketContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -16,13 +16,19 @@ const WaitingArea = () => {
   const [room, setRoom] = useState(null);
   const [loading, setLoading] = useState(true);
   const [players, setPlayers] = useState([]);
+  const startRequestedRef = useRef(false);
 
   useEffect(() => {
     if (socket) {
-      // Join the room when component mounts
+      // Join the room when component mounts (debounced in context)
       socket.emit('join-room', { roomId });
 
       // Listen for room updates
+      socket.off('room-joined', handleRoomJoined);
+      socket.off('player-joined', handlePlayerJoined);
+      socket.off('game-started', handleGameStarted);
+      socket.off('game-start', handleGameStart);
+      socket.off('error', handleError);
       socket.on('room-joined', handleRoomJoined);
       socket.on('player-joined', handlePlayerJoined);
       socket.on('game-started', handleGameStarted);
@@ -44,6 +50,7 @@ const WaitingArea = () => {
         socket.off('game-start', handleGameStart);
         socket.off('error', handleError);
         clearTimeout(loadingTimeout);
+        startRequestedRef.current = false;
       };
     }
   }, [socket, roomId, loading]);
@@ -54,7 +61,9 @@ const WaitingArea = () => {
     setPlayers(data.game.players);
 
     // If there are already enough players to start the game, automatically start it
-    if (data.game.players.length >= (data.game.settings?.maxPlayers || 2)) {
+    const max = data.game.settings?.maxPlayers || 2;
+    if (!startRequestedRef.current && data.game.players.length >= max) {
+      startRequestedRef.current = true;
       socket.emit('start-game', { roomId });
     }
   };
@@ -71,7 +80,9 @@ const WaitingArea = () => {
       }
 
       // If we now have enough players to start the game, automatically start it
-      if (room && newPlayers.length >= (room.settings?.maxPlayers || 2)) {
+      const max = (room?.settings?.maxPlayers || 2);
+      if (!startRequestedRef.current && room && newPlayers.length >= max) {
+        startRequestedRef.current = true;
         socket.emit('start-game', { roomId });
       }
 

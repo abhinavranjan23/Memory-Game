@@ -200,42 +200,35 @@ function initializeSocket(io) {
       }
     });
 
-    socket.on("start-game", async () => {
+    // Start game event handler
+    socket.on("start-game", async (data) => {
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
         return;
       }
 
       try {
-        // First, find the game
-        const game = await Game.findOne({
-          roomId: socket.currentRoom,
-          "gameState.status": "waiting",
-        });
-
+        const game = await Game.findOne({ roomId: socket.currentRoom });
         if (!game) {
-          socket.emit("error", {
-            message: "Game already started or not found",
-          });
+          socket.emit("error", { message: "Game not found" });
           return;
         }
 
-        if (!game.players || game.players.length === 0) {
-          socket.emit("error", { message: "No players in game" });
-          return;
-        }
-
-        // Update players and status
-        game.players.forEach((p) => (p.isReady = true));
+        // Set all players as ready
+        game.players.forEach((player) => {
+          player.isReady = true;
+        });
         game.gameState.status = "starting";
         await game.save();
 
+        // Emit game-start event to all players in the room
         io.to(socket.currentRoom).emit("game-start", {
           roomId: game.roomId,
           players: game.players,
           gameState: game.gameState,
         });
 
+        // Start the game
         const gameEngine = activeGames.get(socket.currentRoom);
         if (gameEngine) {
           await gameEngine.startGame();

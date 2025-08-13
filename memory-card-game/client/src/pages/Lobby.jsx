@@ -80,45 +80,45 @@ const Lobby = () => {
     { value: "nature", label: "Nature", preview: ["🌲", "🌺", "🌙", "⭐"] },
     { value: "food", label: "Food", preview: ["🍕", "🍔", "🍰", "🍎"] },
   ];
-
   useEffect(() => {
     fetchRooms();
+    if (!socket) return;
 
-    // Socket event listeners
-    if (socket) {
-      console.log("socket started", socket);
-      socket.on("room-updated", handleRoomUpdate);
-      socket.on("room-deleted", handleRoomDelete);
-      socket.on("joined-room", handleJoinedRoom);
-      socket.on("join-room-error", handleJoinError);
-      socket.on("error", handleJoinError); // Also listen for general error events
-      socket.on(
-        "active-players",
-        handleActivePlayers,
-        console.log("active players emiited")
-      );
+    console.log("Socket connected in Lobby:", socket.id);
 
-      // Request initial rooms data and active players
-      // socket.emit("get-rooms");
-      socket.emit("get-active-players");
+    // Always clear old listeners first to prevent stacking
+    socket.off("room-updated", handleRoomUpdate);
+    socket.off("room-deleted", handleRoomDelete);
+    socket.off("joined-room", handleJoinedRoom);
+    socket.off("join-room-error", handleJoinError);
+    socket.off("error", handleJoinError);
+    socket.off("active-players", handleActivePlayers);
+
+    // Now add fresh listeners
+    socket.on("room-updated", handleRoomUpdate);
+    socket.on("room-deleted", handleRoomDelete);
+    socket.on("joined-room", handleJoinedRoom);
+    socket.on("join-room-error", handleJoinError);
+    socket.on("error", handleJoinError);
+    socket.on("active-players", handleActivePlayers);
+
+    socket.emit("get-active-players");
+    socket.emit("get-rooms");
+
+    const refreshInterval = setInterval(() => {
       socket.emit("get-rooms");
+      socket.emit("get-active-players");
+    }, 5000);
 
-      // Set up periodic room refresh
-      const refreshInterval = setInterval(() => {
-        socket.emit("get-rooms");
-        socket.emit("get-active-players");
-      }, 5000); // Refresh every 5 seconds
-
-      return () => {
-        socket.off("room-updated", handleRoomUpdate);
-        socket.off("room-deleted", handleRoomDelete);
-        socket.off("joined-room", handleJoinedRoom);
-        socket.off("join-room-error", handleJoinError);
-        socket.off("error", handleJoinError);
-        socket.off("active-players", handleActivePlayers);
-        clearInterval(refreshInterval);
-      };
-    }
+    return () => {
+      clearInterval(refreshInterval);
+      socket.off("room-updated", handleRoomUpdate);
+      socket.off("room-deleted", handleRoomDelete);
+      socket.off("joined-room", handleJoinedRoom);
+      socket.off("join-room-error", handleJoinError);
+      socket.off("error", handleJoinError);
+      socket.off("active-players", handleActivePlayers);
+    };
   }, [socket]);
 
   const fetchRooms = async () => {

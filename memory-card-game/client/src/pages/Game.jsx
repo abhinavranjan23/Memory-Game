@@ -22,10 +22,22 @@ const Game = () => {
 
   useEffect(() => {
     if (socket) {
-      // Join the room when component mounts
+      // Join the room when component mounts (debounced in context)
       socket.emit('join-room', { roomId });
 
       // Listen for game updates
+      socket.off('room-joined', handleRoomJoined);
+      socket.off('game-state', handleGameState);
+      socket.off('game-started', handleGameStarted);
+      socket.off('player-joined', handlePlayerJoined);
+      socket.off('player-left', handlePlayerLeft);
+      socket.off('card-flipped', handleCardFlipped);
+      socket.off('cards-matched', handleCardsMatched);
+      socket.off('cards-flipped-back', handleCardsFlippedBack);
+      socket.off('turn-changed', handleTurnChanged);
+      socket.off('game-over', handleGameOver);
+      socket.off('error', handleError);
+
       socket.on('room-joined', handleRoomJoined);
       socket.on('game-state', handleGameState);
       socket.on('game-started', handleGameStarted);

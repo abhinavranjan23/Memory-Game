@@ -147,8 +147,11 @@ gameSchema.methods.togglePlayerReady = function (userId) {
   // Check if all players are ready
   const allReady = this.players.every((p) => p.isReady);
   if (allReady && this.players.length >= 2) {
-    this.gameState.status = "starting";
+    if (this.gameState.status === "waiting") {
+      this.gameState.status = "starting";
+    }
   }
+  this.gameState.lastActivity = new Date();
 };
 
 gameSchema.methods.addChatMessage = function (

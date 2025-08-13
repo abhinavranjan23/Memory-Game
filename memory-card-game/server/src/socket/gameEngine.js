@@ -39,59 +39,60 @@ class GameEngine {
       if (!this.game) {
         await this.initialize();
       }
-  
+
       // Refresh the latest game state in case of races
       this.game = await Game.findOne({ roomId: this.roomId });
-  
+
       // Check if all players are ready
-      const allReady = this.game.players.every(p => p.isReady);
+      const allReady = this.game.players.every((p) => p.isReady);
       if (!allReady || this.game.players.length < 2) {
-        throw new Error('Not all players are ready or insufficient players');
+        throw new Error("Not all players are ready or insufficient players");
       }
 
-    // Generate game board
-    const board = generateBoard(
-      this.game.settings.boardSize,
-      this.game.settings.theme,
-      this.game.settings.powerUpsEnabled
-    );
+      // Generate game board
+      const board = generateBoard(
+        this.game.settings.boardSize,
+        this.game.settings.theme,
+        this.game.settings.powerUpsEnabled
+      );
 
-    // Initialize game state
-    this.game.gameState = {
-      status: "playing",
-      currentPlayerIndex: 0,
-      board: board,
-      flippedCards: [],
-      matchedPairs: [],
-      timeLeft: getTimeLimit(
-        this.game.settings.gameMode,
-        this.game.settings.timeLimit
-      ),
-      gameMode: this.game.settings.gameMode,
-      round: 1,
-      lastActivity: new Date(),
-      powerUpPool: [],
-    };
+      // Initialize game state
+      this.game.gameState = {
+        status: "playing",
+        currentPlayerIndex: 0,
+        board: board,
+        flippedCards: [],
+        matchedPairs: [],
+        timeLeft: getTimeLimit(
+          this.game.settings.gameMode,
+          this.game.settings.timeLimit
+        ),
+        gameMode: this.game.settings.gameMode,
+        round: 1,
+        lastActivity: new Date(),
+        powerUpPool: [],
+      };
 
-    // Set first player's turn
-    this.game.players[0].isCurrentTurn = true;
+      // Set first player's turn
+      this.game.players[0].isCurrentTurn = true;
 
-    await this.game.save();
+      await this.game.save();
 
-    // Start game timer for blitz mode
-    if (this.game.settings.gameMode === "blitz") {
-      this.startGameTimer();
+      // Start game timer for blitz mode
+      if (this.game.settings.gameMode === "blitz") {
+        this.startGameTimer();
+      }
+
+      // Notify all players
+      this.io.to(this.roomId).emit("game-started", {
+        gameState: this.game.gameState,
+        players: this.game.players,
+      });
+
+      console.log(`Game started in room ${this.roomId}`);
+    } finally {
+      this.isStarting = false;
     }
-
-    // Notify all players
-    this.io.to(this.roomId).emit("game-started", {
-      gameState: this.game.gameState,
-      players: this.game.players,
-    });
-
-    console.log(`Game started in room ${this.roomId}`);
-  } finally {
-    this.isStarting = false;
   }
 
   async flipCard(userId, cardId) {

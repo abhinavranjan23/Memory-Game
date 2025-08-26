@@ -1,0 +1,71 @@
+{
+  "total": 10,
+  "passed": 10,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "React Hooks",
+      "status": "PASSED",
+      "duration": 9,
+      "output": "🧪 Starting Client-side Hooks Tests...\n\n📋 Test 1: Username Validation Hook Structure\n✅ Username validation hook structure test passed\n\n📋 Test 2: Error Handler Hook Structure\n✅ Error handler hook structure test passed\n\n📋 Test 3: Username Validation Logic\n✅ Username validation logic test passed\n\n📋 Test 4: Error Handler Logic\n✅ Error handler logic test passed\n\n📋 Test 5: Hook Integration Test\n✅ Hook integration test passed\n\n🎉 All client-side hooks tests completed!\nHooks are properly structured and functional.\n"
+    },
+    {
+      "name": "React Contexts",
+      "status": "PASSED",
+      "duration": 6,
+      "output": "🧪 Starting Client-side Contexts Tests...\n\n📋 Test 1: Auth Context Structure\n✅ Auth context structure test passed\n\n📋 Test 2: Socket Context Structure\n✅ Socket context structure test passed\n\n📋 Test 3: Theme Context Structure\n✅ Theme context structure test passed\n\n📋 Test 4: Toast Context Structure\n✅ Toast context structure test passed\n\n📋 Test 5: Auth Context Logic\n✅ Auth context logic test passed\n\n📋 Test 6: Theme Context Logic\n✅ Theme context logic test passed\n\n📋 Test 7: Toast Context Logic\n✅ Toast context logic test passed\n\n📋 Test 8: Context Integration Test\n✅ Context integration test passed\n\n🎉 All client-side contexts tests completed!\nContexts are properly structured and functional.\n"
+    },
+    {
+      "name": "React Components",
+      "status": "PASSED",
+      "duration": 7,
+      "output": "🧪 Starting Client-side Components Tests...\n\n📋 Test 1: Error Boundary Component Structure\n✅ Error boundary component structure test passed\n\n📋 Test 2: Protected Route Component Structure\n✅ Protected route component structure test passed\n\n📋 Test 3: Public Route Component Structure\n✅ Public route component structure test passed\n\n📋 Test 4: Navigation Component Structure\n✅ Navigation component structure test passed\n\n📋 Test 5: Protected Route Logic\n✅ Protected route logic test passed\n\n📋 Test 6: Public Route Logic\n✅ Public route logic test passed\n\n📋 Test 7: Error Boundary Logic\n✅ Error boundary logic test passed\n\n📋 Test 8: Component State Management\n✅ Component state management test passed\n\n📋 Test 9: Component Props Handling\n✅ Component props handling test passed\n\n📋 Test 10: Component Integration Test\n✅ Component integration test passed\n\n🎉 All client-side components tests completed!\nComponents are properly structured and functional.\n"
+    },
+    {
+      "name": "Game Utilities",
+      "status": "PASSED",
+      "duration": 8,
+      "output": "🧪 Starting Client-side Game Utilities Tests...\n\n📋 Test 1: Card Matching Logic\n✅ Card matching logic test passed\n\n📋 Test 2: Score Calculation\n✅ Score calculation test passed\n\n📋 Test 3: Memory Meter Calculation\n✅ Memory meter calculation test passed\n\n📋 Test 4: Game State Validation\n✅ Game state validation test passed\n\n📋 Test 5: Power-up Logic\n✅ Power-up logic test passed\n\n📋 Test 6: Time Management\n✅ Time management test passed\n\n📋 Test 7: Game Statistics\n✅ Game statistics test passed\n\n📋 Test 8: Input Validation\n✅ Input validation test passed\n\n📋 Test 9: Performance Utilities\n✅ Performance utilities test passed\n\n📋 Test 10: Game Utilities Integration\n✅ Game utilities integration test passed\n\n🎉 All client-side game utilities tests completed!\nGame utilities are properly structured and functional.\n"
+    },
+    {
+      "name": "Game Functions",
+      "status": "PASSED",
+      "duration": 13,
+      "output": "🧪 Starting Client-side Game Functions Tests...\n\n📋 Test 1: Card Flipping Logic\n✅ Card flipping logic test passed\n\n📋 Test 2: Card Matching Logic\n✅ Card matching logic test passed\n\n📋 Test 3: Score Calculation\n✅ Score calculation test passed\n\n📋 Test 4: Game State Management\n✅ Game state management test passed\n\n📋 Test 5: Power-up System\n✅ Power-up system test passed\n\n📋 Test 6: Game Timer Management\n✅ Game timer management test passed\n\n📋 Test 7: Game Board Generation\n✅ Game board generation test passed\n\n📋 Test 8: Game Statistics Tracking\n✅ Game statistics tracking test passed\n\n📋 Test 9: Game Validation\n✅ Game validation test passed\n\n📋 Test 10: Game Integration\n✅ Game integration test passed\n\n🎉 All client-side game functions tests completed!\nGame functions are properly structured and functional.\n"
+    },
+    {
+      "name": "UI Buttons and Interactions",
+      "status": "PASSED",
+      "duration": 11,
+      "output": "🧪 Starting Client-side UI Interactions Tests...\n\n📋 Test 1: Theme Toggle Button\n✅ Theme toggle button test passed\n\n📋 Test 2: Privacy Settings Button\n✅ Privacy settings button test passed\n\n📋 Test 3: Leaderboard Button\n✅ Leaderboard button test passed\n\n📋 Test 4: Game Join/Leave Buttons\n✅ Game join/leave buttons test passed\n\n📋 Test 5: Username Change Button\n✅ Username change button test passed\n\n📋 Test 6: Game Settings Buttons\n✅ Game settings buttons test passed\n\n📋 Test 7: Chat and Social Buttons\n✅ Chat and social buttons test passed\n\n📋 Test 8: Notification Buttons\n✅ Notification buttons test passed\n\n📋 Test 9: Accessibility Buttons\n✅ Accessibility buttons test passed\n\n📋 Test 10: UI Integration\n✅ UI integration test passed\n\n🎉 All client-side UI interactions tests completed!\nUI interactions are properly structured and functional.\n"
+    },
+    {
+      "name": "User Management",
+      "status": "PASSED",
+      "duration": 8,
+      "output": "🧪 Starting Client-side User Management Tests...\n\n📋 Test 1: User Registration\n✅ User registration test passed\n\n📋 Test 2: User Login\n✅ User login test passed\n\n📋 Test 3: Profile Management\n✅ Profile management test passed\n\n📋 Test 4: Password Management\n✅ Password management test passed\n\n📋 Test 5: User Settings\n✅ User settings test passed\n\n🎉 All client-side user management tests completed!\nUser management functionality is properly structured and functional.\n"
+    },
+    {
+      "name": "Game State Management",
+      "status": "PASSED",
+      "duration": 7,
+      "output": "🧪 Starting Client-side Game State Management Tests...\n\n📋 Test 1: Game State Initialization\n✅ Game state initialization test passed\n\n📋 Test 2: Game State Updates\n✅ Game state updates test passed\n\n📋 Test 3: Game State Persistence\n✅ Game state persistence test passed\n\n📋 Test 4: Game State Validation\n✅ Game state validation test passed\n\n📋 Test 5: Game State Synchronization\n✅ Game state synchronization test passed\n\n🎉 All client-side game state management tests completed!\nGame state management functionality is properly structured and functional.\n"
+    },
+    {
+      "name": "Socket Communication",
+      "status": "PASSED",
+      "duration": 7,
+      "output": "🧪 Starting Client-side Socket Communication Tests...\n\n📋 Test 1: Socket Connection Management\n\n📋 Test 2: Socket Event Handling\nEvent received: [object Object]\n✅ Socket event handling test passed\n\n📋 Test 3: Game Event Communication\n✅ Game event communication test passed\n\n📋 Test 4: Socket Reconnection\n\n📋 Test 5: Socket Error Handling\n✅ Socket error handling test passed\n\n🎉 All client-side socket communication tests completed!\nSocket communication functionality is properly structured and functional.\n"
+    },
+    {
+      "name": "Integration Tests",
+      "status": "PASSED",
+      "duration": 9,
+      "output": "🧪 Starting Client-side Integration Tests...\n\n📋 Test 1: Full Game Flow Integration\n✅ Full game flow integration test passed\n\n📋 Test 2: Component Communication Integration\n✅ Component communication integration test passed\n\n📋 Test 3: State Management Integration\n✅ State management integration test passed\n\n📋 Test 4: Event System Integration\n✅ Event system integration test passed\n\n📋 Test 5: Error Handling Integration\n✅ Error handling integration test passed\n\n🎉 All client-side integration tests completed!\nClient-side integration is properly structured and functional.\n"
+    }
+  ],
+  "startTime": 1756157054538,
+  "endTime": 1756157054625,
+  "totalDuration": 87,
+  "timestamp": "2025-08-25T21:24:14.630Z"
+}

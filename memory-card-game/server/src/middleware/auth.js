@@ -1,20 +1,26 @@
-const jwt = require('jsonwebtoken');
-const { User } = require('../models/User.js');
-const { verifyAccessToken, extractTokenFromHeader } = require('../utils/auth.js');
+const jwt = require("jsonwebtoken");
+const { User } = require("../models/User.js");
+const {
+  verifyAccessToken,
+  extractTokenFromHeader,
+} = require("../utils/auth.js");
 
 // HTTP Authentication Middleware
 const auth = async (req, res, next) => {
   try {
-    const authHeader = req.header('Authorization');
+    const authHeader = req.header("Authorization");
     const token = extractTokenFromHeader(authHeader);
-    
+
     if (!token) {
-      return res.status(401).json({ message: 'Access denied. No token provided.' });
+      return res
+        .status(401)
+        .json({ message: "Access denied. No token provided." });
     }
 
     const decoded = verifyAccessToken(token);
+
     if (!decoded) {
-      return res.status(401).json({ message: 'Invalid token.' });
+      return res.status(401).json({ message: "Invalid token." });
     }
 
     // For guest users
@@ -22,15 +28,15 @@ const auth = async (req, res, next) => {
       req.user = {
         id: decoded.userId,
         isGuest: true,
-        username: `Guest${decoded.userId.split('_')[1]}` // Extract from guest ID
+        username: `Guest${decoded.userId.split("_")[1]}`, // Extract from guest ID
       };
       return next();
     }
 
     // For registered users, get from database
-    const user = await User.findById(decoded.userId).select('-password');
+    const user = await User.findById(decoded.userId).select("-password");
     if (!user) {
-      return res.status(401).json({ message: 'User not found.' });
+      return res.status(401).json({ message: "User not found." });
     }
 
     req.user = {
@@ -39,7 +45,7 @@ const auth = async (req, res, next) => {
       email: user.email,
       isGuest: false,
       isAdmin: user.isAdmin,
-      avatar: user.avatar
+      avatar: user.avatar,
     };
 
     // Update last active time for registered users
@@ -48,8 +54,8 @@ const auth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Auth middleware error:', error);
-    res.status(401).json({ message: 'Invalid token.' });
+    console.error("Auth middleware error:", error);
+    res.status(401).json({ message: "Invalid token." });
   }
 };
 
@@ -57,33 +63,33 @@ const auth = async (req, res, next) => {
 const authenticateSocket = async (socket, next) => {
   try {
     const token = socket.handshake.auth.token || socket.handshake.query.token;
-    
+
     if (!token) {
-      return next(new Error('Authentication token required'));
+      return next(new Error("Authentication token required"));
     }
 
     const decoded = verifyAccessToken(token);
     if (!decoded) {
-      return next(new Error('Invalid token'));
+      return next(new Error("Invalid token"));
     }
 
     // For guest users
     if (decoded.isGuest) {
       socket.userId = decoded.userId;
-      socket.username = `Guest${decoded.userId.split('_')[1]}`;
+      socket.username = `Guest${decoded.userId.split("_")[1]}`;
       socket.isGuest = true;
       socket.data = {
         avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${socket.username}`,
-        isAdmin: false
+        isAdmin: false,
       };
       return next();
     }
 
     // For registered users
-    const user = await User.findById(decoded.userId).select('-password');
-    
+    const user = await User.findById(decoded.userId).select("-password");
+
     if (!user) {
-      return next(new Error('Invalid token'));
+      return next(new Error("Invalid token"));
     }
 
     socket.userId = user._id.toString();
@@ -91,7 +97,7 @@ const authenticateSocket = async (socket, next) => {
     socket.isGuest = user.isGuest;
     socket.data = {
       avatar: user.avatar,
-      isAdmin: user.isAdmin
+      isAdmin: user.isAdmin,
     };
 
     // Update user's last active time
@@ -100,7 +106,7 @@ const authenticateSocket = async (socket, next) => {
 
     next();
   } catch (error) {
-    next(new Error('Authentication failed'));
+    next(new Error("Authentication failed"));
   }
 };
 

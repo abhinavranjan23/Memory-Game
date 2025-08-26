@@ -1,25 +1,30 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext.jsx';
-import { ThemeProvider } from './contexts/ThemeContext.jsx';
-import { SocketProvider } from './contexts/SocketContext.jsx';
-import { ToastProvider } from './contexts/ToastContext.jsx';
-import ErrorBoundary from './components/ErrorBoundary.jsx';
-import ProtectedRoute from './components/ProtectedRoute.jsx';
-import PublicRoute from './components/PublicRoute.jsx';
-import Navbar from './components/layout/Navbar.jsx';
-import Home from './pages/Home.jsx';
-import Login from './pages/Login.jsx';
-import Register from './pages/Register.jsx';
-import Dashboard from './pages/Dashboard.jsx';
-import Game from './pages/Game.jsx';
-import Lobby from './pages/Lobby.jsx';
-import WaitingArea from './pages/WaitingArea.jsx';
-import Profile from './pages/Profile.jsx';
-import Leaderboard from './pages/Leaderboard.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
-import NotFound from './pages/NotFound.jsx';
-import './App.css';
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext.jsx";
+import { ThemeProvider } from "./contexts/ThemeContext.jsx";
+import { SocketProvider } from "./contexts/SocketContext.jsx";
+import { ToastProvider } from "./contexts/ToastContext.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
+import PublicRoute from "./components/PublicRoute.jsx";
+import Navbar from "./components/layout/Navbar.jsx";
+import Home from "./pages/Home.jsx";
+import Login from "./pages/Login.jsx";
+import Register from "./pages/Register.jsx";
+import Dashboard from "./pages/Dashboard.jsx";
+import Game from "./pages/Game.jsx";
+import Lobby from "./pages/Lobby.jsx";
+import WaitingArea from "./pages/WaitingArea.jsx";
+import Profile from "./pages/Profile.jsx";
+import Leaderboard from "./pages/Leaderboard.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import NotFound from "./pages/NotFound.jsx";
+import "./App.css";
 
 function App() {
   return (
@@ -29,55 +34,84 @@ function App() {
           <AuthProvider>
             <SocketProvider>
               <ToastProvider>
-                <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+                <div className='min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300'>
                   <Navbar />
-                  <main className="container mx-auto px-4 py-8">
+                  <main className='container mx-auto px-4 py-8'>
                     <Routes>
                       {/* Public routes */}
-                      <Route path="/" element={<Home />} />
-                      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-                      <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-                      <Route path="/leaderboard" element={<Leaderboard />} />
-                      
+                      <Route path='/' element={<Home />} />
+                      <Route
+                        path='/login'
+                        element={
+                          <PublicRoute>
+                            <Login />
+                          </PublicRoute>
+                        }
+                      />
+                      <Route
+                        path='/register'
+                        element={
+                          <PublicRoute>
+                            <Register />
+                          </PublicRoute>
+                        }
+                      />
+                      <Route path='/leaderboard' element={<Leaderboard />} />
                       {/* Protected routes */}
-                      <Route path="/dashboard" element={
-                        <ProtectedRoute>
-                          <Dashboard />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/lobby" element={
-                        <ProtectedRoute>
-                          <Lobby />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/waiting/:roomId" element={
-                        <ProtectedRoute>
-                          <WaitingArea />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/game/:roomId" element={
-                        <ProtectedRoute>
-                          <Game />
-                        </ProtectedRoute>
-                      } />
-                      <Route path="/profile" element={
-                        <ProtectedRoute>
-                          <Profile />
-                        </ProtectedRoute>
-                      } />
-                      
+                      <Route
+                        path='/dashboard'
+                        element={
+                          <ProtectedRoute>
+                            <Dashboard />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path='/lobby'
+                        element={
+                          <ProtectedRoute>
+                            <Lobby />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path='/waiting/:roomId'
+                        element={
+                          <ProtectedRoute>
+                            <WaitingArea />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path='/game/:roomId'
+                        element={
+                          <ProtectedRoute>
+                            <Game />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      <Route
+                        path='/profile'
+                        element={
+                          <ProtectedRoute>
+                            <Profile />
+                          </ProtectedRoute>
+                        }
+                      />
                       {/* Admin routes */}
-                      <Route path="/admin" element={
-                        <ProtectedRoute requireAdmin>
-                          <AdminDashboard />
-                        </ProtectedRoute>
-                      } />
-                      
+                      <Route
+                        path='/admin'
+                        element={
+                          <ProtectedRoute requireAdmin>
+                            <AdminDashboard />
+                          </ProtectedRoute>
+                        }
+                      />
                       {/* 404 Error page */}
-                      <Route path="/404" element={<NotFound />} />
-                      
+                      <Route path='/404' element={<NotFound />} />
                       {/* Fallback for unknown routes */}
-                      <Route path="*" element={<NotFound />} />
+                      <Route path='*' element={<NotFound />} />
                     </Routes>
                   </main>
                 </div>

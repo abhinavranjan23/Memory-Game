@@ -45,7 +45,7 @@ const Lobby = () => {
     boardSize: "4x4",
     gameMode: "classic",
     theme: "emojis",
-    powerUpsEnabled: true,
+    powerUpsEnabled: false, // Default to false for classic mode
     timeLimit: 60,
   });
 
@@ -71,6 +71,11 @@ const Lobby = () => {
       label: "Sudden Death",
       description: "One mistake elimination",
     },
+    {
+      value: "powerup-frenzy",
+      label: "Power-Up Frenzy",
+      description: "Enhanced gameplay with special abilities",
+    },
   ];
 
   const themes = [
@@ -84,23 +89,26 @@ const Lobby = () => {
     fetchRooms();
     if (!socket) return;
 
-    console.log("Socket connected in Lobby:", socket.id);
-
     // Always clear old listeners first to prevent stacking
     socket.off("room-updated", handleRoomUpdate);
     socket.off("room-deleted", handleRoomDelete);
-    socket.off("joined-room", handleJoinedRoom);
+    socket.off("room-joined", handleJoinedRoom);
     socket.off("join-room-error", handleJoinError);
     socket.off("error", handleJoinError);
     socket.off("active-players", handleActivePlayers);
+    socket.off("join-room-received");
 
     // Now add fresh listeners
     socket.on("room-updated", handleRoomUpdate);
     socket.on("room-deleted", handleRoomDelete);
-    socket.on("joined-room", handleJoinedRoom);
+    socket.on("room-joined", handleJoinedRoom);
     socket.on("join-room-error", handleJoinError);
     socket.on("error", handleJoinError);
     socket.on("active-players", handleActivePlayers);
+    socket.on("join-room-received", (data) => {
+      console.log("Join room request received by server:", data);
+      addToast("Connecting to room...", "info");
+    });
 
     socket.emit("get-active-players");
     socket.emit("get-rooms");
@@ -114,12 +122,13 @@ const Lobby = () => {
       clearInterval(refreshInterval);
       socket.off("room-updated", handleRoomUpdate);
       socket.off("room-deleted", handleRoomDelete);
-      socket.off("joined-room", handleJoinedRoom);
+      socket.off("room-joined", handleJoinedRoom);
       socket.off("join-room-error", handleJoinError);
       socket.off("error", handleJoinError);
       socket.off("active-players", handleActivePlayers);
+      socket.off("join-room-received");
     };
-  }, [socket]);
+  }, [socket]); // Keep only socket as dependency
 
   const fetchRooms = async () => {
     try {
@@ -165,20 +174,30 @@ const Lobby = () => {
   };
 
   const handleJoinedRoom = (data) => {
+    console.log("handleJoinedRoom called with data:", data);
     setJoinLoading(null);
     setSelectedRoom(null);
     setRoomPassword("");
     addToast(`Joined room successfully!`, "success");
-    // Navigation is now handled directly in the join functions
+    // Navigate to waiting area immediately
+    console.log("Navigating to waiting area:", `/waiting/${data.roomId}`);
+    navigate(`/waiting/${data.roomId}`);
   };
 
   const handleJoinError = (error) => {
     setJoinLoading(null);
-    addToast(error.message || "Failed to join room", "error");
+    setSelectedRoom(null);
+    setRoomPassword("");
+
+    // Handle specific error cases
+    if (error.message && error.message.includes("Invalid room password")) {
+      addToast("Invalid room password. Please try again.", "error");
+    } else {
+      addToast(error.message || "Failed to join room", "error");
+    }
   };
 
   const handleActivePlayers = (data) => {
-    console.log("i am called on active player ", data.count);
     setActivePlayers(data.count);
   };
 
@@ -186,15 +205,19 @@ const Lobby = () => {
     try {
       const roomData = {
         isPrivate: createForm.isPrivate,
-        password: createForm.isPrivate ? createForm.password : null,
+        password:
+          createForm.isPrivate && createForm.password
+            ? createForm.password.trim()
+            : null,
         settings: {
           maxPlayers: createForm.maxPlayers,
           boardSize: createForm.boardSize,
           gameMode: createForm.gameMode,
           theme: createForm.theme,
           powerUpsEnabled: createForm.powerUpsEnabled,
-          timeLimit:
-            createForm.gameMode === "blitz" ? createForm.timeLimit : null,
+          timeLimit: ["blitz", "powerup-frenzy"].includes(createForm.gameMode)
+            ? createForm.timeLimit
+            : null,
         },
       };
 
@@ -212,14 +235,36 @@ const Lobby = () => {
         boardSize: "4x4",
         gameMode: "classic",
         theme: "emojis",
-        powerUpsEnabled: true,
+        powerUpsEnabled: false, // Default to false for classic mode
         timeLimit: 60,
       });
 
       // Join the created room and navigate to waiting area
       if (socket) {
-        socket.emit("join-room", { roomId: response.data.game.roomId });
-        navigate(`/waiting/${response.data.game.roomId}`);
+        const joinData = { roomId: response.data.game.roomId };
+        // Include password if it's a private room
+        if (createForm.isPrivate && createForm.password) {
+          joinData.password = createForm.password.trim();
+        }
+        console.log("Attempting to join room with data:", joinData);
+        // Use the joinRoom function from SocketContext for proper debouncing
+        const success = joinRoom(joinData);
+        if (!success) {
+          addToast("Failed to join room - Socket not connected", "error");
+        } else {
+          console.log("Join room request sent successfully");
+          // Add timeout for join room response
+          const timeoutId = setTimeout(() => {
+            console.log("Create room join timeout - navigating anyway");
+            addToast("Taking you to the room...", "info");
+            navigate(`/waiting/${response.data.game.roomId}`);
+          }, 3000); // 3 second timeout
+
+          // Store timeout ID to clear if response comes back
+          socket.once("room-joined", () => {
+            clearTimeout(timeoutId);
+          });
+        }
       }
     } catch (error) {
       // Error already handled by handleApiCall
@@ -227,7 +272,6 @@ const Lobby = () => {
   };
 
   const joinGameRoom = (room) => {
-    console.log(room);
     if (room.isPrivate) {
       setSelectedRoom(room);
     } else {
@@ -236,12 +280,22 @@ const Lobby = () => {
         try {
           // Use the joinRoom function from SocketContext
           const success = joinRoom({ roomId: room.roomId });
-          if (success) {
-            // Navigate directly to waiting area
-            navigate(`/waiting/${room.roomId}`);
-          } else {
+          if (!success) {
             setJoinLoading(null);
             addToast("Failed to join room - Socket not connected", "error");
+          } else {
+            // Add timeout for join room response
+            const timeoutId = setTimeout(() => {
+              console.log("Join room timeout - navigating anyway");
+              setJoinLoading(null);
+              addToast("Taking you to the room...", "info");
+              navigate(`/waiting/${room.roomId}`);
+            }, 3000); // 3 second timeout
+
+            // Store timeout ID to clear if response comes back
+            socket.once("room-joined", () => {
+              clearTimeout(timeoutId);
+            });
           }
         } catch (error) {
           setJoinLoading(null);
@@ -263,21 +317,31 @@ const Lobby = () => {
     setJoinLoading(selectedRoom.roomId);
     if (socket) {
       try {
-        // Use the joinRoom function from SocketContext
+        // Use the joinRoom function from SocketContext - only emit once
         const success = joinRoom({
           roomId: selectedRoom.roomId,
           password: roomPassword.trim(),
         });
 
-        if (success) {
-          // Navigate directly to waiting area
-          navigate(`/waiting/${selectedRoom.roomId}`);
-        } else {
+        if (!success) {
           setJoinLoading(null);
           addToast(
             "Failed to join private room - Socket not connected",
             "error"
           );
+        } else {
+          // Add timeout for join room response
+          const timeoutId = setTimeout(() => {
+            console.log("Private room join timeout - navigating anyway");
+            setJoinLoading(null);
+            addToast("Taking you to the room...", "info");
+            navigate(`/waiting/${selectedRoom.roomId}`);
+          }, 3000); // 3 second timeout
+
+          // Store timeout ID to clear if response comes back
+          socket.once("room-joined", () => {
+            clearTimeout(timeoutId);
+          });
         }
       } catch (error) {
         setJoinLoading(null);
@@ -376,10 +440,7 @@ const Lobby = () => {
             <div>
               <p className='text-sm opacity-90'>Open Rooms</p>
               <p className='text-2xl font-bold'>
-                {
-                  rooms.filter((room) => room.isJoinable && !room.isPrivate)
-                    .length
-                }
+                {rooms.filter((room) => room.isJoinable).length}
               </p>
             </div>
           </div>
@@ -501,6 +562,26 @@ const Lobby = () => {
                         <span className='font-medium text-gray-900 dark:text-white text-xs'>
                           {themes.find((t) => t.value === room.theme)?.label}
                         </span>
+                      </div>
+                    </div>
+
+                    <div className='flex items-center justify-between text-sm'>
+                      <span className='text-gray-600 dark:text-gray-300'>
+                        Power-ups:
+                      </span>
+                      <div className='flex items-center gap-1'>
+                        {room.settings?.powerUpsEnabled ? (
+                          <>
+                            <span className='text-purple-500'>⚡</span>
+                            <span className='font-medium text-purple-600 dark:text-purple-400 text-xs'>
+                              Enabled
+                            </span>
+                          </>
+                        ) : (
+                          <span className='font-medium text-gray-500 dark:text-gray-400 text-xs'>
+                            Disabled
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -650,9 +731,17 @@ const Lobby = () => {
                   </label>
                   <select
                     value={createForm.gameMode}
-                    onChange={(e) =>
-                      setCreateForm({ ...createForm, gameMode: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newGameMode = e.target.value;
+                      setCreateForm({
+                        ...createForm,
+                        gameMode: newGameMode,
+                        // Automatically enable power-ups for powerup-frenzy mode
+                        powerUpsEnabled:
+                          newGameMode === "powerup-frenzy" ||
+                          createForm.powerUpsEnabled,
+                      });
+                    }}
                     className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
                              bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
                   >
@@ -664,7 +753,7 @@ const Lobby = () => {
                   </select>
                 </div>
 
-                {createForm.gameMode === "blitz" && (
+                {["blitz", "powerup-frenzy"].includes(createForm.gameMode) && (
                   <div>
                     <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
                       Time Limit (seconds)
@@ -672,7 +761,7 @@ const Lobby = () => {
                     <input
                       type='number'
                       min='30'
-                      max='300'
+                      max='600'
                       value={createForm.timeLimit}
                       onChange={(e) =>
                         setCreateForm({
@@ -711,18 +800,75 @@ const Lobby = () => {
                     <input
                       type='checkbox'
                       checked={createForm.powerUpsEnabled}
+                      disabled={createForm.gameMode === "powerup-frenzy"}
                       onChange={(e) =>
                         setCreateForm({
                           ...createForm,
                           powerUpsEnabled: e.target.checked,
                         })
                       }
-                      className='rounded border-gray-300 text-blue-600 focus:ring-blue-500'
+                      className='rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50'
                     />
                     <span className='ml-2 text-sm text-gray-700 dark:text-gray-300'>
                       Enable Power-ups
+                      {createForm.gameMode === "powerup-frenzy" && (
+                        <span className='text-blue-600 ml-1'>
+                          {" "}
+                          (Always enabled in Power-up Frenzy)
+                        </span>
+                      )}
                     </span>
                   </label>
+
+                  {createForm.powerUpsEnabled && (
+                    <div className='mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg'>
+                      <h4 className='text-sm font-medium text-blue-900 dark:text-blue-100 mb-2'>
+                        Available Power-ups:
+                      </h4>
+                      <div className='grid grid-cols-2 gap-2 text-xs'>
+                        <div className='flex items-center gap-1'>
+                          <span>🔄</span>
+                          <span className='text-blue-800 dark:text-blue-200'>
+                            Extra Turn
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-1'>
+                          <span>👁️</span>
+                          <span className='text-blue-800 dark:text-blue-200'>
+                            Peek
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-1'>
+                          <span>🔀</span>
+                          <span className='text-blue-800 dark:text-blue-200'>
+                            Swap
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-1'>
+                          <span>💡</span>
+                          <span className='text-blue-800 dark:text-blue-200'>
+                            Reveal
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-1'>
+                          <span>❄️</span>
+                          <span className='text-blue-800 dark:text-blue-200'>
+                            Freeze
+                          </span>
+                        </div>
+                        <div className='flex items-center gap-1'>
+                          <span>🔀</span>
+                          <span className='text-blue-800 dark:text-blue-200'>
+                            Shuffle
+                          </span>
+                        </div>
+                      </div>
+                      <div className='mt-2 text-xs text-blue-700 dark:text-blue-300'>
+                        💡 <strong>Strategy:</strong> Save power-ups for crucial
+                        moments!
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -3,6 +3,14 @@ const { Game } = require("../models/Game.js");
 const { User } = require("../models/User.js");
 const auth = require("../middleware/auth.js");
 
+// Global variable to store socket.io instance
+let io;
+
+// Function to set socket.io instance
+const setSocketIO = (socketIO) => {
+  io = socketIO;
+};
+
 const router = express.Router();
 
 // Optional auth middleware for routes that can work with or without auth
@@ -21,15 +29,24 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
-// Get available public rooms - NO AUTH REQUIRED (but optional for personalized results)
+// Get available rooms (both public and private) - NO AUTH REQUIRED (but optional for personalized results)
 router.get("/rooms", optionalAuth, async (req, res) => {
   try {
     const games = await Game.find({
-      "gameState.status": { $in: ["waiting", "starting"] },
-      isPrivate: false,
+      $and: [
+        { "gameState.status": { $in: ["waiting", "starting"] } },
+        { status: { $nin: ["completed", "finished"] } },
+        { "gameState.status": { $nin: ["completed", "finished"] } },
+        // Only show rooms that are not full
+        { $expr: { $lt: [{ $size: "$players" }, "$settings.maxPlayers"] } },
+        // Not older than 24 hours
+        { createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+        // Not stale (updated within last 2 hours)
+        { updatedAt: { $gt: new Date(Date.now() - 2 * 60 * 60 * 1000) } },
+      ],
     })
       .limit(20)
-      .select("roomId players gameState settings createdAt")
+      .select("roomId players gameState settings createdAt isPrivate")
       .sort({ createdAt: -1 })
       .exec();
 
@@ -43,16 +60,19 @@ router.get("/rooms", optionalAuth, async (req, res) => {
       status: game.gameState.status,
       createdAt: game.createdAt,
       isJoinable: game.players.length < game.settings.maxPlayers,
+      isPrivate: game.isPrivate,
       hasPassword: game.isPrivate,
+      settings: game.settings, // Include the full settings object
     }));
 
+    console.log(`✅ Retrieved ${rooms.length} available rooms`);
     res.status(200).json({
       message: "Available rooms retrieved successfully",
       rooms,
       totalCount: rooms.length,
     });
   } catch (error) {
-    console.error("Get rooms error:", error);
+    console.error("❌ Get rooms error:", error);
     res.status(500).json({
       message: "Failed to retrieve rooms",
     });
@@ -70,13 +90,18 @@ router.post("/create", auth, async (req, res) => {
       boardSize: ["4x4", "6x6", "8x8"].includes(settings.boardSize)
         ? settings.boardSize
         : "4x4",
-      gameMode: ["classic", "blitz", "sudden-death"].includes(settings.gameMode)
+      gameMode: ["classic", "blitz", "sudden-death", "powerup-frenzy"].includes(
+        settings.gameMode
+      )
         ? settings.gameMode
         : "classic",
       theme: settings.theme || "emojis",
-      powerUpsEnabled: Boolean(settings.powerUpsEnabled),
-      timeLimit:
-        settings.gameMode === "blitz" ? settings.timeLimit || 60 : null,
+      powerUpsEnabled:
+        settings.gameMode === "powerup-frenzy" ||
+        Boolean(settings.powerUpsEnabled),
+      timeLimit: ["blitz", "powerup-frenzy"].includes(settings.gameMode)
+        ? settings.timeLimit || 60
+        : null,
     };
 
     // Generate unique room ID
@@ -89,7 +114,7 @@ router.post("/create", auth, async (req, res) => {
       roomId,
       hostId: req.user.id,
       isPrivate,
-      password: isPrivate ? password : null,
+      password: isPrivate && password ? password.trim() : null,
       settings: gameSettings,
       players: [
         {
@@ -116,6 +141,30 @@ router.post("/create", auth, async (req, res) => {
     });
 
     await game.save();
+
+    // Emit room-updated event to all clients if socket.io is available
+    if (io) {
+      io.emit("room-updated", {
+        roomId: game.roomId,
+        playerCount: game.players.length,
+        maxPlayers: game.settings.maxPlayers,
+        isJoinable: game.players.length < game.settings.maxPlayers,
+        gameMode: game.settings.gameMode,
+        status: game.gameState.status,
+        boardSize: game.settings.boardSize,
+        theme: game.settings.theme,
+        isPrivate: game.isPrivate,
+        hasPassword: game.isPrivate,
+        settings: {
+          powerUpsEnabled:
+            game.settings.gameMode === "powerup-frenzy" ||
+            game.settings.powerUpsEnabled,
+          chatEnabled: game.settings.chatEnabled,
+          isRanked: game.settings.isRanked,
+        },
+        createdAt: game.createdAt,
+      });
+    }
 
     res.status(201).json({
       message: "Game room created successfully",
@@ -165,7 +214,11 @@ router.post("/join/:roomId", auth, async (req, res) => {
     }
 
     // Check password for private rooms
-    if (game.isPrivate && game.password !== password) {
+    if (
+      game.isPrivate &&
+      game.password &&
+      game.password.trim() !== (password || "").trim()
+    ) {
       return res.status(401).json({
         message: "Invalid room password",
       });
@@ -245,9 +298,12 @@ router.post("/leave/:roomId", auth, async (req, res) => {
       game.hostId = game.players[0].userId;
     }
 
-    // If no players left, delete the game
+    // If no players left, mark the game as completed instead of deleting
     if (game.players.length === 0) {
-      await Game.findByIdAndDelete(game._id);
+      game.gameState.status = "finished";
+      game.status = "completed";
+      game.endedAt = new Date();
+      await game.save();
       return res.status(200).json({
         message: "Left game successfully",
         gameDeleted: true,
@@ -363,12 +419,42 @@ router.get("/stats/user", auth, async (req, res) => {
       });
     }
 
-    // Get user's game statistics
+    // Debug: First, let's see what games exist for this user
+    const allUserGames = await Game.find({
+      "players.userId": req.user.id.toString(),
+    }).select("roomId gameState.status status createdAt updatedAt players");
+
+    console.log(
+      `Found ${allUserGames.length} total games for user ${req.user.username}`
+    );
+    console.log(
+      "Game statuses:",
+      allUserGames.map((g) => ({
+        roomId: g.roomId,
+        gameStateStatus: g.gameState?.status,
+        topLevelStatus: g.status,
+        createdAt: g.createdAt,
+      }))
+    );
+
+    // Get user's game statistics - include all games that are not in waiting/starting status
     const games = await Game.find({
-      "players.userId": req.user.id,
-      "gameState.status": "finished",
+      "players.userId": req.user.id.toString(),
+      $or: [
+        // Games that have ended (have endedAt timestamp)
+        { endedAt: { $exists: true } },
+        // Games with a winner
+        { "gameState.winner": { $exists: true } },
+        // Games that are not in waiting/starting status
+        { "gameState.status": { $nin: ["waiting", "starting"] } },
+        { status: { $nin: ["waiting", "starting"] } },
+      ],
       ...dateFilter,
     });
+
+    console.log(
+      `Found ${games.length} games with finished/completed status for user ${req.user.username}`
+    );
 
     const stats = {
       gamesPlayed: games.length,
@@ -384,9 +470,18 @@ router.get("/stats/user", auth, async (req, res) => {
     };
 
     games.forEach((game) => {
-      const player = game.players.find((p) => p.userId === req.user.id);
+      const player = game.players.find(
+        (p) => p.userId === req.user.id.toString()
+      );
       if (player) {
-        if (game.gameState.winner === req.user.id) {
+        // Check if player won (either by gameState.winner or by having highest score)
+        const isWinner =
+          game.gameState.winner === req.user.id.toString() ||
+          (game.gameState.winner === undefined &&
+            player.score ===
+              Math.max(...game.players.map((p) => p.score || 0)));
+
+        if (isWinner) {
           stats.gamesWon++;
         }
         stats.totalScore += player.score || 0;
@@ -433,23 +528,92 @@ router.get("/stats/global", async (req, res) => {
   try {
     const totalGames = await Game.countDocuments();
     const totalPlayers = await User.countDocuments({ isGuest: false });
+
+    // Debug: Check all games and their statuses
+    const allGames = await Game.find({})
+      .select("roomId gameState.status status createdAt updatedAt players")
+      .limit(10);
+    console.log(
+      "Sample of all games:",
+      allGames.map((g) => ({
+        roomId: g.roomId,
+        gameStateStatus: g.gameState?.status,
+        topLevelStatus: g.status,
+        playerCount: g.players?.length || 0,
+        createdAt: g.createdAt,
+      }))
+    );
+
+    // Count active games - use same logic as lobby query, but only recent games
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000); // 1 hour ago
     const activeGames = await Game.countDocuments({
-      "gameState.status": { $in: ["waiting", "starting", "in-progress"] },
+      "gameState.status": { $in: ["waiting", "starting"] },
+      "players.0": { $exists: true }, // Ensure there's at least one player
+      updatedAt: { $gte: oneHourAgo }, // Only count games updated in the last hour
     });
 
-    // Get average game duration
+    console.log("Active games count:", activeGames);
+
+    // Debug: Log active games details
+
+    // Get detailed info about what's being counted as active
+    const activeGamesDetails = await Game.find({
+      "gameState.status": { $in: ["waiting", "starting"] },
+      "players.0": { $exists: true }, // Ensure there's at least one player
+      updatedAt: { $gte: oneHourAgo }, // Only count games updated in the last hour
+    }).select("roomId gameState.status status createdAt updatedAt players");
+
+    console.log(
+      "Active games details:",
+      activeGamesDetails.map((g) => ({
+        roomId: g.roomId,
+        gameStateStatus: g.gameState?.status,
+        topLevelStatus: g.status,
+        playerCount: g.players?.length || 0,
+        createdAt: g.createdAt,
+        updatedAt: g.updatedAt,
+      }))
+    );
+
+    // Get average game duration - check both gameState.status and top-level status
     const finishedGames = await Game.find({
-      "gameState.status": "finished",
-      startedAt: { $exists: true },
-      endedAt: { $exists: true },
-    }).select("startedAt endedAt");
+      $or: [
+        { "gameState.status": "finished" },
+        { status: "finished" },
+        { status: "completed" },
+      ],
+    }).select("startedAt endedAt createdAt updatedAt");
 
     let averageGameDuration = 0;
+    let validGames = [];
     if (finishedGames.length > 0) {
-      const totalDuration = finishedGames.reduce((sum, game) => {
-        return sum + (new Date(game.endedAt) - new Date(game.startedAt));
-      }, 0);
-      averageGameDuration = Math.round(totalDuration / finishedGames.length);
+      validGames = finishedGames.filter((game) => {
+        // Only use games that have proper startedAt and endedAt timestamps
+        return game.endedAt && game.startedAt;
+      });
+
+      if (validGames.length > 0) {
+        const totalDuration = validGames.reduce((sum, game) => {
+          const duration = new Date(game.endedAt) - new Date(game.startedAt);
+          return sum + duration;
+        }, 0);
+        averageGameDuration = Math.round(totalDuration / validGames.length);
+      }
+    }
+
+    console.log("Average game duration (ms):", averageGameDuration);
+    console.log("Valid games count:", validGames.length);
+    console.log("Total games count:", finishedGames.length);
+    if (validGames.length > 0) {
+      console.log(
+        "Sample game durations:",
+        validGames.slice(0, 3).map((game) => ({
+          roomId: game.roomId,
+          startedAt: game.startedAt,
+          endedAt: game.endedAt,
+          duration: new Date(game.endedAt) - new Date(game.startedAt),
+        }))
+      );
     }
 
     res.status(200).json({
@@ -474,6 +638,31 @@ router.get("/stats/global", async (req, res) => {
 router.get("/leaderboard/global", optionalAuth, async (req, res) => {
   try {
     const { limit = 50, page = 1, timeframe = "all" } = req.query;
+
+    // Ensure all users have proper stats initialized
+    await User.updateMany(
+      {
+        isGuest: false,
+        $or: [
+          { stats: { $exists: false } },
+          { "stats.gamesPlayed": { $exists: false } },
+        ],
+      },
+      {
+        $set: {
+          stats: {
+            gamesPlayed: 0,
+            gamesWon: 0,
+            winRate: 0,
+            totalScore: 0,
+            averageFlipTime: 0,
+            bestMatchStreak: 0,
+            perfectGames: 0,
+            powerUpsUsed: 0,
+          },
+        },
+      }
+    );
 
     const limitNum = Math.min(parseInt(limit), 100);
     const pageNum = Math.max(parseInt(page), 1);
@@ -502,7 +691,11 @@ router.get("/leaderboard/global", optionalAuth, async (req, res) => {
     // Get users for different leaderboard types
     const totalScoreLeaderboard = await User.find({
       isGuest: false,
-      "stats.gamesPlayed": { $gt: 0 },
+      $or: [
+        { "stats.gamesPlayed": { $gt: 0 } },
+        { "stats.totalScore": { $gt: 0 } },
+      ],
+      "privacySettings.showInLeaderboards": true,
       ...dateFilter,
     })
       .select("username avatar stats")
@@ -510,9 +703,16 @@ router.get("/leaderboard/global", optionalAuth, async (req, res) => {
       .skip(skip)
       .limit(limitNum);
 
+    // Debug: Log leaderboard counts
+    console.log("Total score leaderboard count:", totalScoreLeaderboard.length);
+
     const winRateLeaderboard = await User.find({
       isGuest: false,
-      "stats.gamesPlayed": { $gte: 5 }, // Minimum 5 games for win rate
+      $or: [
+        { "stats.gamesPlayed": { $gte: 1 } },
+        { "stats.gamesWon": { $gt: 0 } },
+      ],
+      "privacySettings.showInLeaderboards": true,
       ...dateFilter,
     })
       .select("username avatar stats")
@@ -520,9 +720,15 @@ router.get("/leaderboard/global", optionalAuth, async (req, res) => {
       .skip(skip)
       .limit(limitNum);
 
+    console.log("Win rate leaderboard count:", winRateLeaderboard.length);
+
     const gamesPlayedLeaderboard = await User.find({
       isGuest: false,
-      "stats.gamesPlayed": { $gt: 0 },
+      $or: [
+        { "stats.gamesPlayed": { $gt: 0 } },
+        { "stats.totalScore": { $gt: 0 } },
+      ],
+      "privacySettings.showInLeaderboards": true,
       ...dateFilter,
     })
       .select("username avatar stats")
@@ -537,17 +743,20 @@ router.get("/leaderboard/global", optionalAuth, async (req, res) => {
         id: user._id,
         username: user.username,
         avatar: user.avatar,
-        totalScore: user.stats.totalScore,
-        gamesPlayed: user.stats.gamesPlayed,
-        winRate: user.stats.winRate,
-        [scoreField]: user.stats[scoreField],
+        totalScore: user.stats?.totalScore || 0,
+        gamesPlayed: user.stats?.gamesPlayed || 0,
+        winRate: Math.round(user.stats?.winRate || 0),
+        [scoreField]: user.stats?.[scoreField] || 0,
       }));
     };
 
     // Check pagination
     const totalUsers = await User.countDocuments({
       isGuest: false,
-      "stats.gamesPlayed": { $gt: 0 },
+      $or: [
+        { "stats.gamesPlayed": { $gt: 0 } },
+        { "stats.totalScore": { $gt: 0 } },
+      ],
       ...dateFilter,
     });
 
@@ -604,10 +813,37 @@ router.get("/history/matches", auth, async (req, res) => {
       });
     }
 
-    // Build query
+    // Debug: First, let's see what games exist for this user
+    const allUserGamesForHistory = await Game.find({
+      "players.userId": req.user.id.toString(),
+    }).select("roomId gameState.status status createdAt updatedAt players");
+
+    console.log(
+      `Found ${allUserGamesForHistory.length} total games for match history for user ${req.user.username}`
+    );
+    console.log(
+      "Match history game statuses:",
+      allUserGamesForHistory.map((g) => ({
+        roomId: g.roomId,
+        gameStateStatus: g.gameState?.status,
+        topLevelStatus: g.status,
+        createdAt: g.createdAt,
+      }))
+    );
+
+    // Build query - include all games that are not in waiting/starting status
+    // This is more inclusive and will catch all completed games
     let query = {
-      "players.userId": req.user.id,
-      "gameState.status": "finished",
+      "players.userId": req.user.id.toString(),
+      $or: [
+        // Games that have ended (have endedAt timestamp)
+        { endedAt: { $exists: true } },
+        // Games with a winner
+        { "gameState.winner": { $exists: true } },
+        // Games that are not in waiting/starting status
+        { "gameState.status": { $nin: ["waiting", "starting"] } },
+        { status: { $nin: ["waiting", "starting"] } },
+      ],
     };
 
     if (gameMode !== "all") {
@@ -617,22 +853,41 @@ router.get("/history/matches", auth, async (req, res) => {
     // Get games
     let games = await Game.find(query)
       .select("roomId settings gameState players startedAt endedAt createdAt")
-      .sort({ endedAt: -1 })
+      .sort({ endedAt: -1, createdAt: -1 }) // Sort by endedAt first, then by createdAt for games without endedAt
       .skip(skip)
       .limit(limitNum);
+
+    console.log(
+      `Found ${games.length} games for user ${req.user.username} (${req.user.id})`
+    );
+    console.log("Query:", JSON.stringify(query, null, 2));
 
     // Filter by result if specified
     if (result !== "all") {
       games = games.filter((game) => {
-        const won = game.gameState.winner === req.user.id;
+        const player = game.players.find(
+          (p) => p.userId === req.user.id.toString()
+        );
+        const won =
+          game.gameState.winner === req.user.id.toString() ||
+          (game.gameState.winner === undefined &&
+            player.score ===
+              Math.max(...game.players.map((p) => p.score || 0)));
         return result === "won" ? won : !won;
       });
     }
 
     // Format matches
     const matches = games.map((game) => {
-      const player = game.players.find((p) => p.userId === req.user.id);
-      const won = game.gameState.winner === req.user.id;
+      const player = game.players.find(
+        (p) => p.userId === req.user.id.toString()
+      );
+
+      // Check if player won (either by gameState.winner or by having highest score)
+      const won =
+        game.gameState.winner === req.user.id.toString() ||
+        (game.gameState.winner === undefined &&
+          player.score === Math.max(...game.players.map((p) => p.score || 0)));
 
       return {
         gameId: game._id,
@@ -652,7 +907,7 @@ router.get("/history/matches", auth, async (req, res) => {
             : null,
         playedAt: game.endedAt,
         opponents: game.players
-          .filter((p) => p.userId !== req.user.id)
+          .filter((p) => p.userId !== req.user.id.toString())
           .map((p) => ({
             username: p.username,
             avatar: p.avatar,
@@ -663,10 +918,21 @@ router.get("/history/matches", auth, async (req, res) => {
 
     // Get total count for pagination
     const totalMatches = await Game.countDocuments({
-      "players.userId": req.user.id,
-      "gameState.status": "finished",
+      "players.userId": req.user.id.toString(),
+      $or: [
+        // Games that have ended (have endedAt timestamp)
+        { endedAt: { $exists: true } },
+        // Games with a winner
+        { "gameState.winner": { $exists: true } },
+        // Games that are not in waiting/starting status
+        { "gameState.status": { $nin: ["waiting", "starting"] } },
+        { status: { $nin: ["waiting", "starting"] } },
+      ],
     });
 
+    console.log(
+      `✅ Retrieved ${matches.length} matches for user ${req.user.id}`
+    );
     res.status(200).json({
       message: "Match history retrieved successfully",
       matches,
@@ -682,11 +948,60 @@ router.get("/history/matches", auth, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Get match history error:", error);
+    console.error("❌ Get match history error:", error);
     res.status(500).json({
       message: "Failed to retrieve match history",
     });
   }
 });
+
+// Cleanup old inactive games - ADMIN ONLY
+router.post("/cleanup", auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (!req.user.isAdmin) {
+      return res.status(403).json({
+        message: "Admin access required",
+      });
+    }
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    // Find old games that are still in waiting/starting status
+    const oldGames = await Game.find({
+      "gameState.status": { $in: ["waiting", "starting"] },
+      updatedAt: { $lt: oneHourAgo },
+    });
+
+    console.log(`🔍 Found ${oldGames.length} old inactive games to cleanup`);
+
+    // Delete old inactive games
+    const result = await Game.deleteMany({
+      "gameState.status": { $in: ["waiting", "starting"] },
+      updatedAt: { $lt: oneHourAgo },
+    });
+
+    console.log(`✅ Cleaned up ${result.deletedCount} old games`);
+
+    res.status(200).json({
+      message: "Cleanup completed",
+      deletedCount: result.deletedCount,
+      oldGamesCount: oldGames.length,
+    });
+  } catch (error) {
+    console.error("❌ Cleanup error:", error);
+    res.status(500).json({
+      message: "Failed to cleanup old games",
+    });
+  }
+});
+
+// Export the setter function
+router.setSocketIO = setSocketIO;
+
+// Ensure the function is properly attached
+if (typeof router.setSocketIO !== "function") {
+  console.error("setSocketIO function not properly attached to router");
+}
 
 module.exports = router;

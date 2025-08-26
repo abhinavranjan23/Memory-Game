@@ -5,7 +5,7 @@ import { useToast } from '../contexts/ToastContext.jsx';
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: '',
+    emailOrUsername: '',
     password: ''
   });
   const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData.emailOrUsername, formData.password);
       addToast('Login successful!', 'success');
       navigate('/dashboard');
     } catch (error) {
@@ -62,18 +62,18 @@ const Login = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Email Address
+            <label htmlFor="emailOrUsername" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Email or Username
             </label>
             <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
+              type="text"
+              id="emailOrUsername"
+              name="emailOrUsername"
+              value={formData.emailOrUsername}
               onChange={handleChange}
               required
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              placeholder="Enter your email"
+              placeholder="Enter your email or username"
             />
           </div>
 

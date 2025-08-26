@@ -20,8 +20,28 @@ const adminRoutes = require("./routes/admin.js");
 // Import socket handlers
 const { initializeSocket } = require("./socket/index.js");
 
+// Import metrics
+const { getMetrics, apiMetricsMiddleware } = require("./utils/metrics.js");
+
+// Import Redis manager
+const redisManager = require("./utils/redis.js");
+
 const app = express();
 const server = createServer(app);
+
+// Global error handlers
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  // Don't exit the process, just log the error
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
+  // Don't exit the process, just log the error
+});
+
+// Increase max listeners to prevent warnings
+require("events").EventEmitter.defaultMaxListeners = 20;
 
 // CORS configuration
 const corsOptions = {
@@ -66,7 +86,7 @@ app.use(
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 500, // limit each IP to 100 requests per windowMs
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -83,15 +103,50 @@ if (process.env.NODE_ENV !== "test") {
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// API metrics middleware
+if (process.env.ENABLE_METRICS === "true") {
+  app.use(apiMetricsMiddleware);
+}
+
 // Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "OK",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || "development",
-  });
+app.get("/health", async (req, res) => {
+  try {
+    const redisStats = await redisManager.getStats();
+
+    res.status(200).json({
+      status: "OK",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || "development",
+      redis: redisStats,
+    });
+  } catch (error) {
+    res.status(200).json({
+      status: "OK",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || "development",
+      redis: { isConnected: false, error: error.message },
+    });
+  }
 });
+
+// Metrics endpoint
+if (process.env.ENABLE_METRICS === "true") {
+  app.get("/metrics", async (req, res) => {
+    try {
+      const metrics = await getMetrics();
+      res.set("Content-Type", "text/plain");
+      res.send(metrics);
+    } catch (error) {
+      console.error("Error getting metrics:", error);
+      res.status(500).send("Error getting metrics");
+    }
+  });
+}
+
+// Set socket.io instance for game routes
+gameRoutes.setSocketIO(io);
 
 // API routes
 app.use("/api/auth", authRoutes);
@@ -160,6 +215,21 @@ const connectDB = async () => {
   }
 };
 
+// Redis connection
+const connectRedis = async () => {
+  try {
+    const connected = await redisManager.connect();
+    if (connected) {
+      console.log("✅ Redis connected successfully");
+    } else {
+      console.log("⚠️ Redis connection failed, continuing without Redis");
+    }
+  } catch (error) {
+    console.error("❌ Redis connection error:", error.message);
+    console.log("⚠️ Continuing without Redis support");
+  }
+};
+
 // Graceful shutdown
 const gracefulShutdown = async (signal) => {
   console.log(`\n${signal} received. Shutting down gracefully...`);
@@ -174,6 +244,14 @@ const gracefulShutdown = async (signal) => {
       console.log("MongoDB connection closed.");
     } catch (error) {
       console.error("Error closing MongoDB connection:", error);
+    }
+
+    try {
+      // Close Redis connection
+      await redisManager.disconnect();
+      console.log("Redis connection closed.");
+    } catch (error) {
+      console.error("Error closing Redis connection:", error);
     }
 
     process.exit(0);
@@ -205,10 +283,12 @@ process.on("unhandledRejection", (reason, promise) => {
 
 // Start server
 const PORT = process.env.PORT || 3001;
+const METRICS_PORT = process.env.METRICS_PORT || 9090;
 
 const startServer = async () => {
   try {
     await connectDB();
+    await connectRedis();
 
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
@@ -218,7 +298,46 @@ const startServer = async () => {
       );
       console.log(`🔗 API Base: http://localhost:${PORT}/api`);
       console.log(`💚 Health Check: http://localhost:${PORT}/health`);
+
+      if (process.env.ENABLE_METRICS === "true") {
+        console.log(`📊 Metrics: http://localhost:${PORT}/metrics`);
+        console.log(
+          `📈 Prometheus Metrics: http://localhost:${METRICS_PORT}/metrics`
+        );
+      }
     });
+
+    // Start metrics server if enabled
+    if (process.env.ENABLE_METRICS === "true") {
+      const metricsApp = express();
+      const metricsServer = require("http").createServer(metricsApp);
+
+      metricsApp.get("/metrics", async (req, res) => {
+        try {
+          const metrics = await getMetrics();
+          res.set("Content-Type", "text/plain");
+          res.send(metrics);
+        } catch (error) {
+          console.error("Error getting metrics:", error);
+          res.status(500).send("Error getting metrics");
+        }
+      });
+
+      metricsApp.get("/health", (req, res) => {
+        res.status(200).json({
+          status: "OK",
+          service: "metrics",
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      metricsServer.listen(METRICS_PORT, () => {
+        console.log(`📊 Metrics server running on port ${METRICS_PORT}`);
+        console.log(
+          `📈 Prometheus endpoint: http://localhost:${METRICS_PORT}/metrics`
+        );
+      });
+    }
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

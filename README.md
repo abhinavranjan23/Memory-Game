@@ -5,18 +5,21 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 ## ✨ Features
 
 ### 🎮 Core Gameplay
+
 - **Turn-based Memory Game**: Classic card matching with modern twists
 - **Real-time Multiplayer**: Play with up to 4 players using Socket.IO
 - **Multiple Board Sizes**: 4x4, 6x6, and 8x8 difficulty levels
 - **Dynamic Themes**: Emojis, tech logos, and more visual themes
 
 ### 🚀 Game Modes
+
 - **Classic Mode**: Traditional turn-based memory matching
 - **Blitz Mode**: Fast-paced 60-second challenges
 - **Sudden Death**: One mistake elimination rounds
 - **Power-Up Frenzy**: Strategic use of special abilities
 
 ### ⚡ Power-Up System
+
 - **Extra Turn**: Get another chance even if you miss
 - **Peek**: Briefly reveal all unmatched cards
 - **Card Swap**: Change positions of two cards
@@ -25,12 +28,14 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 - **Shuffle Cards**: Randomize unmatched card positions
 
 ### 👥 Social Features
+
 - **Real-time Chat**: In-game messaging during matches
 - **Private Rooms**: Password-protected games with friends
 - **Avatar System**: Custom profile pictures and user identity
 - **Guest Mode**: Play without registration
 
 ### 📊 Progress & Competition
+
 - **Detailed Statistics**: Win rate, average flip time, best streaks
 - **Achievement System**: Unlock badges for various accomplishments
 - **Global Leaderboards**: Compete with players worldwide
@@ -38,12 +43,14 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 - **Memory Meter**: Visual progress tracking based on performance
 
 ### 🛡️ Admin & Moderation
+
 - **Admin Dashboard**: Manage users, games, and system settings
 - **Report/Block System**: Handle toxic behavior
 - **Live Game Monitoring**: View active rooms and player stats
 - **Content Moderation**: Flag inappropriate usernames or behavior
 
 ### 🎨 User Experience
+
 - **Dark/Light Mode**: Seamless theme switching with Tailwind CSS
 - **Responsive Design**: Works perfectly on all devices
 - **Smooth Animations**: Enhanced with Framer Motion
@@ -52,6 +59,7 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 ## 🛠️ Tech Stack
 
 ### Backend
+
 - **Node.js** with **Express.js**
 - **Socket.IO** for real-time communication
 - **MongoDB** with **Mongoose** ODM
@@ -60,6 +68,7 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 - **JavaScript ES6+** with ES modules
 
 ### Frontend
+
 - **React 18** with **JSX**
 - **Vite** for fast development
 - **Tailwind CSS** for styling
@@ -69,6 +78,7 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 - **Framer Motion** for animations
 
 ### Development Tools
+
 - **Nodemon** for auto-restart
 - **PostCSS** with **Autoprefixer**
 - **ESLint** for code quality (optional)
@@ -76,6 +86,7 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 ## 🚀 Quick Start
 
 ### Prerequisites
+
 - **Node.js** (v16 or higher)
 - **MongoDB** (local or Atlas)
 - **npm** or **yarn**
@@ -83,26 +94,30 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd memory-card-game
    ```
 
 2. **Install backend dependencies**
+
    ```bash
    cd server
    npm install
    ```
 
 3. **Install frontend dependencies**
+
    ```bash
    cd ../client
    npm install
    ```
 
 4. **Set up environment variables**
-   
+
    **Backend** (`server/.env`):
+
    ```env
    PORT=3001
    MONGODB_URI=mongodb://localhost:27017/memory-game
@@ -114,24 +129,28 @@ A comprehensive, real-time multiplayer memory card game built with the MERN stac
    ```
 
    **Frontend** (`client/.env`):
+
    ```env
    VITE_API_URL=http://localhost:3001/api
    VITE_SOCKET_URL=http://localhost:3001
    ```
 
 5. **Start MongoDB**
+
    ```bash
    # If using local MongoDB
    mongod
    ```
 
 6. **Start the backend server**
+
    ```bash
    cd server
    npm run dev
    ```
 
 7. **Start the frontend development server**
+
    ```bash
    cd client
    npm run dev
@@ -176,6 +195,7 @@ memory-card-game/
 ## 🎮 How to Play
 
 ### Basic Rules
+
 1. **Join a Game**: Enter a public room or create a private one
 2. **Match Cards**: Take turns flipping two cards to find matching pairs
 3. **Score Points**: Earn points for successful matches
@@ -183,20 +203,53 @@ memory-card-game/
 5. **Win**: Player with the most matches when all pairs are found wins
 
 ### Game Modes
+
 - **Classic**: Traditional turn-based gameplay
 - **Blitz**: Race against a 60-second timer
 - **Sudden Death**: Elimination-based competitive play
 - **Power-Up Frenzy**: Enhanced gameplay with special abilities
 
-### Power-Up Strategy
+### Power-Up System
+
+The game features a comprehensive power-up system that adds strategic depth to gameplay:
+
+#### Available Power-ups
+
+- **🔄 Extra Turn**: Get an additional turn after a miss
+- **👁️ Peek**: Reveal all cards for 3 seconds to memorize positions
+- **🔀 Swap**: Swap the positions of two cards to create favorable layouts
+- **💡 Reveal One**: Permanently reveal one card to break deadlocks
+- **❄️ Freeze Timer**: Freeze the timer for 10 seconds (Blitz mode only)
+- **🔀 Shuffle**: Shuffle all unmatched cards to reset the board
+
+#### Power-up Acquisition
+
+- Power-ups can be found on cards during gameplay
+- Higher chance of power-ups in "Power-Up Frenzy" mode
+- Power-ups are automatically collected when matching cards with power-ups
+
+#### Strategic Usage
+
 - **Save power-ups** for crucial moments
-- **Peek** when you need to remember card positions
+- **Use Peek** when you need to remember card positions
 - **Use Swap** to create favorable layouts
 - **Time Freeze** is valuable in Blitz mode
+- **Reveal One** helps break deadlocks
+- **Shuffle** resets the board when stuck
+- **Extra Turn** provides recovery after mistakes
+
+#### Power-up UI Features
+
+- Color-coded power-up buttons for easy identification
+- Tooltips with detailed descriptions
+- Power-up history tracking
+- Interactive tutorial for new players
+- Visual indicators on cards with power-ups
 
 ## 🏆 Achievement System
 
 ### Example Achievements
+
 - 🥇 **First Win**: Win your first game
 - 🧠 **Perfect Memory**: Complete a game without any wrong matches
 - ⚡ **Speed Demon**: Win a Blitz mode game
@@ -207,6 +260,7 @@ memory-card-game/
 ## 💾 API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login
 - `POST /api/auth/guest` - Guest account creation
@@ -214,17 +268,20 @@ memory-card-game/
 - `POST /api/auth/logout` - User logout
 
 ### Game Management
+
 - `GET /api/game/rooms` - List public rooms
 - `GET /api/game/:id` - Get specific game
 - `GET /api/game/leaderboard` - Global leaderboards
 - `GET /api/game/history` - User match history
 
 ### User Management
+
 - `GET /api/user/stats` - User statistics
 - `GET /api/user/:id` - Public user profile
 - `PATCH /api/auth/profile` - Update user profile
 
 ### Admin (Protected)
+
 - `GET /api/admin/stats` - System statistics
 - `GET /api/admin/games` - All games management
 - `GET /api/admin/users` - User management
@@ -232,6 +289,7 @@ memory-card-game/
 ## 🔌 Socket.IO Events
 
 ### Client → Server
+
 - `join-room` - Join a game room
 - `leave-room` - Leave current room
 - `toggle-ready` - Toggle ready status
@@ -240,6 +298,7 @@ memory-card-game/
 - `send-chat` - Send chat message
 
 ### Server → Client
+
 - `room-joined` - Confirmation of room join
 - `game-state` - Updated game state
 - `player-joined` / `player-left` - Player updates
@@ -250,12 +309,14 @@ memory-card-game/
 ## 🚀 Development Scripts
 
 ### Backend Scripts
+
 ```bash
 npm run dev      # Start development server with nodemon
 npm start        # Start production server
 ```
 
 ### Frontend Scripts
+
 ```bash
 npm run dev      # Start Vite development server
 npm run build    # Build for production
@@ -265,14 +326,17 @@ npm run preview  # Preview production build
 ## 🌐 Deployment
 
 ### Backend (Node.js)
+
 1. Set production environment variables
 2. Start server: `npm start`
 
 ### Frontend (Static Site)
+
 1. Build for production: `npm run build`
 2. Deploy the `dist` folder to your static hosting service
 
 ### Recommended Hosting
+
 - **Backend**: Railway, Render, Heroku, DigitalOcean
 - **Frontend**: Vercel, Netlify, GitHub Pages
 - **Database**: MongoDB Atlas (free tier available)
@@ -282,6 +346,7 @@ npm run preview  # Preview production build
 ### Environment Variables
 
 **Backend** (`.env`):
+
 - `PORT` - Server port (default: 3001)
 - `MONGODB_URI` - MongoDB connection string
 - `JWT_SECRET` - JWT signing secret
@@ -289,18 +354,21 @@ npm run preview  # Preview production build
 - `NODE_ENV` - Environment (development/production)
 
 **Frontend** (`.env`):
+
 - `VITE_API_URL` - Backend API URL
 - `VITE_SOCKET_URL` - Socket.IO server URL
 
 ## 🐛 Known Issues & Future Enhancements
 
 ### Current Limitations
+
 - Game board UI is still in development
 - Some admin features are placeholders
 - Google OAuth needs proper setup
 - Leaderboard needs real-time updates
 
 ### Planned Features
+
 - 📱 Mobile app with React Native
 - 🎨 Custom theme creation
 - 🏆 Tournament system

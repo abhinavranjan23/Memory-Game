@@ -23,6 +23,12 @@ const cardSchema = new mongoose.Schema({
   isMatched: { type: Boolean, default: false },
   powerUp: { type: powerUpSchema, default: null },
   theme: { type: String, required: true },
+  // Add animation and state fields used by frontend
+  isSwapping: { type: Boolean, default: false },
+  isShuffling: { type: Boolean, default: false },
+  isRevealed: { type: Boolean, default: false },
+  revealedValue: { type: String },
+  lastSwapTime: { type: Date },
 });
 
 const playerSchema = new mongoose.Schema({
@@ -30,10 +36,13 @@ const playerSchema = new mongoose.Schema({
   username: { type: String, required: true },
   avatar: { type: String },
   isReady: { type: Boolean, default: false },
+  isHost: { type: Boolean, default: false }, // Add isHost field
+  isGuest: { type: Boolean, default: false }, // Add isGuest field
   score: { type: Number, default: 0 },
   matches: { type: Number, default: 0 },
   flips: { type: Number, default: 0 },
   powerUps: [powerUpSchema],
+  powerUpsUsed: { type: Number, default: 0 }, // Add powerUpsUsed field
   memoryMeter: { type: Number, default: 0 },
   isCurrentTurn: { type: Boolean, default: false },
   lastFlipTime: { type: Date },
@@ -69,6 +78,21 @@ const gameStateSchema = new mongoose.Schema({
   round: { type: Number, default: 1 },
   lastActivity: { type: Date, default: Date.now },
   powerUpPool: [powerUpSchema],
+  // Add winner field for tracking game winner
+  winner: { type: String },
+  // Add reason field for game completion reason
+  completionReason: { type: String },
+  // Add opponentsForHistory field to store opponent information for match history
+  opponentsForHistory: [
+    {
+      userId: { type: String, required: true },
+      username: { type: String, required: true },
+      score: { type: Number, default: 0 },
+      matches: { type: Number, default: 0 },
+      leftEarly: { type: Boolean, default: false },
+      disconnectedAt: { type: Date },
+    },
+  ],
 });
 
 const gameSettingsSchema = new mongoose.Schema({
@@ -102,6 +126,7 @@ const chatMessageSchema = new mongoose.Schema({
 const gameSchema = new mongoose.Schema(
   {
     roomId: { type: String, required: true, unique: true },
+    hostId: { type: String }, // Add hostId field
     players: [playerSchema],
     gameState: { type: gameStateSchema, default: () => ({}) },
     settings: { type: gameSettingsSchema, default: () => ({}) },
@@ -152,15 +177,58 @@ gameSchema.methods.addPlayer = function (userId, username, avatar) {
     memoryMeter: 0,
     isCurrentTurn: this.players.length === 0,
     matchStreak: 0,
+    extraTurns: 0, // Initialize extra turns
   });
 };
 
 gameSchema.methods.removePlayer = function (userId) {
-  this.players = this.players.filter((p) => p.userId !== userId);
+  const playerIndex = this.players.findIndex((p) => p.userId === userId);
+  if (playerIndex === -1) {
+    return false; // Player not found
+  }
+
+  // Remove the player
+  this.players.splice(playerIndex, 1);
+
+  // If no players left, mark game as finished
   if (this.players.length === 0) {
     this.gameState.status = "finished";
     this.status = "completed";
+    this.endedAt = new Date();
+    return true;
   }
+
+  // If the removed player was the current turn, switch to next player
+  if (this.gameState.currentTurn === userId) {
+    if (this.players.length > 0) {
+      // Set turn to the first remaining player
+      this.gameState.currentTurn = this.players[0].userId;
+      this.gameState.currentPlayerIndex = 0;
+
+      // Update isCurrentTurn flags
+      this.players.forEach((player, index) => {
+        player.isCurrentTurn = index === 0;
+      });
+    } else {
+      // No players left, clear current turn
+      this.gameState.currentTurn = null;
+      this.gameState.currentPlayerIndex = 0;
+    }
+  } else {
+    // Update currentPlayerIndex if needed
+    if (this.gameState.currentPlayerIndex >= playerIndex) {
+      this.gameState.currentPlayerIndex = Math.max(
+        0,
+        this.gameState.currentPlayerIndex - 1
+      );
+    }
+  }
+
+  // Update last activity
+  this.gameState.lastActivity = new Date();
+  this.updatedAt = new Date();
+
+  return true;
 };
 gameSchema.methods.togglePlayerReady = function (userId) {
   const player = this.players.find((p) => p.userId === userId);
@@ -199,5 +267,17 @@ gameSchema.methods.addChatMessage = function (
     this.chat = this.chat.slice(-100);
   }
 };
+
+// Add database indexes for better query performance
+gameSchema.index({ "gameState.status": 1, updatedAt: -1 });
+gameSchema.index({ status: 1, updatedAt: -1 });
+gameSchema.index({ "players.userId": 1 });
+gameSchema.index({ roomId: 1 });
+gameSchema.index({ endedAt: -1 });
+gameSchema.index({ createdAt: -1 });
+gameSchema.index({ "settings.gameMode": 1 });
+gameSchema.index({ isPrivate: 1 });
+gameSchema.index({ "gameState.status": 1, "players.0": { $exists: false } }); // For empty player arrays
+gameSchema.index({ "gameState.status": 1, players: { $size: 0 } }); // For empty player arrays
 
 module.exports = { Game: mongoose.model("Game", gameSchema) };

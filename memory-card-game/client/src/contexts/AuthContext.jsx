@@ -29,7 +29,8 @@ export const AuthProvider = ({ children }) => {
   const ensureTokenSet = async () => {
     if (token && !axios.defaults.headers.common["Authorization"]) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Small delay to ensure headers are set
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
   };
 
@@ -45,6 +46,7 @@ export const AuthProvider = ({ children }) => {
     const loadUser = async () => {
       if (token) {
         try {
+          await ensureTokenSet();
           const response = await axios.get("/auth/me");
           setUser(response.data.user);
         } catch (error) {
@@ -72,13 +74,9 @@ export const AuthProvider = ({ children }) => {
       );
       const { token: newToken, user: userData } = response.data;
 
-      // Set token first, then user to ensure axios headers are updated
+      // Set token and user atomically
       setToken(newToken);
-
-      // Wait for token to be set in axios headers before setting user
-      setTimeout(() => {
-        setUser(userData);
-      }, 50);
+      setUser(userData);
     } catch (error) {
       console.error("Login error details:", error);
       throw new Error(error.response?.data?.message || "Login failed");
@@ -98,13 +96,9 @@ export const AuthProvider = ({ children }) => {
       );
       const { token: newToken, user: userData } = response.data;
 
-      // Set token first, then user to ensure axios headers are updated
+      // Set token and user atomically
       setToken(newToken);
-
-      // Wait for token to be set in axios headers before setting user
-      setTimeout(() => {
-        setUser(userData);
-      }, 50);
+      setUser(userData);
     } catch (error) {
       console.error("Registration error details:", error);
       throw new Error(error.response?.data?.message || "Registration failed");
@@ -124,13 +118,9 @@ export const AuthProvider = ({ children }) => {
       );
       const { token: newToken, user: userData } = response.data;
 
-      // Set token first, then user to ensure axios headers are updated
+      // Set token and user atomically
       setToken(newToken);
-
-      // Wait for token to be set in axios headers before setting user
-      setTimeout(() => {
-        setUser(userData);
-      }, 50);
+      setUser(userData);
     } catch (error) {
       console.error("Guest login error details:", error);
       throw new Error(error.response?.data?.message || "Guest login failed");
@@ -147,13 +137,9 @@ export const AuthProvider = ({ children }) => {
       });
       const { token: newToken, user: userData } = response.data;
 
-      // Set token first, then user to ensure axios headers are updated
+      // Set token and user atomically
       setToken(newToken);
-
-      // Wait for token to be set in axios headers before setting user
-      setTimeout(() => {
-        setUser(userData);
-      }, 50);
+      setUser(userData);
     } catch (error) {
       throw new Error(error.response?.data?.message || "Google login failed");
     }

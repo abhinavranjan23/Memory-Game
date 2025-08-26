@@ -21,6 +21,8 @@ export const SocketProvider = ({ children }) => {
   const lastJoinPayloadRef = useRef(null);
   const joinCooldownRef = useRef(0);
   const socketRef = useRef(null);
+  const connectionAttemptsRef = useRef(0);
+  const maxConnectionAttempts = 5;
 
   useEffect(() => {
     if (!user || !token) {
@@ -31,6 +33,7 @@ export const SocketProvider = ({ children }) => {
       setSocket(null);
       setIsConnected(false);
       hasConnectedRef.current = false;
+      connectionAttemptsRef.current = 0;
       return;
     }
 
@@ -39,6 +42,8 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
+    // Reset connection attempts if we have a new user/token
+    connectionAttemptsRef.current = 0;
     hasConnectedRef.current = true;
 
     const newSocket = io(SOCKET_URL, {
@@ -46,18 +51,46 @@ export const SocketProvider = ({ children }) => {
       autoConnect: true,
       transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: maxConnectionAttempts,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     socketRef.current = newSocket;
 
     const onConnect = () => {
+      console.log("Socket connected successfully");
       setIsConnected(true);
+      connectionAttemptsRef.current = 0; // Reset attempts on successful connection
     };
 
-    const onDisconnect = () => {
+    const onDisconnect = (reason) => {
+      console.log("Socket disconnected:", reason);
       setIsConnected(false);
+
+      // If it's a manual disconnect or max attempts reached, don't try to reconnect
+      if (
+        reason === "io client disconnect" ||
+        connectionAttemptsRef.current >= maxConnectionAttempts
+      ) {
+        hasConnectedRef.current = false;
+        socketRef.current = null;
+        setSocket(null);
+      }
+    };
+
+    const onConnectError = (error) => {
+      console.error("Socket connection error:", error);
+      connectionAttemptsRef.current++;
+
+      if (connectionAttemptsRef.current >= maxConnectionAttempts) {
+        console.error("Max connection attempts reached");
+        hasConnectedRef.current = false;
+        socketRef.current = null;
+        setSocket(null);
+        setIsConnected(false);
+      }
     };
 
     const onError = (error) => {
@@ -75,6 +108,7 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on("connect", onConnect);
     newSocket.on("disconnect", onDisconnect);
+    newSocket.on("connect_error", onConnectError);
     newSocket.on("error", onError);
 
     setSocket(newSocket);
@@ -82,6 +116,7 @@ export const SocketProvider = ({ children }) => {
     return () => {
       newSocket.off("connect", onConnect);
       newSocket.off("disconnect", onDisconnect);
+      newSocket.off("connect_error", onConnectError);
       newSocket.off("error", onError);
       newSocket.close();
       socketRef.current = null;
@@ -90,6 +125,7 @@ export const SocketProvider = ({ children }) => {
       hasConnectedRef.current = false;
       lastJoinPayloadRef.current = null;
       joinCooldownRef.current = 0;
+      connectionAttemptsRef.current = 0;
     };
   }, [user, token]);
 

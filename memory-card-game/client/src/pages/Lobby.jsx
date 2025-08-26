@@ -519,8 +519,19 @@ const Lobby = () => {
                       <span className='text-gray-600 dark:text-gray-300'>
                         Players:
                       </span>
-                      <span className='font-medium text-gray-900 dark:text-white'>
+                      <span
+                        className={`font-medium ${
+                          room.playerCount === 0
+                            ? "text-orange-600 dark:text-orange-400"
+                            : "text-gray-900 dark:text-white"
+                        }`}
+                      >
                         {room.playerCount}/{room.maxPlayers}
+                        {room.playerCount === 0 && (
+                          <span className='ml-1 text-xs text-orange-500'>
+                            • Empty
+                          </span>
+                        )}
                       </span>
                     </div>
 

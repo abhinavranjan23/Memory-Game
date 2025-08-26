@@ -20,37 +20,46 @@ const assert = (condition, message) => {
   testResults.total++;
   if (condition) {
     testResults.passed++;
-    } else {
+    console.log(`✅ ${message}`);
+  } else {
     testResults.failed++;
     testResults.errors.push(message);
-    }
+    console.log(`❌ ${message}`);
+  }
 };
 
 const assertEqual = (actual, expected, message) => {
   testResults.total++;
   if (actual === expected) {
     testResults.passed++;
-    `);
+    console.log("✅ " + message + " (" + actual + ")");
   } else {
     testResults.failed++;
     testResults.errors.push(
-      `${message} - Expected: ${expected}, Got: ${actual}`
+      message + " - Expected: " + expected + ", Got: " + actual
     );
-    }
+    console.log(
+      "❌ " + message + " - Expected: " + expected + ", Got: " + actual
+    );
+  }
 };
 
 const assertNotNull = (value, message) => {
   testResults.total++;
   if (value !== null && value !== undefined) {
     testResults.passed++;
-    } else {
+    console.log(`✅ ${message}`);
+  } else {
     testResults.failed++;
     testResults.errors.push(message);
-    }
+    console.log(`❌ ${message}`);
+  }
 };
 
 // Test functions
 async function testRedisConnection() {
+  console.log("\n🔗 Testing Redis Connection...");
+
   try {
     const connected = await redisManager.connect();
     assert(connected, "Redis connection established");
@@ -61,10 +70,14 @@ async function testRedisConnection() {
     const stats = await redisManager.getStats();
     assert(stats.isConnected, "Redis stats show connected status");
   } catch (error) {
-    }
+    console.log(`⚠️ Redis connection test failed: ${error.message}`);
+    console.log("Continuing with other tests...");
+  }
 }
 
 async function testSessionStorage() {
+  console.log("\n💾 Testing Session Storage...");
+
   const sessionId = "test-session-123";
   const sessionData = {
     userId: "user123",
@@ -94,10 +107,13 @@ async function testSessionStorage() {
     const deletedSession = await redisManager.getSession(sessionId);
     assert(deletedSession === null, "Session properly deleted");
   } catch (error) {
-    }
+    console.log(`❌ Session storage test failed: ${error.message}`);
+  }
 }
 
 async function testRateLimiting() {
+  console.log("\n🚦 Testing Rate Limiting...");
+
   const identifier = "test-ip-192.168.1.1";
   const maxRequests = 5;
   const windowMs = 10000; // 10 seconds
@@ -140,6 +156,7 @@ async function testRateLimiting() {
     }
 
     // Wait for rate limit to reset
+    console.log("⏳ Waiting for rate limit to reset...");
     await delay(11000);
 
     const resetCheck = await redisManager.checkRateLimit(
@@ -149,10 +166,13 @@ async function testRateLimiting() {
     );
     assert(resetCheck.allowed, "Rate limit reset after window");
   } catch (error) {
-    }
+    console.log(`❌ Rate limiting test failed: ${error.message}`);
+  }
 }
 
 async function testGameStateCaching() {
+  console.log("\n🎮 Testing Game State Caching...");
+
   const gameId = "test-game-456";
   const gameState = {
     id: gameId,
@@ -208,10 +228,13 @@ async function testGameStateCaching() {
     const deletedState = await redisManager.getGameState(gameId);
     assert(deletedState === null, "Game state properly deleted");
   } catch (error) {
-    }
+    console.log(`❌ Game state caching test failed: ${error.message}`);
+  }
 }
 
 async function testActivePlayersTracking() {
+  console.log("\n👥 Testing Active Players Tracking...");
+
   const players = [
     { id: "user1", username: "player1", lastSeen: new Date().toISOString() },
     { id: "user2", username: "player2", lastSeen: new Date().toISOString() },
@@ -253,10 +276,13 @@ async function testActivePlayersTracking() {
       await redisManager.removeActivePlayer(player.id);
     }
   } catch (error) {
-    }
+    console.log(`❌ Active players tracking test failed: ${error.message}`);
+  }
 }
 
 async function testActiveGamesTracking() {
+  console.log("\n🎯 Testing Active Games Tracking...");
+
   const games = [
     { id: "game1", players: ["user1", "user2"], status: "active" },
     { id: "game2", players: ["user3", "user4"], status: "waiting" },
@@ -298,10 +324,13 @@ async function testActiveGamesTracking() {
       await redisManager.removeActiveGame(game.id);
     }
   } catch (error) {
-    }
+    console.log(`❌ Active games tracking test failed: ${error.message}`);
+  }
 }
 
 async function testLeaderboardCaching() {
+  console.log("\n🏆 Testing Leaderboard Caching...");
+
   const leaderboardData = [
     { userId: "user1", username: "player1", score: 1500 },
     { userId: "user2", username: "player2", score: 1200 },
@@ -347,10 +376,13 @@ async function testLeaderboardCaching() {
     // Clean up
     await redisManager.del("leaderboard:global");
   } catch (error) {
-    }
+    console.log(`❌ Leaderboard caching test failed: ${error.message}`);
+  }
 }
 
 async function testPerformanceCaching() {
+  console.log("\n⚡ Testing Performance Caching...");
+
   const userId = "test-user-789";
   const userData = {
     id: userId,
@@ -398,16 +430,19 @@ async function testPerformanceCaching() {
     const endTime = Date.now();
     const avgTime = (endTime - startTime) / 10;
 
-    }ms`);
+    console.log(`📊 Average retrieval time: ${avgTime.toFixed(2)}ms`);
     assert(avgTime < 50, "Cache retrieval performance acceptable");
 
     // Clean up
     await redisManager.del(`user:${userId}`);
   } catch (error) {
-    }
+    console.log(`❌ Performance caching test failed: ${error.message}`);
+  }
 }
 
 async function testRedisStats() {
+  console.log("\n📊 Testing Redis Stats...");
+
   try {
     const stats = await redisManager.getStats();
     assertNotNull(stats, "Redis stats retrieved successfully");
@@ -425,11 +460,15 @@ async function testRedisStats() {
     );
     assert(typeof stats.ping === "boolean", "Ping status is boolean");
 
-    } catch (error) {
-    }
+    console.log(`📈 Redis Stats:`, stats);
+  } catch (error) {
+    console.log(`❌ Redis stats test failed: ${error.message}`);
+  }
 }
 
 async function runAllTests() {
+  console.log("🚀 Starting Redis Integration Tests...\n");
+
   const startTime = Date.now();
 
   try {
@@ -466,29 +505,46 @@ async function runAllTests() {
       await redisManager.flushAll();
       await redisManager.disconnect();
     } catch (error) {
-      }
+      console.log("Cleanup error:", error.message);
+    }
   }
 
   const endTime = Date.now();
   const duration = endTime - startTime;
 
   // Print test results
-  );
-  );
-  *
+  console.log("\n" + "=".repeat(50));
+  console.log("📋 TEST RESULTS SUMMARY");
+  console.log("=".repeat(50));
+  console.log(`Total Tests: ${testResults.total}`);
+  console.log(`✅ Passed: ${testResults.passed}`);
+  console.log(`❌ Failed: ${testResults.failed}`);
+  console.log(
+    `📊 Success Rate: ${(
+      (testResults.passed / testResults.total) *
       100
     ).toFixed(1)}%`
   );
+  console.log(`⏱️ Duration: ${duration}ms`);
+
   if (testResults.errors.length > 0) {
+    console.log("\n❌ FAILED TESTS:");
     testResults.errors.forEach((error, index) => {
-      });
+      console.log(`${index + 1}. ${error}`);
+    });
   }
 
   if (testResults.failed === 0) {
-    } else {
-    }
+    console.log(
+      "\n🎉 ALL TESTS PASSED! Redis integration is working correctly."
+    );
+  } else {
+    console.log(
+      "\n⚠️ Some tests failed. Please check the Redis configuration and connection."
+    );
+  }
 
-  );
+  console.log("=".repeat(50));
 
   // Exit with appropriate code
   process.exit(testResults.failed === 0 ? 0 : 1);
@@ -496,15 +552,18 @@ async function runAllTests() {
 
 // Handle process termination
 process.on("SIGINT", async () => {
+  console.log("\n🛑 Tests interrupted by user");
   try {
     await redisManager.disconnect();
   } catch (error) {
-    }
+    console.log("Disconnect error:", error.message);
+  }
   process.exit(1);
 });
 
 // Set timeout for the entire test suite
 setTimeout(() => {
+  console.log("\n⏰ Test timeout reached");
   process.exit(1);
 }, TEST_TIMEOUT);
 

@@ -720,13 +720,29 @@ const Profile = () => {
                               {match.opponents.map((opponent, i) => (
                                 <span
                                   key={i}
-                                  className='inline-flex items-center px-2 py-1 rounded-full text-xs 
-                                           bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300'
+                                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs 
+                                           ${
+                                             opponent.leftEarly
+                                               ? "bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300"
+                                               : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                                           }`}
                                 >
                                   {opponent.username} ({opponent.score} pts)
+                                  {opponent.leftEarly && (
+                                    <span className='ml-1 text-orange-600 dark:text-orange-400'>
+                                      • left
+                                    </span>
+                                  )}
                                 </span>
                               ))}
                             </div>
+                            {(match.completionReason === "opponents_left" || 
+                              match.completionReason === "last_player_winner" ||
+                              match.completionReason === "abort") && (
+                              <p className='text-xs text-orange-600 dark:text-orange-400 mt-2'>
+                                ⚠️ Game ended early - {match.completionReason === "abort" ? "game aborted" : "opponents left"}
+                              </p>
+                            )}
                           </div>
                         )}
                       </motion.div>

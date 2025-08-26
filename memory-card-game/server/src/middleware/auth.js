@@ -23,6 +23,16 @@ const auth = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid token." });
     }
 
+    // Enhanced token validation
+    if (!decoded.userId) {
+      return res.status(401).json({ message: "Invalid token structure." });
+    }
+
+    // Check token expiration (if not already handled by verifyAccessToken)
+    if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+      return res.status(401).json({ message: "Token has expired." });
+    }
+
     // For guest users
     if (decoded.isGuest) {
       req.user = {

@@ -62,7 +62,12 @@ userSchema.methods.updateStats = function (gameResult) {
   if (gameResult.won) {
     this.stats.gamesWon += 1;
   }
-  this.stats.winRate = (this.stats.gamesWon / this.stats.gamesPlayed) * 100;
+
+  // Calculate win rate as percentage
+  this.stats.winRate = Math.round(
+    (this.stats.gamesWon / this.stats.gamesPlayed) * 100
+  );
+
   this.stats.totalScore += gameResult.score;
 
   // Update best score if current score is higher
@@ -70,22 +75,29 @@ userSchema.methods.updateStats = function (gameResult) {
     this.stats.bestScore = gameResult.score;
   }
 
-  if (gameResult.flipTimes.length > 0) {
+  // Update average flip time
+  if (gameResult.flipTimes && gameResult.flipTimes.length > 0) {
     const avgTime =
       gameResult.flipTimes.reduce((a, b) => a + b, 0) /
       gameResult.flipTimes.length;
-    this.stats.averageFlipTime = (this.stats.averageFlipTime + avgTime) / 2;
+    this.stats.averageFlipTime = Math.round(
+      (this.stats.averageFlipTime + avgTime) / 2
+    );
   }
 
+  // Update best match streak
   if (gameResult.matchStreak > this.stats.bestMatchStreak) {
     this.stats.bestMatchStreak = gameResult.matchStreak;
   }
 
+  // Update perfect games count
   if (gameResult.isPerfect) {
     this.stats.perfectGames += 1;
   }
 
-  this.stats.powerUpsUsed += gameResult.powerUpsUsed;
+  // Update power-ups used
+  this.stats.powerUpsUsed += gameResult.powerUpsUsed || 0;
+
   this.lastActive = new Date();
 };
 
@@ -99,5 +111,15 @@ userSchema.methods.addAchievement = function (achievement) {
     });
   }
 };
+
+// Add database indexes for better query performance
+userSchema.index({ username: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ isGuest: 1 });
+userSchema.index({ isAdmin: 1 });
+userSchema.index({ lastActive: -1 });
+userSchema.index({ "stats.gamesPlayed": -1 });
+userSchema.index({ "stats.gamesWon": -1 });
+userSchema.index({ "stats.totalScore": -1 });
 
 module.exports = { User: mongoose.model("User", userSchema) };

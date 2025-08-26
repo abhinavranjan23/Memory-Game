@@ -63,6 +63,24 @@ const Game = () => {
   const [showPowerUpNotification, setShowPowerUpNotification] = useState(false);
   const [newPowerUp, setNewPowerUp] = useState(null);
 
+  // Store all timers for proper cleanup
+  const timersRef = useRef(new Set());
+
+  // Helper function to add timers for cleanup
+  const addTimer = (timer) => {
+    timersRef.current.add(timer);
+    return timer;
+  };
+
+  // Helper function to clear all timers
+  const clearAllTimers = () => {
+    timersRef.current.forEach((timer) => {
+      clearTimeout(timer);
+      clearInterval(timer);
+    });
+    timersRef.current.clear();
+  };
+
   useEffect(() => {
     // Game component should not join the room - it should only listen for game events
     // The user should already be in the room when they navigate to the game
@@ -72,26 +90,29 @@ const Game = () => {
     hasJoinedRef.current = true;
 
     // Fallback: If we don't receive game state within 3 seconds, try to fetch it
-    const fallbackTimer = setTimeout(async () => {
-      if (loading && socket) {
-        console.log("Fallback: Requesting game state from server");
-        socket.emit("get-game-state");
-      }
-    }, 3000);
+    const fallbackTimer = addTimer(
+      setTimeout(async () => {
+        if (loading && socket) {
+          console.log("Fallback: Requesting game state from server");
+          socket.emit("get-game-state");
+        }
+      }, 3000)
+    );
 
     // Emergency fallback: Set loading to false after 10 seconds to prevent infinite loading
-    const emergencyTimer = setTimeout(() => {
-      if (loading) {
-        console.log(
-          "Emergency fallback: Setting loading to false after 10 seconds"
-        );
-        setLoading(false);
-      }
-    }, 10000);
+    const emergencyTimer = addTimer(
+      setTimeout(() => {
+        if (loading) {
+          console.log(
+            "Emergency fallback: Setting loading to false after 10 seconds"
+          );
+          setLoading(false);
+        }
+      }, 10000)
+    );
 
     return () => {
-      clearTimeout(fallbackTimer);
-      clearTimeout(emergencyTimer);
+      clearAllTimers();
     };
   }, [roomId, loading, socket]);
 
@@ -102,6 +123,7 @@ const Game = () => {
       "Available players:",
       players.map((p) => ({ userId: p.userId, username: p.username }))
     );
+    console.log("Stack trace for currentTurn change:", new Error().stack);
   }, [currentTurn, players]);
 
   // Debug loading state changes
@@ -116,9 +138,25 @@ const Game = () => {
       const turnPlayerExists = players.some((p) => p.userId === currentTurn);
       if (!turnPlayerExists && players.length > 0) {
         console.log("Current turn player no longer exists, fixing turn");
-        // Set turn to the first available player
-        setCurrentTurn(players[0].userId);
-        addToast(`Turn passed to ${players[0].username}`, "info");
+        console.log("Current turn:", currentTurn);
+        console.log(
+          "Available players:",
+          players.map((p) => p.userId)
+        );
+
+        // Only fix turn if we haven't recently received a turn-changed event
+        const now = Date.now();
+        const lastTurnChangedTime = window.lastTurnChangedTime || 0;
+        const timeSinceTurnChanged = now - lastTurnChangedTime;
+
+        if (timeSinceTurnChanged > 2000) {
+          // 2 second protection
+          console.log("Fixing turn - no recent turn-changed event");
+          setCurrentTurn(players[0].userId);
+          addToast(`Turn passed to ${players[0].username}`, "info");
+        } else {
+          console.log("Skipping turn fix - recent turn-changed event detected");
+        }
       }
     }
 
@@ -129,16 +167,21 @@ const Game = () => {
       !gamePausedForCurrentState.current
     ) {
       console.log("Not enough players to continue game - showing pause toast");
-      setGameStatus("waiting");
+      // Don't override game status if game is already completed
+      if (gameStatus !== "completed") {
+        setGameStatus("waiting");
+      }
       addToast("Game paused - waiting for more players", "warning");
       gamePausedForCurrentState.current = true;
       gamePausedToastShown.current = true;
 
       // Reset the flags after a delay
-      setTimeout(() => {
-        gamePausedToastShown.current = false;
-        gamePausedForCurrentState.current = false;
-      }, 5000);
+      addTimer(
+        setTimeout(() => {
+          gamePausedToastShown.current = false;
+          gamePausedForCurrentState.current = false;
+        }, 5000)
+      );
     }
   }, [currentTurn, players, gameStatus]);
 
@@ -226,18 +269,23 @@ const Game = () => {
       // This prevents the game-state event from overriding the turn-continue event
       const now = Date.now();
       const lastTurnContinueTime = window.lastTurnContinueTime || 0;
+      const lastTurnChangedTime = window.lastTurnChangedTime || 0;
       const timeSinceTurnContinue = now - lastTurnContinueTime;
+      const timeSinceTurnChanged = now - lastTurnChangedTime;
 
       console.log("Game state turn management:", {
         serverCurrentTurn: data.gameState?.currentTurn,
         clientCurrentTurn: currentTurn,
         lastTurnContinueTime,
+        lastTurnChangedTime,
         timeSinceTurnContinue,
-        willUpdateTurn: timeSinceTurnContinue > 1000,
+        timeSinceTurnChanged,
+        willUpdateTurn:
+          timeSinceTurnContinue > 1000 && timeSinceTurnChanged > 1000,
       });
 
-      if (timeSinceTurnContinue > 1000) {
-        // Only update if no recent turn-continue
+      if (timeSinceTurnContinue > 1000 && timeSinceTurnChanged > 1000) {
+        // Only update if no recent turn-continue or turn-changed events
         // Try multiple sources for currentTurn
         let newCurrentTurn = data.gameState?.currentTurn;
 
@@ -262,24 +310,22 @@ const Game = () => {
           );
         }
 
-        if (newCurrentTurn) {
+        if (newCurrentTurn && newCurrentTurn !== currentTurn) {
           console.log(
-            "Updating currentTurn from game-state to:",
-            newCurrentTurn
+            `Updating currentTurn from game-state: ${currentTurn} -> ${newCurrentTurn}`
           );
           setCurrentTurn(newCurrentTurn);
-        } else {
-          console.log(
-            "Skipping currentTurn update - no valid currentTurn found"
-          );
         }
       } else {
         console.log(
-          "Skipping currentTurn update due to recent turn-continue event"
+          "Skipping currentTurn update due to recent turn-continue or turn-changed event"
         );
       }
 
-      setGameStatus(data.gameState?.status || "waiting");
+      // Don't override game status if game is already completed
+      if (gameStatus !== "completed") {
+        setGameStatus(data.gameState?.status || "waiting");
+      }
       setTimeLeft(data.gameState?.timeLeft || 0);
 
       // Update power-ups for current user
@@ -331,11 +377,19 @@ const Game = () => {
       }
 
       console.log("Final currentTurn value:", newCurrentTurn);
+      console.log(
+        "About to call setCurrentTurn in handleGameStarted with:",
+        newCurrentTurn
+      );
       setCurrentTurn(newCurrentTurn);
+      console.log("setCurrentTurn called in handleGameStarted");
 
       const newGameStatus = data.gameState?.status || "playing";
       console.log("Setting gameStatus to:", newGameStatus);
-      setGameStatus(newGameStatus);
+      // Don't override game status if game is already completed
+      if (gameStatus !== "completed") {
+        setGameStatus(newGameStatus);
+      }
 
       // Reset game start toast flag if game goes back to waiting
       if (newGameStatus === "waiting") {
@@ -397,9 +451,11 @@ const Game = () => {
         playerJoinedToastShown.current.add(data.player.userId);
 
         // Clean up the toast tracking after a delay
-        setTimeout(() => {
-          playerJoinedToastShown.current.delete(data.player.userId);
-        }, 5000);
+        addTimer(
+          setTimeout(() => {
+            playerJoinedToastShown.current.delete(data.player.userId);
+          }, 5000)
+        );
       }
     };
 
@@ -428,16 +484,21 @@ const Game = () => {
           console.log(
             "Not enough players to continue game - showing pause toast from player left"
           );
-          setGameStatus("waiting");
+          // Don't override game status if game is already completed
+          if (gameStatus !== "completed") {
+            setGameStatus("waiting");
+          }
           addToast("Game paused - waiting for more players", "warning");
           gamePausedForCurrentState.current = true;
           gamePausedToastShown.current = true;
 
           // Reset the flags after a delay
-          setTimeout(() => {
-            gamePausedToastShown.current = false;
-            gamePausedForCurrentState.current = false;
-          }, 5000);
+          addTimer(
+            setTimeout(() => {
+              gamePausedToastShown.current = false;
+              gamePausedForCurrentState.current = false;
+            }, 5000)
+          );
 
           // If current user is the only one left, show appropriate message
           if (
@@ -479,9 +540,11 @@ const Game = () => {
       }
 
       // Clean up the toast tracking after a delay
-      setTimeout(() => {
-        playerLeftToastShown.current.delete(data.userId);
-      }, 5000);
+      addTimer(
+        setTimeout(() => {
+          playerLeftToastShown.current.delete(data.userId);
+        }, 5000)
+      );
     };
 
     const handleCardFlipped = (data) => {
@@ -595,18 +658,43 @@ const Game = () => {
       console.log("Turn changed event received:", data);
       console.log("Setting currentTurn to:", data.playerId);
       console.log("Previous currentTurn was:", currentTurn);
+      console.log("Current user ID:", user?.id);
+      console.log("Is this turn for current user?", data.playerId === user?.id);
+      console.log("Event timestamp:", Date.now());
+      console.log("Previous player ID:", data.previousPlayerId);
+
+      console.log("About to call setCurrentTurn with:", data.playerId);
       setCurrentTurn(data.playerId);
+      console.log("setCurrentTurn called");
+
+      // Set timestamp to prevent game-state from overriding this turn change
+      window.lastTurnChangedTime = Date.now();
+      console.log("Set lastTurnChangedTime to:", window.lastTurnChangedTime);
 
       if (data.playerId === user?.id) {
-        addToast("It's your turn!", "info");
+        console.log("Turn switched to current user");
+        addToast("🎯 It's your turn!", "success");
       } else {
         // Check if this turn change was due to using the last extra turn
         const previousPlayer = data.previousPlayerId;
         if (previousPlayer === user?.id) {
-          addToast(
-            "Your extra turns are finished. Turn passed to next player.",
-            "info"
+          console.log(
+            "Turn changed from current user to another player - extra turns finished"
           );
+          addToast(
+            "⏰ Your extra turns are finished. Turn passed to next player.",
+            "warning"
+          );
+        } else {
+          // General turn switch notification
+          const nextPlayer = players.find((p) => p.userId === data.playerId);
+          if (nextPlayer) {
+            console.log("Turn switched to:", nextPlayer.username);
+            addToast(`🎯 Turn switched to ${nextPlayer.username}`, "info");
+          } else {
+            console.log("Turn switched to unknown player");
+            addToast("🎯 Turn switched to next player", "info");
+          }
         }
       }
     };
@@ -616,36 +704,46 @@ const Game = () => {
       console.log("Turn continue event received:", data);
       console.log("Setting currentTurn to:", data.currentPlayer);
       console.log("Previous currentTurn was:", currentTurn);
+      console.log("Reason:", data.reason);
+      console.log("Remaining extra turns:", data.remainingExtraTurns);
 
-      // Keep the same player's turn active
-      setCurrentTurn(data.currentPlayer);
+      // Only keep the same player's turn active if they still have extra turns
+      // If remainingExtraTurns is 0, don't set the turn - wait for turn-changed event
+      if (data.remainingExtraTurns > 0) {
+        console.log("About to call setCurrentTurn with:", data.currentPlayer);
+        setCurrentTurn(data.currentPlayer);
+        console.log("setCurrentTurn called in handleTurnContinue");
 
-      // Set timestamp to prevent game-state from overriding this turn
-      window.lastTurnContinueTime = Date.now();
-      console.log("Set lastTurnContinueTime to:", window.lastTurnContinueTime);
+        // Set timestamp to prevent game-state from overriding this turn
+        window.lastTurnContinueTime = Date.now();
+        console.log(
+          "Set lastTurnContinueTime to:",
+          window.lastTurnContinueTime
+        );
+      } else {
+        console.log(
+          "No extra turns remaining - not setting current turn, waiting for turn-changed event"
+        );
+      }
 
       if (data.currentPlayer === user?.id) {
         if (data.reason === "extra_turn_used") {
-          addToast(
-            `Extra turn used! ${
-              data.remainingExtraTurns || 0
-            } extra turns remaining.`,
-            "info"
+          console.log(
+            "Extra turn used - remaining extra turns:",
+            data.remainingExtraTurns
           );
+          if (data.remainingExtraTurns > 0) {
+            addToast(`🎯 Extra turn used! `, "info");
+          } else {
+            addToast(
+              "🎯 Extra turn used! No more extra turns remaining.",
+              "info"
+            );
+          }
         } else if (data.reason === "extra_turn_powerup_used") {
-          addToast(
-            `Extra turn power-up activated! You now have ${
-              data.remainingExtraTurns || 0
-            } extra turns available.`,
-            "success"
-          );
+          addToast(`Extra turn power-up activated!`, "success");
         } else if (data.reason === "match_found") {
-          addToast(
-            `Great match! You get another turn! ${
-              data.remainingExtraTurns || 0
-            } extra turns available.`,
-            "success"
-          );
+          addToast(`Great match! You get another turn!`, "success");
         } else if (data.reason === "powerup_used") {
           addToast(
             `Power-up used! You still have ${
@@ -709,9 +807,11 @@ const Game = () => {
     const handleChatMessage = (data) => {
       setChatMessages((prev) => [...prev, data]);
       // Scroll to bottom of chat
-      setTimeout(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+      addTimer(
+        setTimeout(() => {
+          chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 100)
+      );
     };
 
     const handleError = (error) => {
@@ -720,9 +820,11 @@ const Game = () => {
       // Handle specific error cases
       if (error.message?.includes("room") || error.message?.includes("game")) {
         addToast("Game room error. Redirecting to lobby...", "error");
-        setTimeout(() => {
-          navigate("/lobby");
-        }, 2000);
+        addTimer(
+          setTimeout(() => {
+            navigate("/lobby");
+          }, 2000)
+        );
       } else if (error.message?.includes("connection")) {
         addToast("Connection lost. Attempting to reconnect...", "error");
         // The socket will automatically attempt to reconnect
@@ -804,10 +906,12 @@ const Game = () => {
           setShowPowerUpNotification(true);
 
           // Hide notification after 3 seconds
-          setTimeout(() => {
-            setShowPowerUpNotification(false);
-            setNewPowerUp(null);
-          }, 3000);
+          addTimer(
+            setTimeout(() => {
+              setShowPowerUpNotification(false);
+              setNewPowerUp(null);
+            }, 3000)
+          );
 
           // No toast notifications for power-ups
         }
@@ -821,7 +925,9 @@ const Game = () => {
       // Only show peek effect to the user who used it
       if (data.targetUserId === user?.id) {
         setIsPeekActive(true);
-        setTimeout(() => setIsPeekActive(false), data.duration || 3000);
+        addTimer(
+          setTimeout(() => setIsPeekActive(false), data.duration || 3000)
+        );
         addToast(
           "Peek power-up activated! All cards revealed for 3 seconds!",
           "info"
@@ -913,44 +1019,46 @@ const Game = () => {
           );
 
           // Remove animation state after animation completes
-          setTimeout(() => {
-            setCards((currentCards) => {
-              const updatedCards = [...currentCards];
-              const currentCard1Index = updatedCards.findIndex(
-                (c) => c.id === data.card1Id
-              );
-              const currentCard2Index = updatedCards.findIndex(
-                (c) => c.id === data.card2Id
-              );
+          addTimer(
+            setTimeout(() => {
+              setCards((currentCards) => {
+                const updatedCards = [...currentCards];
+                const currentCard1Index = updatedCards.findIndex(
+                  (c) => c.id === data.card1Id
+                );
+                const currentCard2Index = updatedCards.findIndex(
+                  (c) => c.id === data.card2Id
+                );
 
-              if (currentCard1Index >= 0) {
-                updatedCards[currentCard1Index] = {
-                  ...updatedCards[currentCard1Index],
-                  isSwapping: false,
-                  lastSwapTime: null,
-                };
-              }
-              if (currentCard2Index >= 0) {
-                updatedCards[currentCard2Index] = {
-                  ...updatedCards[currentCard2Index],
-                  isSwapping: false,
-                  lastSwapTime: null,
-                };
-              }
+                if (currentCard1Index >= 0) {
+                  updatedCards[currentCard1Index] = {
+                    ...updatedCards[currentCard1Index],
+                    isSwapping: false,
+                    lastSwapTime: null,
+                  };
+                }
+                if (currentCard2Index >= 0) {
+                  updatedCards[currentCard2Index] = {
+                    ...updatedCards[currentCard2Index],
+                    isSwapping: false,
+                    lastSwapTime: null,
+                  };
+                }
 
-              console.log(
-                "Animation completed, final cards state:",
-                updatedCards.map((c) => ({
-                  id: c.id,
-                  value: c.value,
-                  theme: c.theme,
-                  isSwapping: c.isSwapping,
-                }))
-              );
+                console.log(
+                  "Animation completed, final cards state:",
+                  updatedCards.map((c) => ({
+                    id: c.id,
+                    value: c.value,
+                    theme: c.theme,
+                    isSwapping: c.isSwapping,
+                  }))
+                );
 
-              return updatedCards;
-            });
-          }, 500); // Animation duration
+                return updatedCards;
+              });
+            }, 500)
+          ); // Animation duration
         } else {
           console.error("Could not find cards for swap:", {
             card1Index,
@@ -964,9 +1072,11 @@ const Game = () => {
       });
 
       // Show toast with animation indication
-      setTimeout(() => {
-        addToast("🔄 Cards swapped with animation!", "info");
-      }, 100);
+      addTimer(
+        setTimeout(() => {
+          addToast("🔄 Cards swapped with animation!", "info");
+        }, 100)
+      );
     };
 
     const handlePowerUpReveal = (data) => {
@@ -999,24 +1109,26 @@ const Game = () => {
             console.log("All cards after update:", newCards);
 
             // Hide it after 3 seconds
-            setTimeout(() => {
-              console.log("Hiding revealed card after 3 seconds");
-              setCards((currentCards) => {
-                const updatedCards = [...currentCards];
-                const currentCardIndex = updatedCards.findIndex(
-                  (c) => c.id === data.cardId
-                );
-                if (currentCardIndex >= 0) {
-                  updatedCards[currentCardIndex] = {
-                    ...updatedCards[currentCardIndex],
-                    isRevealed: false,
-                    revealedValue: null,
-                  };
-                  console.log("Card hidden:", updatedCards[currentCardIndex]);
-                }
-                return updatedCards;
-              });
-            }, 3000);
+            addTimer(
+              setTimeout(() => {
+                console.log("Hiding revealed card after 3 seconds");
+                setCards((currentCards) => {
+                  const updatedCards = [...currentCards];
+                  const currentCardIndex = updatedCards.findIndex(
+                    (c) => c.id === data.cardId
+                  );
+                  if (currentCardIndex >= 0) {
+                    updatedCards[currentCardIndex] = {
+                      ...updatedCards[currentCardIndex],
+                      isRevealed: false,
+                      revealedValue: null,
+                    };
+                    console.log("Card hidden:", updatedCards[currentCardIndex]);
+                  }
+                  return updatedCards;
+                });
+              }, 3000)
+            );
           } else {
             console.error("Card not found for reveal:", data.cardId);
           }
@@ -1041,9 +1153,11 @@ const Game = () => {
         const timerElement = document.querySelector(".timer-frozen");
         if (timerElement) {
           timerElement.classList.add("frozen");
-          setTimeout(() => {
-            timerElement.classList.remove("frozen");
-          }, 10000);
+          addTimer(
+            setTimeout(() => {
+              timerElement.classList.remove("frozen");
+            }, 10000)
+          );
         }
       } else {
         // Show a toast to other players that someone used freeze
@@ -1069,38 +1183,44 @@ const Game = () => {
       });
 
       // After animation, update with shuffled board
-      setTimeout(() => {
-        if (data.board) {
-          console.log(
-            "Updating cards with shuffled board:",
-            data.board.map((c) => ({
-              id: c.id,
-              value: c.value,
-              theme: c.theme,
-            }))
-          );
-          setCards(
-            data.board.map((card) => ({
-              ...card,
-              isShuffling: false,
-            }))
-          );
-          setTimeout(() => {
-            addToast("🔄 Cards shuffled with animation!", "info");
-          }, 100);
-        } else {
-          console.log(
-            "No board data received, falling back to game state refresh"
-          );
-          // Fallback: force a refresh of the game state
-          if (socket) {
-            socket.emit("get-game-state");
+      addTimer(
+        setTimeout(() => {
+          if (data.board) {
+            console.log(
+              "Updating cards with shuffled board:",
+              data.board.map((c) => ({
+                id: c.id,
+                value: c.value,
+                theme: c.theme,
+              }))
+            );
+            setCards(
+              data.board.map((card) => ({
+                ...card,
+                isShuffling: false,
+              }))
+            );
+            addTimer(
+              setTimeout(() => {
+                addToast("🔄 Cards shuffled with animation!", "info");
+              }, 100)
+            );
+          } else {
+            console.log(
+              "No board data received, falling back to game state refresh"
+            );
+            // Fallback: force a refresh of the game state
+            if (socket) {
+              socket.emit("get-game-state");
+            }
+            addTimer(
+              setTimeout(() => {
+                addToast("🔄 Cards shuffled with animation!", "info");
+              }, 100)
+            );
           }
-          setTimeout(() => {
-            addToast("🔄 Cards shuffled with animation!", "info");
-          }, 100);
-        }
-      }, 800); // Shuffle animation duration
+        }, 800)
+      ); // Shuffle animation duration
     };
 
     const handlePowerUpExtraTurn = (data) => {
@@ -1121,6 +1241,7 @@ const Game = () => {
     console.log("Registering socket event listeners");
     console.log("Socket connected:", socket.connected);
     console.log("Socket ID:", socket.id);
+    console.log("Will listen for turn-changed and turn-continue events");
 
     // Clear any existing listeners first to prevent duplicates
     socket.off("game-state", handleGameState);
@@ -1155,31 +1276,36 @@ const Game = () => {
     socket.emit("get-game-state");
 
     // Add a timeout to check if game-started event is received
-    const gameStartedTimeout = setTimeout(() => {
-      console.log("TIMEOUT: Checking if game-started event was received");
-      console.log("Current gameStatus:", gameStatus);
-      console.log("Current currentTurn:", currentTurn);
-      console.log("Current players:", players);
+    const gameStartedTimeout = addTimer(
+      setTimeout(() => {
+        console.log("TIMEOUT: Checking if game-started event was received");
+        console.log("Current gameStatus:", gameStatus);
+        console.log("Current currentTurn:", currentTurn);
+        console.log("Current players:", players);
 
-      if (gameStatus === "waiting" && players.length >= 2) {
-        console.log(
-          "WARNING: Game should have started but game-started event not received"
-        );
-        console.log("Attempting to manually set currentTurn to first player");
-        if (players.length > 0) {
-          setCurrentTurn(players[0].userId);
-          setGameStatus("playing");
+        if (gameStatus === "waiting" && players.length >= 2) {
+          console.log(
+            "WARNING: Game should have started but game-started event not received"
+          );
+          console.log("Attempting to manually set currentTurn to first player");
+          if (players.length > 0) {
+            setCurrentTurn(players[0].userId);
+            // Don't override game status if game is already completed
+            if (gameStatus !== "completed") {
+              setGameStatus("playing");
+            }
+          }
         }
-      }
 
-      // Additional check: if gameStatus is "playing" but currentTurn is null
-      if (gameStatus === "playing" && !currentTurn && players.length > 0) {
-        console.log(
-          "WARNING: Game is playing but currentTurn is null, setting to first player"
-        );
-        setCurrentTurn(players[0].userId);
-      }
-    }, 5000); // 5 second timeout
+        // Additional check: if gameStatus is "playing" but currentTurn is null
+        if (gameStatus === "playing" && !currentTurn && players.length > 0) {
+          console.log(
+            "WARNING: Game is playing but currentTurn is null, setting to first player"
+          );
+          setCurrentTurn(players[0].userId);
+        }
+      }, 5000)
+    ); // 5 second timeout
     socket.on("player-joined", handlePlayerJoined);
     socket.on("player-left", handlePlayerLeft);
     socket.on("card-flipped", handleCardFlipped);
@@ -1203,10 +1329,12 @@ const Game = () => {
     socket.on("powerup-shuffle", handlePowerUpShuffle);
     socket.on("powerup-extra-turn", handlePowerUpExtraTurn);
     socket.on("player-eliminated", handlePlayerEliminated);
+    console.log("Turn event listeners registered successfully");
+    console.log("Listening for events: turn-changed, turn-continue");
 
     // Cleanup function
     return () => {
-      clearTimeout(gameStartedTimeout);
+      clearAllTimers();
       gameStartToastShown.current = false;
       gamePausedToastShown.current = false;
       gamePausedForCurrentState.current = false;
@@ -1539,11 +1667,27 @@ const Game = () => {
                     (p) => p.userId === currentTurn
                   );
                   console.log("Found current player:", currentPlayer);
+                  console.log(
+                    "All players:",
+                    players.map((p) => ({
+                      userId: p.userId,
+                      username: p.username,
+                    }))
+                  );
+                  console.log("Looking for player with userId:", currentTurn);
                   if (currentPlayer) {
+                    console.log(
+                      "Returning turn display for:",
+                      currentPlayer.username
+                    );
                     return `${currentPlayer.username}'s turn`;
                   } else if (currentTurn) {
+                    console.log(
+                      "Player not found, returning generic turn display"
+                    );
                     return `Player ${currentTurn}'s turn`;
                   } else {
+                    console.log("No currentTurn, returning waiting message");
                     return "Waiting for turn...";
                   }
                 })()}
@@ -1599,83 +1743,89 @@ const Game = () => {
           <div className='lg:col-span-3'>
             {/* Players */}
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-8'>
-              {players.map((player) => (
-                <div
-                  key={player.userId}
-                  className={`flex items-center p-4 rounded-lg border-2 transition-all ${
-                    currentTurn === player.userId
-                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg"
-                      : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                  }`}
-                >
-                  <div className='flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-xl shadow-lg overflow-hidden'>
-                    {player.avatar && player.avatar.startsWith("http") ? (
-                      <img
-                        src={player.avatar}
-                        alt={player.username}
-                        className='h-full w-full object-cover'
-                        onError={(e) => {
-                          e.target.style.display = "none";
-                          e.target.nextSibling.style.display = "flex";
-                        }}
-                      />
-                    ) : null}
-                    <span
-                      className={
-                        player.avatar && player.avatar.startsWith("http")
-                          ? "hidden"
-                          : "flex"
-                      }
-                    >
-                      {player.username.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className='ml-4 flex-grow'>
-                    <p className='text-base font-medium text-gray-900 dark:text-white flex items-center gap-2'>
-                      {player.username}
-                      {player.userId === user?.id && (
-                        <span className='px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded-full font-medium'>
-                          You
-                        </span>
-                      )}
-                      {currentTurn === player.userId && (
-                        <motion.span
-                          className='px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded-full font-medium'
-                          animate={{
-                            scale: [1, 1.1, 1],
-                            boxShadow: [
-                              "0 0 0 0 rgba(59, 130, 246, 0.4)",
-                              "0 0 0 10px rgba(59, 130, 246, 0)",
-                              "0 0 0 0 rgba(59, 130, 246, 0)",
-                            ],
+              {players.map((player) => {
+                const isCurrentTurn = currentTurn === player.userId;
+                console.log(
+                  `Player ${player.username} (${player.userId}) - isCurrentTurn: ${isCurrentTurn}, currentTurn: ${currentTurn}`
+                );
+                return (
+                  <div
+                    key={player.userId}
+                    className={`flex items-center p-4 rounded-lg border-2 transition-all ${
+                      isCurrentTurn
+                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg"
+                        : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                    }`}
+                  >
+                    <div className='flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-xl shadow-lg overflow-hidden'>
+                      {player.avatar && player.avatar.startsWith("http") ? (
+                        <img
+                          src={player.avatar}
+                          alt={player.username}
+                          className='h-full w-full object-cover'
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
                           }}
-                          transition={{
-                            duration: 1.5,
-                            repeat: Infinity,
-                          }}
-                        >
-                          Current Turn
-                        </motion.span>
-                      )}
-                    </p>
-                    <div className='flex items-center justify-between mt-1'>
-                      <p className='text-sm text-gray-500 dark:text-gray-400'>
-                        Score:{" "}
-                        <span className='font-semibold'>
-                          {player.score || 0}
-                        </span>{" "}
-                        pairs
+                        />
+                      ) : null}
+                      <span
+                        className={
+                          player.avatar && player.avatar.startsWith("http")
+                            ? "hidden"
+                            : "flex"
+                        }
+                      >
+                        {player.username.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className='ml-4 flex-grow'>
+                      <p className='text-base font-medium text-gray-900 dark:text-white flex items-center gap-2'>
+                        {player.username}
+                        {player.userId === user?.id && (
+                          <span className='px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded-full font-medium'>
+                            You
+                          </span>
+                        )}
+                        {isCurrentTurn && (
+                          <motion.span
+                            className='px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded-full font-medium'
+                            animate={{
+                              scale: [1, 1.1, 1],
+                              boxShadow: [
+                                "0 0 0 0 rgba(59, 130, 246, 0.4)",
+                                "0 0 0 10px rgba(59, 130, 246, 0)",
+                                "0 0 0 0 rgba(59, 130, 246, 0)",
+                              ],
+                            }}
+                            transition={{
+                              duration: 1.5,
+                              repeat: Infinity,
+                            }}
+                          >
+                            Current Turn
+                          </motion.span>
+                        )}
                       </p>
-                      <p className='text-sm text-gray-500 dark:text-gray-400'>
-                        Matches:{" "}
-                        <span className='font-semibold'>
-                          {player.matches || 0}
-                        </span>
-                      </p>
+                      <div className='flex items-center justify-between mt-1'>
+                        <p className='text-sm text-gray-500 dark:text-gray-400'>
+                          Score:{" "}
+                          <span className='font-semibold'>
+                            {player.score || 0}
+                          </span>{" "}
+                          pairs
+                        </p>
+                        <p className='text-sm text-gray-500 dark:text-gray-400'>
+                          Matches:{" "}
+                          <span className='font-semibold'>
+                            {player.matches || 0}
+                          </span>
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Power-ups Section */}
@@ -1935,7 +2085,7 @@ const Game = () => {
                       {/* Enhanced power-up glow effect */}
                       {card.powerUp && !card.isMatched && (
                         <motion.div
-                          className='absolute inset-0 rounded-lg border-2 border-purple-400/50'
+                          className='absolute inset-0 rounded-lg  '
                           animate={{
                             boxShadow: [
                               "0 0 0 0 rgba(168, 85, 247, 0.4)",

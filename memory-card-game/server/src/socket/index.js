@@ -892,30 +892,8 @@ function initializeSocket(io) {
       }
     });
 
-    // Turn continue event (when player gets another turn after a match)
-    socket.on("turn-continue", async (data) => {
-      if (!socket.currentRoom) {
-        socket.emit("error", { message: "Not in a room" });
-        return;
-      }
-
-      try {
-        const game = await Game.findOne({ roomId: socket.currentRoom });
-        if (!game) {
-          socket.emit("error", { message: "Game not found" });
-          return;
-        }
-
-        // Emit turn continue to all players in the room
-        io.to(socket.currentRoom).emit("turn-continue", {
-          currentPlayer: socket.userId,
-          reason: "match_found",
-        });
-      } catch (error) {
-        console.error("Turn continue error:", error);
-        socket.emit("error", { message: "Failed to continue turn" });
-      }
-    });
+    // Turn continue event handling removed - this was causing duplicate extra turns
+    // The server should only emit turn-continue events, not listen to them from clients
 
     // Handle disconnection
     socket.on("disconnect", async () => {
@@ -963,6 +941,35 @@ function initializeSocket(io) {
       // Remove user from room tracking
       userRooms.delete(socket.userId);
 
+      // Get current game state before removing player
+      const gameBeforeUpdate = await Game.findOne({ roomId });
+      if (!gameBeforeUpdate) {
+        console.log(`Game ${roomId} not found during leave room`);
+        return;
+      }
+
+      // If active game engine exists, notify it about disconnect BEFORE removing player from database
+      const gameEngine = activeGames.get(roomId);
+
+      if (gameEngine) {
+        try {
+          await gameEngine.handlePlayerDisconnect(socket.userId);
+        } catch (e) {
+          console.error("Game engine disconnect handling error:", e);
+        }
+      }
+
+      // Get opponents before removing the player
+      const opponents = gameBeforeUpdate.players
+        .filter((p) => p.userId !== socket.userId)
+        .map((opponent) => ({
+          userId: opponent.userId,
+          username: opponent.username,
+          avatar: opponent.avatar,
+          score: opponent.score || 0,
+          matches: opponent.matches || 0,
+        }));
+
       // Atomically pull the player from the room's players list
       const updated = await Game.findOneAndUpdate(
         { roomId },
@@ -974,6 +981,15 @@ function initializeSocket(io) {
       );
 
       if (updated) {
+        // Emit player left event with opponent information
+        io.to(roomId).emit("player-left", {
+          userId: socket.userId,
+          username: socket.username,
+          remainingPlayers: updated.players.length,
+          opponents: opponents,
+          gameStatus: updated.gameState?.status || updated.status,
+        });
+
         // If game was starting and now lacks required players, revert to waiting and clear readiness
         if (
           updated.gameState.status === "starting" &&
@@ -997,26 +1013,32 @@ function initializeSocket(io) {
           }
         }
 
-        // If active game engine exists and the game is playing, notify it about disconnect
-        const gameEngine = activeGames.get(roomId);
-        if (gameEngine && updated.gameState.status === "playing") {
-          try {
-            await gameEngine.handlePlayerDisconnect(socket.userId);
-          } catch (e) {
-            console.error("Game engine disconnect handling error:", e);
+        // Check if the game was completed (regardless of player count)
+        if (
+          updated.gameState?.status === "finished" ||
+          updated.status === "completed"
+        ) {
+          console.log(
+            `Game ${roomId} was completed - keeping for 10-day retention period`
+          );
+
+          // Clean up game engine but keep the game in database for 10 days
+          const gameEngine = activeGames.get(roomId);
+          if (gameEngine) {
+            gameEngine.cleanup();
+            activeGames.delete(roomId);
+            console.log(`Cleaned up game engine for completed game ${roomId}`);
           }
-        }
 
-        if (updated.players.length === 0) {
-          // Mark empty game as completed instead of deleting immediately
+          // Don't delete the game - let the scheduled cleanup handle it after 10 days
+          // This ensures match history is preserved and 10-day retention policy is followed
+        } else if (updated.players.length === 0) {
+          // Delete empty games that weren't completed
           try {
-            updated.gameState.status = "finished";
-            updated.status = "completed";
-            updated.endedAt = new Date();
-            await updated.save();
-            console.log(`Marked empty game ${roomId} as completed`);
+            await Game.deleteOne({ _id: updated._id });
+            console.log(`Deleted empty game ${roomId}`);
 
-            // Clean up game engine but keep game in DB for statistics
+            // Clean up game engine
             const gameEngine = activeGames.get(roomId);
             if (gameEngine) {
               gameEngine.cleanup();
@@ -1026,85 +1048,64 @@ function initializeSocket(io) {
             // Broadcast room deletion to all clients
             io.emit("room-deleted", roomId);
           } catch (error) {
-            console.error("Error marking empty game as completed:", error);
+            console.error("Error deleting empty game:", error);
           }
         } else {
-          // Notify remaining players
-          socket.to(roomId).emit("player-left", {
-            userId: socket.userId,
-            username: socket.username,
-          });
+          // Check if the remaining players can continue the game
+          const remainingPlayers = updated.players.length;
+          const maxPlayers = updated.settings.maxPlayers;
+          const gameStatus = updated.gameState.status;
 
-          // Update game state for remaining players
-          try {
-            const fresh = await Game.findOne({ roomId });
-            if (fresh) {
-              socket.to(roomId).emit("game-state", {
-                players: fresh.players,
-                gameState: fresh.gameState,
-              });
-            }
-
-            // Check if game should continue or end based on remaining players
-            const remainingPlayers = fresh.players.length;
-            const maxPlayers = fresh.settings.maxPlayers;
-
+          // If game is in waiting/starting phase and not enough players, delete the game
+          if (
+            (gameStatus === "waiting" || gameStatus === "starting") &&
+            remainingPlayers < 2
+          ) {
             console.log(
-              `Room ${roomId}: ${remainingPlayers} players remaining, max: ${maxPlayers}`
+              `Game ${roomId} has insufficient players (${remainingPlayers}) for waiting/starting phase - deleting`
             );
+            try {
+              await Game.deleteOne({ _id: updated._id });
 
-            if (remainingPlayers === 1) {
-              // Only one player left - they should be declared winner
-              console.log(
-                `Only one player left in room ${roomId}, ending game with winner`
-              );
+              // Clean up game engine
               const gameEngine = activeGames.get(roomId);
               if (gameEngine) {
-                await gameEngine.endGame("last_player_winner");
+                gameEngine.cleanup();
+                activeGames.delete(roomId);
               }
-            } else if (remainingPlayers >= 2) {
-              // 2 or more players - game continues
-              console.log(
-                `Game continues in room ${roomId} with ${remainingPlayers} players`
+
+              // Broadcast room deletion to all clients
+              io.emit("room-deleted", roomId);
+            } catch (error) {
+              console.error(
+                "Error deleting game with insufficient players:",
+                error
               );
             }
+          } else if (gameStatus === "playing" && remainingPlayers === 1) {
+            // If game is playing and only one player remains, the game engine should have already handled this
+            // The handlePlayerDisconnect call at the beginning of this function should have taken care of this scenario
+            console.log(
+              `Only one player remaining in game ${roomId} - game engine should have already handled this`
+            );
+          } else {
+            // Game continues with remaining players
+            console.log(
+              `Game ${roomId} continues with ${remainingPlayers} players`
+            );
 
-            // Broadcast room update to all clients in lobby
-            io.emit("room-updated", {
-              roomId: fresh.roomId,
-              playerCount: fresh.players.length,
-              maxPlayers: fresh.settings.maxPlayers,
-              isJoinable: fresh.players.length < fresh.settings.maxPlayers,
-              gameMode: fresh.settings.gameMode,
-              status: fresh.gameState.status,
-              boardSize: fresh.settings.boardSize,
-              theme: fresh.settings.theme,
-              isPrivate: fresh.isPrivate,
-              hasPassword: fresh.isPrivate,
-              settings: {
-                powerUpsEnabled:
-                  fresh.settings.gameMode === "powerup-frenzy" ||
-                  fresh.settings.powerUpsEnabled,
-                chatEnabled: fresh.settings.chatEnabled,
-                isRanked: fresh.settings.isRanked,
-              },
-              createdAt: fresh.createdAt,
+            // Update game state for remaining players
+            io.to(roomId).emit("game-state", {
+              players: updated.players,
+              gameState: updated.gameState,
             });
-          } catch (error) {
-            console.error("Error fetching fresh game state:", error);
           }
         }
       }
-
-      socket.leave(roomId);
-      socket.currentRoom = null;
-      console.log(`${socket.username} left room ${roomId}`);
     } catch (error) {
-      console.error("Leave room error:", error);
+      console.error(`Error handling leave room for ${roomId}:`, error);
     } finally {
-      if (releaseLock) {
-        releaseOperationLock(roomId, "leave-room");
-      }
+      releaseLock();
     }
   }
 
@@ -1124,7 +1125,7 @@ function initializeSocket(io) {
     if (existingLock) {
       // Wait for existing operation to complete
       await existingLock;
-      return;
+      return () => {}; // Return empty function if no lock needed
     }
 
     let resolveLock;
@@ -1142,7 +1143,14 @@ function initializeSocket(io) {
       }
     }, timeout);
 
-    return resolveLock;
+    // Return a function that releases the lock
+    return () => {
+      const currentLock = operationLocks.get(lockKey);
+      if (currentLock === lockPromise) {
+        operationLocks.delete(lockKey);
+        resolveLock();
+      }
+    };
   }
 
   // Helper function to release operation lock
@@ -1165,34 +1173,38 @@ function initializeSocket(io) {
 // Clean up inactive games periodically
 setInterval(async () => {
   try {
-    const cutoffTime = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours (increased from 1 hour)
+    // Clean up empty rooms after 10 minutes
+    const emptyRoomCutoffTime = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes
 
-    // Only clean up games that are truly inactive and old
-    const inactiveGames = await Game.find({
+    // Clean up playing/waiting games after 1 hour
+    const inactiveGameCutoffTime = new Date(Date.now() - 1 * 60 * 60 * 1000); // 1 hour
+
+    // Clean up empty rooms (0 players)
+    const emptyRooms = await Game.find({
       $or: [
         {
           "gameState.status": { $in: ["waiting", "starting"] },
-          updatedAt: { $lt: cutoffTime },
-          "players.0": { $exists: false }, // No players
+          updatedAt: { $lt: emptyRoomCutoffTime },
+          players: { $size: 0 }, // Empty players array
         },
         {
           "gameState.status": { $in: ["waiting", "starting"] },
-          updatedAt: { $lt: cutoffTime },
-          players: { $size: 0 }, // Empty players array
+          updatedAt: { $lt: emptyRoomCutoffTime },
+          "players.0": { $exists: false }, // No players
         },
       ],
     });
 
-    if (inactiveGames.length > 0) {
+    if (emptyRooms.length > 0) {
       console.log(
-        `Found ${inactiveGames.length} truly inactive games to cleanup`
+        `Found ${emptyRooms.length} empty rooms to cleanup (10 minutes old)`
       );
     }
 
-    for (const game of inactiveGames) {
+    for (const game of emptyRooms) {
       try {
         console.log(
-          `Cleaning up inactive game: ${game.roomId} (status: ${game.gameState.status}, players: ${game.players.length})`
+          `Cleaning up empty room: ${game.roomId} (status: ${game.gameState.status}, players: ${game.players.length})`
         );
         await Game.findByIdAndDelete(game._id);
         const gameEngine = activeGames.get(game.roomId);
@@ -1202,12 +1214,51 @@ setInterval(async () => {
         }
         io.emit("room-deleted", game.roomId);
       } catch (error) {
-        console.error(`Error deleting inactive game ${game.roomId}:`, error);
+        console.error(`Error deleting empty room ${game.roomId}:`, error);
       }
     }
 
-    // Clean up completed games after 24 hours (increased from 1 hour)
-    const completedCutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours
+    // Clean up inactive games (playing/waiting for too long)
+    const inactiveGames = await Game.find({
+      $or: [
+        {
+          "gameState.status": { $in: ["waiting", "starting", "playing"] },
+          updatedAt: { $lt: inactiveGameCutoffTime },
+        },
+      ],
+    });
+
+    if (inactiveGames.length > 0) {
+      console.log(
+        `Found ${inactiveGames.length} inactive games to cleanup (1 hour old)`
+      );
+    }
+
+    for (const game of inactiveGames) {
+      try {
+        console.log(
+          `Cleaning up inactive game: ${game.roomId} (status: ${game.gameState.status}, players: ${game.players.length})`
+        );
+
+        // Mark game as completed instead of deleting
+        game.status = "completed";
+        game.gameState.status = "finished";
+        game.endedAt = new Date();
+        await game.save();
+
+        const gameEngine = activeGames.get(game.roomId);
+        if (gameEngine) {
+          gameEngine.cleanup();
+          activeGames.delete(game.roomId);
+        }
+        io.emit("room-deleted", game.roomId);
+      } catch (error) {
+        console.error(`Error cleaning up inactive game ${game.roomId}:`, error);
+      }
+    }
+
+    // Clean up completed games after 10 days
+    const completedCutoffTime = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); //10 days
     const completedGames = await Game.find({
       $or: [{ status: "completed" }, { "gameState.status": "finished" }],
       updatedAt: { $lt: completedCutoffTime },

@@ -536,6 +536,26 @@ function checkAchievements(player, gameResult) {
     });
   }
 
+  // High scorer
+  if (gameResult.score >= 1000) {
+    achievements.push({
+      id: "high_scorer",
+      name: "High Scorer",
+      description: "Score 1000+ points in a single game",
+      iconUrl: "💎",
+    });
+  }
+
+  // Consistent winner
+  if (player.stats.gamesPlayed >= 10 && player.stats.winRate >= 80) {
+    achievements.push({
+      id: "consistent_winner",
+      name: "Consistent Winner",
+      description: "Maintain 80%+ win rate over 10+ games",
+      iconUrl: "🏆",
+    });
+  }
+
   return achievements;
 }
 

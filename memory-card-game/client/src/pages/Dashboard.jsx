@@ -370,6 +370,31 @@ const Dashboard = () => {
                         {new Date(match.playedAt).toLocaleDateString()}
                       </span>
                     </div>
+
+                    {/* Show opponents and completion reason */}
+                    {match.opponents && match.opponents.length > 0 && (
+                      <div className='mt-2 text-xs text-gray-500 dark:text-gray-400'>
+                        <span className='font-medium'>Opponents: </span>
+                        {match.opponents.map((opponent, idx) => (
+                          <span key={idx}>
+                            {opponent.username} ({opponent.score} pts)
+                            {opponent.leftEarly && (
+                              <span className='text-orange-500 ml-1'>
+                                • left
+                              </span>
+                            )}
+                            {idx < match.opponents.length - 1 ? ", " : ""}
+                          </span>
+                        ))}
+                        {(match.completionReason === "opponents_left" || 
+                          match.completionReason === "last_player_winner" ||
+                          match.completionReason === "abort") && (
+                          <div className='mt-1 text-orange-500'>
+                            ⚠️ Game ended early - {match.completionReason === "abort" ? "game aborted" : "opponents left"}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </motion.div>
                 ))
               )}

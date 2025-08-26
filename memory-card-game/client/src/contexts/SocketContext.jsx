@@ -20,36 +20,53 @@ export const SocketProvider = ({ children }) => {
   const hasConnectedRef = useRef(false);
   const lastJoinPayloadRef = useRef(null);
   const joinCooldownRef = useRef(0);
+  const socketRef = useRef(null);
 
   useEffect(() => {
     if (!user || !token) {
-      if (socket) {
-        socket.close();
-        setSocket(null);
-        setIsConnected(false);
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
       }
+      setSocket(null);
+      setIsConnected(false);
       hasConnectedRef.current = false;
       return;
     }
 
-    // Prevent duplicate socket connections under React.StrictMode
-    if (hasConnectedRef.current) {
+    // Prevent duplicate socket connections
+    if (hasConnectedRef.current && socketRef.current) {
       return;
     }
+
     hasConnectedRef.current = true;
 
     const newSocket = io(SOCKET_URL, {
       auth: { token },
       autoConnect: true,
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
 
-    const onConnect = () => setIsConnected(true);
-    const onDisconnect = () => setIsConnected(false);
+    socketRef.current = newSocket;
+
+    const onConnect = () => {
+      setIsConnected(true);
+    };
+
+    const onDisconnect = () => {
+      setIsConnected(false);
+    };
+
     const onError = (error) => {
-      // Suppress benign start-game race messages
+      // Suppress benign start-game race messages and temporary failures
       if (
         error?.message === "Game already started or not enough players" ||
-        /already started/i.test(error?.message || "")
+        /already started/i.test(error?.message || "") ||
+        /failed to start game/i.test(error?.message || "") ||
+        /game not active/i.test(error?.message || "")
       ) {
         return;
       }
@@ -67,6 +84,7 @@ export const SocketProvider = ({ children }) => {
       newSocket.off("disconnect", onDisconnect);
       newSocket.off("error", onError);
       newSocket.close();
+      socketRef.current = null;
       setSocket(null);
       setIsConnected(false);
       hasConnectedRef.current = false;
@@ -77,7 +95,11 @@ export const SocketProvider = ({ children }) => {
 
   // Debounced join to avoid flooding the server
   const joinRoom = (roomData) => {
-    if (!socket) {
+    console.log("joinRoom called with data:", roomData);
+    console.log("Socket connected:", isConnected);
+    console.log("Socket ref exists:", !!socketRef.current);
+
+    if (!socketRef.current || !isConnected) {
       console.error("Socket not connected");
       return false;
     }
@@ -87,15 +109,17 @@ export const SocketProvider = ({ children }) => {
       lastJoinPayloadRef.current &&
       JSON.stringify(lastJoinPayloadRef.current) === JSON.stringify(roomData);
 
-    // 500ms cooldown for same join payload
-    if (samePayload && now - joinCooldownRef.current < 500) {
+    // 200ms cooldown for same join payload (reduced from 500ms)
+    if (samePayload && now - joinCooldownRef.current < 200) {
+      console.log("Join request throttled due to cooldown");
       return true;
     }
 
     try {
       lastJoinPayloadRef.current = roomData;
       joinCooldownRef.current = now;
-      socket.emit("join-room", roomData);
+      console.log("Emitting join-room event:", roomData);
+      socketRef.current.emit("join-room", roomData);
       return true;
     } catch (err) {
       console.error("Error joining room:", err);

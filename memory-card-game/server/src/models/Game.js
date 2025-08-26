@@ -38,16 +38,25 @@ const playerSchema = new mongoose.Schema({
   isCurrentTurn: { type: Boolean, default: false },
   lastFlipTime: { type: Date },
   matchStreak: { type: Number, default: 0 },
+  extraTurns: { type: Number, default: 0 },
 });
 
 const gameStateSchema = new mongoose.Schema({
   status: {
     type: String,
-    enum: ["waiting", "starting", "playing", "paused", "finished"],
+    enum: [
+      "waiting",
+      "starting",
+      "playing",
+      "paused",
+      "finished",
+      "sudden-death",
+    ],
     default: "waiting",
     required: true,
   },
   currentPlayerIndex: { type: Number, default: 0 },
+  currentTurn: { type: String }, // Add currentTurn field to schema
   board: [cardSchema],
   flippedCards: [{ type: Number }],
   matchedPairs: [{ type: Number }],
@@ -97,7 +106,21 @@ const gameSchema = new mongoose.Schema(
     gameState: { type: gameStateSchema, default: () => ({}) },
     settings: { type: gameSettingsSchema, default: () => ({}) },
     chat: [chatMessageSchema],
+    startedAt: { type: Date },
     endedAt: { type: Date },
+    status: {
+      type: String,
+      enum: [
+        "waiting",
+        "starting",
+        "playing",
+        "paused",
+        "finished",
+        "completed",
+      ],
+      default: "waiting",
+      required: true,
+    },
     isPrivate: { type: Boolean, default: false },
     password: { type: String },
   },
@@ -136,6 +159,7 @@ gameSchema.methods.removePlayer = function (userId) {
   this.players = this.players.filter((p) => p.userId !== userId);
   if (this.players.length === 0) {
     this.gameState.status = "finished";
+    this.status = "completed";
   }
 };
 gameSchema.methods.togglePlayerReady = function (userId) {
@@ -152,6 +176,7 @@ gameSchema.methods.togglePlayerReady = function (userId) {
     }
   }
   this.gameState.lastActivity = new Date();
+  this.updatedAt = new Date(); // Update the main updatedAt field
 };
 
 gameSchema.methods.addChatMessage = function (

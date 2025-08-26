@@ -1,6 +1,6 @@
-const express = require('express');
-const { User } = require('../models/User.js');
-const auth = require('../middleware/auth.js');
+const express = require("express");
+const { User } = require("../models/User.js");
+const auth = require("../middleware/auth.js");
 
 const router = express.Router();
 
@@ -28,7 +28,7 @@ router.get("/:userId/profile", async (req, res) => {
     const { userId } = req.params;
 
     const user = await User.findById(userId)
-      .select("username avatar stats achievements createdAt isGuest -_id")
+      .select("username avatar stats achievements createdAt isGuest privacySettings -_id")
       .exec();
 
     if (!user) {
@@ -40,6 +40,13 @@ router.get("/:userId/profile", async (req, res) => {
       return res
         .status(404)
         .json({ message: "Profile not available for guest users" });
+    }
+
+    // Check if user has privacy settings that hide their profile
+    if (user.privacySettings && user.privacySettings.showInLeaderboards === false) {
+      return res
+        .status(404)
+        .json({ message: "Profile not available" });
     }
 
     res.status(200).json({

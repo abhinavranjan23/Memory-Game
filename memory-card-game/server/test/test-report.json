@@ -1,0 +1,55 @@
+{
+  "total": 8,
+  "passed": 8,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "Power-up System",
+      "status": "PASSED",
+      "duration": 13,
+      "output": "✅ POWER_UPS is defined and is an array\n   Found 6 power-ups\n✅ Power-up extraTurn has all required properties\n✅ Power-up peek has all required properties\n✅ Power-up swap has all required properties\n✅ Power-up revealOne has all required properties\n✅ Power-up freeze has all required properties\n✅ Power-up shuffle has all required properties\n✅ All power-up types are unique\n✅ All rarity values are valid (0 < rarity <= 1)\n✅ getRandomPowerUp function works correctly\n   1. Extra Turn (extraTurn)\n      Description: Get an additional turn after a miss\n      Uses: 1, Rarity: 0.25\n   2. Peek (peek)\n      Description: Reveal all cards for 3 seconds\n      Uses: 1, Rarity: 0.2\n   3. Swap (swap)\n      Description: Swap the positions of two cards\n      Uses: 1, Rarity: 0.18\n   4. Reveal One (revealOne)\n      Description: Permanently reveal one card\n      Uses: 1, Rarity: 0.15\n   5. Freeze Timer (freeze)\n      Description: Freeze the timer for 10 seconds\n      Uses: 1, Rarity: 0.12\n   6. Shuffle (shuffle)\n      Description: Shuffle all unmatched cards\n      Uses: 1, Rarity: 0.1\n\n🎉 All power-up system tests passed successfully!\nPower-ups are properly configured and ready to use in the game.\n"
+    },
+    {
+      "name": "Authentication System",
+      "status": "PASSED",
+      "duration": 390,
+      "output": "✅ Token generation test passed\n✅ Access token verification test passed\n✅ Refresh token verification test passed\n✅ Guest token generation test passed\n✅ Token header extraction test passed\n✅ Invalid header handling test passed\n✅ Token pair generation test passed\n✅ User validation test passed\n✅ Token expiration test passed\n"
+    },
+    {
+      "name": "Game Logic System",
+      "status": "PASSED",
+      "duration": 14,
+      "output": "✅ Board generation test passed\n✅ Card structure test passed\n✅ Card matching test passed\n✅ Card non-matching test passed\n✅ Score calculation test passed\n✅ Streak bonus test passed\n✅ Time limit test passed\n✅ Memory meter test passed\n✅ Array shuffling length test passed\n✅ Array shuffling elements test passed\n✅ Power-up generation test passed\n✅ Valid board size test passed\n✅ Invalid board size test passed\n✅ Difficulty level test passed\n✅ Anti-cheat hash generation test passed\n✅ Anti-cheat validation test passed\n\n🎉 All game logic tests passed successfully!\nGame logic is working correctly and ready for production.\n"
+    },
+    {
+      "name": "Validation System",
+      "status": "PASSED",
+      "duration": 4,
+      "output": ""
+    },
+    {
+      "name": "Anti-Cheat System",
+      "status": "PASSED",
+      "duration": 1,
+      "output": ""
+    },
+    {
+      "name": "Database Models",
+      "status": "PASSED",
+      "duration": 833,
+      "output": ""
+    },
+    {
+      "name": "Security Features",
+      "status": "PASSED",
+      "duration": 2,
+      "output": ""
+    },
+    {
+      "name": "Performance Tests",
+      "status": "PASSED",
+      "duration": 5,
+      "output": ""
+    }
+  ]
+}

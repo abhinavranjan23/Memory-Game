@@ -278,19 +278,47 @@ class GameEngine {
       throw new Error("Please wait for the current flip to complete");
     }
 
-    // Anti-cheat validation
-    try {
-      antiCheatSystem.validateCardFlip(userId, cardId, this.game.gameState);
-      antiCheatSystem.trackAction(
-        userId,
-        { type: "flip_card", cardId },
-        this.game.gameState
+    // Anti-cheat validation - Only run if board is properly initialized
+    if (
+      this.game?.gameState?.board &&
+      Array.isArray(this.game.gameState.board) &&
+      this.game.gameState.board.length > 0 &&
+      this.game.players &&
+      Array.isArray(this.game.players)
+    ) {
+      try {
+        // Create a complete game state object for anti-cheat validation
+        const completeGameState = {
+          board: this.game.gameState.board,
+          status: this.game.gameState.status,
+          currentPlayerIndex: this.game.gameState.currentPlayerIndex,
+          currentTurn: this.game.gameState.currentTurn,
+          flippedCards: this.game.gameState.flippedCards,
+          matchedPairs: this.game.gameState.matchedPairs,
+          timeLeft: this.game.gameState.timeLeft,
+          gameMode: this.game.gameState.gameMode,
+          round: this.game.gameState.round,
+          lastActivity: this.game.gameState.lastActivity,
+          powerUpPool: this.game.gameState.powerUpPool,
+          players: this.game.players,
+        };
+
+        antiCheatSystem.validateCardFlip(userId, cardId, completeGameState);
+        antiCheatSystem.trackAction(
+          userId,
+          { type: "flip_card", cardId },
+          completeGameState
+        );
+      } catch (error) {
+        console.warn(
+          `🚨 Anti-cheat violation for user ${userId}: ${error.message}`
+        );
+        throw new Error(`Action blocked: ${error.message}`);
+      }
+    } else {
+      console.log(
+        "⚠️ Skipping anti-cheat validation - board not properly initialized yet"
       );
-    } catch (error) {
-      console.warn(
-        `🚨 Anti-cheat violation for user ${userId}: ${error.message}`
-      );
-      throw new Error(`Action blocked: ${error.message}`);
     }
 
     // Check if it's the player's turn
@@ -414,21 +442,44 @@ class GameEngine {
       if (card1.value === card2.value) {
         console.log(`Match found: ${card1.value} (${card1.id}, ${card2.id})`);
 
-        // Anti-cheat validation for card match
-        try {
-          antiCheatSystem.trackAction(
-            currentPlayer.userId,
-            {
-              type: "card_match",
-              card1Id: card1.id,
-              card2Id: card2.id,
-            },
-            this.game.gameState
-          );
-        } catch (error) {
-          console.warn(
-            `🚨 Anti-cheat violation for user ${currentPlayer.userId}: ${error.message}`
-          );
+        // Anti-cheat validation for card match - Only run if board is properly initialized
+        if (
+          this.game?.gameState?.board &&
+          Array.isArray(this.game.gameState.board) &&
+          this.game.gameState.board.length > 0 &&
+          this.game.players &&
+          Array.isArray(this.game.players)
+        ) {
+          try {
+            const completeGameState = {
+              board: this.game.gameState.board,
+              status: this.game.gameState.status,
+              currentPlayerIndex: this.game.gameState.currentPlayerIndex,
+              currentTurn: this.game.gameState.currentTurn,
+              flippedCards: this.game.gameState.flippedCards,
+              matchedPairs: this.game.gameState.matchedPairs,
+              timeLeft: this.game.gameState.timeLeft,
+              gameMode: this.game.gameState.gameMode,
+              round: this.game.gameState.round,
+              lastActivity: this.game.gameState.lastActivity,
+              powerUpPool: this.game.gameState.powerUpPool,
+              players: this.game.players,
+            };
+
+            antiCheatSystem.trackAction(
+              currentPlayer.userId,
+              {
+                type: "card_match",
+                card1Id: card1.id,
+                card2Id: card2.id,
+              },
+              completeGameState
+            );
+          } catch (error) {
+            console.warn(
+              `🚨 Anti-cheat violation for user ${currentPlayer.userId}: ${error.message}`
+            );
+          }
         }
 
         // Mark cards as matched
@@ -878,23 +929,51 @@ class GameEngine {
       await this.initialize();
     }
 
-    // Anti-cheat validation for power-up usage
-    try {
-      antiCheatSystem.validatePowerUpUsage(
-        userId,
-        powerUpType,
-        this.game.gameState
+    // Anti-cheat validation for power-up usage - Only run if board is properly initialized
+    if (
+      this.game?.gameState?.board &&
+      Array.isArray(this.game.gameState.board) &&
+      this.game.gameState.board.length > 0 &&
+      this.game.players &&
+      Array.isArray(this.game.players)
+    ) {
+      try {
+        // Create a complete game state object for anti-cheat validation
+        const completeGameState = {
+          board: this.game.gameState.board,
+          status: this.game.gameState.status,
+          currentPlayerIndex: this.game.gameState.currentPlayerIndex,
+          currentTurn: this.game.gameState.currentTurn,
+          flippedCards: this.game.gameState.flippedCards,
+          matchedPairs: this.game.gameState.matchedPairs,
+          timeLeft: this.game.gameState.timeLeft,
+          gameMode: this.game.gameState.gameMode,
+          round: this.game.gameState.round,
+          lastActivity: this.game.gameState.lastActivity,
+          powerUpPool: this.game.gameState.powerUpPool,
+          players: this.game.players,
+        };
+
+        antiCheatSystem.validatePowerUpUsage(
+          userId,
+          powerUpType,
+          completeGameState
+        );
+        antiCheatSystem.trackAction(
+          userId,
+          { type: "use_powerup", powerUpType, target },
+          completeGameState
+        );
+      } catch (error) {
+        console.warn(
+          `🚨 Anti-cheat violation for user ${userId}: ${error.message}`
+        );
+        throw new Error(`Action blocked: ${error.message}`);
+      }
+    } else {
+      console.log(
+        "⚠️ Skipping power-up anti-cheat validation - board not properly initialized yet"
       );
-      antiCheatSystem.trackAction(
-        userId,
-        { type: "use_powerup", powerUpType, target },
-        this.game.gameState
-      );
-    } catch (error) {
-      console.warn(
-        `🚨 Anti-cheat violation for user ${userId}: ${error.message}`
-      );
-      throw new Error(`Action blocked: ${error.message}`);
     }
 
     const player = this.game.players.find((p) => p.userId === userId);
@@ -1356,24 +1435,55 @@ class GameEngine {
       // Store original players before any modifications for opponent tracking
       const originalPlayers = [...this.game.players];
 
-      // Anti-cheat validation for game completion
-      try {
-        const matchedPairs = this.game.gameState.board.filter(
-          (card) => card.isMatched
-        );
-        // Validate for all players in the game
-        for (const player of this.game.players) {
-          antiCheatSystem.validateGameCompletion(
-            player.userId,
-            this.game.gameState,
-            matchedPairs
+      // Anti-cheat validation for game completion - Only run if board is properly initialized
+      if (
+        this.game?.gameState?.board &&
+        Array.isArray(this.game.gameState.board) &&
+        this.game.gameState.board.length > 0 &&
+        this.game.players &&
+        Array.isArray(this.game.players)
+      ) {
+        try {
+          const matchedPairs = this.game.gameState.board.filter(
+            (card) => card && card.isMatched
           );
+
+          // Create a complete game state object for anti-cheat validation
+          const completeGameState = {
+            board: this.game.gameState.board,
+            status: this.game.gameState.status,
+            currentPlayerIndex: this.game.gameState.currentPlayerIndex,
+            currentTurn: this.game.gameState.currentTurn,
+            flippedCards: this.game.gameState.flippedCards,
+            matchedPairs: this.game.gameState.matchedPairs,
+            timeLeft: this.game.gameState.timeLeft,
+            gameMode: this.game.gameState.gameMode,
+            round: this.game.gameState.round,
+            lastActivity: this.game.gameState.lastActivity,
+            powerUpPool: this.game.gameState.powerUpPool,
+            players: this.game.players,
+          };
+
+          // Validate for all players in the game
+          for (const player of this.game.players) {
+            if (player && player.userId) {
+              antiCheatSystem.validateGameCompletion(
+                player.userId,
+                completeGameState,
+                matchedPairs
+              );
+            }
+          }
+        } catch (error) {
+          console.warn(
+            `🚨 Anti-cheat violation during game completion: ${error.message}`
+          );
+          // Don't throw error here as game is ending, just log the violation
         }
-      } catch (error) {
-        console.warn(
-          `🚨 Anti-cheat violation during game completion: ${error.message}`
+      } else {
+        console.log(
+          "⚠️ Skipping game completion anti-cheat validation - board not properly initialized yet"
         );
-        // Don't throw error here as game is ending, just log the violation
       }
 
       // Update game state

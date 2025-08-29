@@ -143,6 +143,21 @@ class AntiCheatSystem {
     console.log(`✅ User ${userId} unblocked by administrator`);
   }
 
+  // Debug function to help identify gameState issues
+  debugGameState(gameState, userId, action) {
+    console.log(`🔍 Anti-cheat debug for user ${userId} during ${action}:`);
+    console.log("GameState exists:", !!gameState);
+    if (gameState) {
+      console.log("GameState keys:", Object.keys(gameState));
+      console.log("Board exists:", !!gameState.board);
+      console.log("Board is array:", Array.isArray(gameState.board));
+      console.log("Board length:", gameState.board?.length);
+      console.log("Players exists:", !!gameState.players);
+      console.log("Players is array:", Array.isArray(gameState.players));
+      console.log("Players length:", gameState.players?.length);
+    }
+  }
+
   // Validate card flip action
   validateCardFlip(userId, cardId, gameState) {
     // Check if user is blocked
@@ -150,23 +165,46 @@ class AntiCheatSystem {
       throw new Error("User is blocked due to suspicious activity");
     }
 
+    // Validate gameState structure
+    if (!gameState) {
+      console.warn("Anti-cheat: gameState is undefined");
+      throw new Error("Game state is not available");
+    }
+
+    if (!gameState.board || !Array.isArray(gameState.board)) {
+      console.warn("Anti-cheat: gameState.board is not a valid array");
+      throw new Error("Game board is not available");
+    }
+
+    if (!gameState.players || !Array.isArray(gameState.players)) {
+      console.warn("Anti-cheat: gameState.players is not a valid array");
+      throw new Error("Game players are not available");
+    }
+
     // Check if card exists and can be flipped
-    const card = gameState.board.find((c) => c.id === cardId);
+    const card = gameState.board.find((c) => c && c.id === cardId);
     if (!card) {
       this.flagSuspiciousActivity(userId, "invalid_card_id");
       throw new Error("Invalid card ID");
     }
 
+    // Check if card is already matched or flipped
     if (card.isMatched || card.isFlipped) {
       this.flagSuspiciousActivity(userId, "flipping_matched_or_flipped_card");
       throw new Error("Card cannot be flipped");
     }
 
     // Check if it's the user's turn
-    const currentPlayer = gameState.players.find((p) => p.isCurrentTurn);
+    const currentPlayer = gameState.players.find((p) => p && p.isCurrentTurn);
     if (!currentPlayer || currentPlayer.userId !== userId) {
       this.flagSuspiciousActivity(userId, "flipping_card_not_turn");
       throw new Error("Not your turn");
+    }
+
+    // Check if game is in playing state
+    if (gameState.status !== "playing" && gameState.status !== "sudden-death") {
+      this.flagSuspiciousActivity(userId, "flipping_card_wrong_game_state");
+      throw new Error("Game is not in playing state");
     }
 
     return true;
@@ -178,7 +216,22 @@ class AntiCheatSystem {
       throw new Error("User is blocked due to suspicious activity");
     }
 
-    const player = gameState.players.find((p) => p.userId === userId);
+    // Validate gameState structure
+    if (!gameState) {
+      console.warn(
+        "Anti-cheat: gameState is undefined for power-up validation"
+      );
+      throw new Error("Game state is not available");
+    }
+
+    if (!gameState.players || !Array.isArray(gameState.players)) {
+      console.warn(
+        "Anti-cheat: gameState.players is not a valid array for power-up validation"
+      );
+      throw new Error("Game players are not available");
+    }
+
+    const player = gameState.players.find((p) => p && p.userId === userId);
     if (!player) {
       this.flagSuspiciousActivity(
         userId,
@@ -188,10 +241,21 @@ class AntiCheatSystem {
     }
 
     // Check if player has the power-up
-    const hasPowerUp = player.powerUps.some((p) => p.type === powerUpType);
+    if (!player.powerUps || !Array.isArray(player.powerUps)) {
+      this.flagSuspiciousActivity(userId, "player_has_no_powerups_array");
+      throw new Error("Power-ups not available");
+    }
+
+    const hasPowerUp = player.powerUps.some((p) => p && p.type === powerUpType);
     if (!hasPowerUp) {
       this.flagSuspiciousActivity(userId, "using_nonexistent_powerup");
       throw new Error("Power-up not available");
+    }
+
+    // Check if game is in playing state
+    if (gameState.status !== "playing" && gameState.status !== "sudden-death") {
+      this.flagSuspiciousActivity(userId, "powerup_usage_wrong_game_state");
+      throw new Error("Game is not in playing state");
     }
 
     return true;
@@ -203,13 +267,38 @@ class AntiCheatSystem {
       throw new Error("User is blocked due to suspicious activity");
     }
 
+    // Validate gameState structure
+    if (!gameState) {
+      console.warn(
+        "Anti-cheat: gameState is undefined for completion validation"
+      );
+      throw new Error("Game state is not available");
+    }
+
+    if (!gameState.board || !Array.isArray(gameState.board)) {
+      console.warn(
+        "Anti-cheat: gameState.board is not a valid array for completion validation"
+      );
+      throw new Error("Game board is not available");
+    }
+
     const totalPairs = gameState.board.length / 2;
-    const actualMatches = matchedPairs.length / 2;
+    const actualMatches =
+      matchedPairs && Array.isArray(matchedPairs) ? matchedPairs.length / 2 : 0;
 
     // Check if completion is legitimate
     if (actualMatches > totalPairs) {
       this.flagSuspiciousActivity(userId, "impossible_game_completion");
       throw new Error("Invalid game completion");
+    }
+
+    // Check if game is in finished state
+    if (gameState.status !== "finished" && gameState.status !== "completed") {
+      this.flagSuspiciousActivity(
+        userId,
+        "completion_validation_wrong_game_state"
+      );
+      throw new Error("Game is not in finished state");
     }
 
     return true;

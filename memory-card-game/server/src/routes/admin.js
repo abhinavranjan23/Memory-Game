@@ -402,13 +402,42 @@ router.get("/anti-cheat/report", async (req, res) => {
   try {
     const report = antiCheatSystem.getSuspiciousActivityReport();
 
+    // Add test data for demonstration (remove this in production)
+    if (process.env.NODE_ENV === "development" && req.query.demo === "true") {
+      // Simulate some suspicious activities for testing
+      antiCheatSystem.flagSuspiciousActivity("test-user-1", "invalid_card_id");
+      antiCheatSystem.flagSuspiciousActivity(
+        "test-user-1",
+        "flipping_card_not_turn"
+      );
+      antiCheatSystem.flagSuspiciousActivity(
+        "test-user-2",
+        "using_nonexistent_powerup"
+      );
+      antiCheatSystem.flagSuspiciousActivity("test-user-3", "too_fast_actions");
+      antiCheatSystem.flagSuspiciousActivity(
+        "test-user-3",
+        "perfect_timing_pattern"
+      );
+      antiCheatSystem.flagSuspiciousActivity(
+        "test-user-3",
+        "impossible_card_flip_speed"
+      );
+
+      // Get updated report with test data
+      const updatedReport = antiCheatSystem.getSuspiciousActivityReport();
+      report.totalSuspiciousUsers = updatedReport.totalSuspiciousUsers;
+      report.blockedUsers = updatedReport.blockedUsers;
+      report.details = updatedReport.details;
+    }
+
     // Add additional context for admin
     const enhancedReport = {
       ...report,
       summary: {
         totalSuspiciousUsers: report.totalSuspiciousUsers,
         blockedUsers: report.blockedUsers,
-        activeMonitoring: report.details.length > 0,
+        activeMonitoring: true, // Anti-cheat system is always active when running
         lastUpdated: new Date().toISOString(),
       },
       recommendations: [],
@@ -465,6 +494,28 @@ router.post("/anti-cheat/unblock/:userId", async (req, res) => {
   } catch (error) {
     console.error("Unblock user error:", error);
     res.status(500).json({ message: "Failed to unblock user" });
+  }
+});
+
+// Clear test data - REQUIRES ADMIN AUTH (development only)
+router.post("/anti-cheat/clear-test-data", async (req, res) => {
+  try {
+    if (process.env.NODE_ENV !== "development") {
+      return res
+        .status(403)
+        .json({ message: "Test data clearing only available in development" });
+    }
+
+    // Clear all suspicious activities and blocked users
+    antiCheatSystem.suspiciousActivities.clear();
+    antiCheatSystem.blockedUsers.clear();
+
+    res.status(200).json({
+      message: "Test data cleared successfully",
+    });
+  } catch (error) {
+    console.error("Clear test data error:", error);
+    res.status(500).json({ message: "Failed to clear test data" });
   }
 });
 

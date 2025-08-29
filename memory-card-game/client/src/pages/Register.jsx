@@ -3,6 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useToast } from "../contexts/ToastContext.jsx";
 import useUsernameValidation from "../hooks/useUsernameValidation.js";
+import { motion } from "framer-motion";
+import {
+  EyeIcon,
+  EyeSlashIcon,
+  UserIcon,
+  EnvelopeIcon,
+  LockClosedIcon,
+  SparklesIcon,
+  ArrowRightIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+} from "@heroicons/react/24/outline";
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -11,6 +23,8 @@ const Register = () => {
     password: "",
     confirmPassword: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const { addToast } = useToast();
@@ -64,140 +78,425 @@ const Register = () => {
   };
 
   return (
-    <div className='max-w-md mx-auto'>
-      <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8'>
-        <div className='text-center mb-8'>
-          <h1 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>
-            Join Memory Masters
-          </h1>
-          <p className='text-gray-600 dark:text-gray-300'>
-            Create your account to start playing
-          </p>
-        </div>
+    <div className='relative min-h-[calc(100vh-4rem)] bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4'>
+      {/* Animated background elements */}
+      <motion.div
+        className='absolute inset-0 overflow-hidden pointer-events-none'
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
+        {/* Floating particles */}
+        <motion.div
+          className='absolute top-20 left-20 w-2 h-2 bg-green-400/30 rounded-full'
+          animate={{
+            y: [0, -20, 0],
+            x: [0, 10, 0],
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <motion.div
+          className='absolute top-40 right-32 w-1 h-1 bg-emerald-400/40 rounded-full'
+          animate={{
+            y: [0, -15, 0],
+            x: [0, -8, 0],
+          }}
+          transition={{
+            duration: 2.5,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <motion.div
+          className='absolute bottom-32 left-32 w-1.5 h-1.5 bg-teal-400/35 rounded-full'
+          animate={{
+            y: [0, -25, 0],
+            x: [0, 12, 0],
+          }}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+        <motion.div
+          className='absolute bottom-20 right-20 w-1 h-1 bg-green-400/25 rounded-full'
+          animate={{
+            y: [0, -18, 0],
+            x: [0, -6, 0],
+          }}
+          transition={{
+            duration: 3.5,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      </motion.div>
 
-        <form onSubmit={handleSubmit} className='space-y-6'>
-          <div>
-            <label
-              htmlFor='username'
-              className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'
+      <motion.div
+        className='w-full max-w-md relative z-10'
+        initial={{ opacity: 0, y: 100, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 1, ease: "easeOut" }}
+      >
+        {/* Main card with animated border */}
+        <div className='relative'>
+          {/* Animated border */}
+          <motion.div
+            className='absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 backdrop-blur-sm'
+            animate={{
+              background: [
+                "linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2))",
+                "linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2), rgba(34, 197, 94, 0.2))",
+                "linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2))",
+              ],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          />
+
+          {/* Glowing border effect */}
+          <motion.div
+            className='absolute inset-0 rounded-3xl border-2 border-transparent'
+            style={{
+              background:
+                "linear-gradient(45deg, #22C55E, #10B981, #14B8A6, #22C55E)",
+              backgroundSize: "400% 400%",
+            }}
+            animate={{
+              backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          />
+
+          <div className='relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-3xl shadow-2xl p-8 border border-white/20 dark:border-gray-700/50'>
+            {/* Header */}
+            <motion.div
+              className='text-center mb-8'
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
             >
-              Username
-            </label>
-            <input
-              type='text'
-              id='username'
-              name='username'
-              value={formData.username}
-              onChange={handleChange}
-              required
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
-                usernameValidation.hasError
-                  ? "border-red-500"
-                  : usernameValidation.isValid
-                  ? "border-green-500"
-                  : "border-gray-300 dark:border-gray-600"
-              }`}
-              placeholder='Choose a username'
-            />
-            {/* Username validation messages */}
-            {usernameValidation.isChecking && (
-              <p className='text-sm text-blue-600 dark:text-blue-400 mt-1'>
-                Checking username availability...
-              </p>
-            )}
-            {usernameValidation.message && (
-              <p
-                className={`text-sm mt-1 ${
-                  usernameValidation.isValid
-                    ? "text-green-600 dark:text-green-400"
-                    : usernameValidation.hasError
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-gray-500 dark:text-gray-400"
-                }`}
+              <motion.div
+                className='w-16 h-16 bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl mx-auto mb-4 flex items-center justify-center'
+                whileHover={{ scale: 1.1, rotate: 5 }}
+                transition={{ duration: 0.3 }}
               >
-                {usernameValidation.message}
+                <SparklesIcon className='w-8 h-8 text-white' />
+              </motion.div>
+              <motion.h1
+                className='text-3xl font-black text-gray-900 dark:text-white mb-2'
+                animate={{
+                  textShadow: [
+                    "0 0 0px rgba(34, 197, 94, 0)",
+                    "0 0 20px rgba(34, 197, 94, 0.3)",
+                    "0 0 0px rgba(34, 197, 94, 0)",
+                  ],
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
+                Join Memory Masters
+              </motion.h1>
+              <p className='text-gray-600 dark:text-gray-300'>
+                Create your account to start playing
               </p>
-            )}
-          </div>
+            </motion.div>
 
-          <div>
-            <label
-              htmlFor='email'
-              className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'
+            <motion.form
+              onSubmit={handleSubmit}
+              className='space-y-6'
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
             >
-              Email Address
-            </label>
-            <input
-              type='email'
-              id='email'
-              name='email'
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-              placeholder='Enter your email'
-            />
-          </div>
+              {/* Username field */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.5 }}
+              >
+                <label
+                  htmlFor='username'
+                  className='block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2'
+                >
+                  Username
+                </label>
+                <div className='relative'>
+                  <UserIcon className='absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400' />
+                  <input
+                    type='text'
+                    id='username'
+                    name='username'
+                    value={formData.username}
+                    onChange={handleChange}
+                    required
+                    className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300 ${
+                      usernameValidation.hasError
+                        ? "border-red-500"
+                        : usernameValidation.isValid
+                        ? "border-green-500"
+                        : "border-gray-300 dark:border-gray-600"
+                    }`}
+                    placeholder='Choose a username'
+                  />
+                  {/* Username validation icon */}
+                  {formData.username && (
+                    <div className='absolute right-3 top-1/2 transform -translate-y-1/2'>
+                      {usernameValidation.isChecking ? (
+                        <motion.div
+                          className='w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full'
+                          animate={{ rotate: 360 }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            ease: "linear",
+                          }}
+                        />
+                      ) : usernameValidation.isValid ? (
+                        <CheckCircleIcon className='w-5 h-5 text-green-500' />
+                      ) : usernameValidation.hasError ? (
+                        <XCircleIcon className='w-5 h-5 text-red-500' />
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                {/* Username validation messages */}
+                {usernameValidation.isChecking && (
+                  <motion.p
+                    className='text-sm text-blue-600 dark:text-blue-400 mt-1'
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    Checking username availability...
+                  </motion.p>
+                )}
+                {usernameValidation.message && (
+                  <motion.p
+                    className={`text-sm mt-1 ${
+                      usernameValidation.isValid
+                        ? "text-green-600 dark:text-green-400"
+                        : usernameValidation.hasError
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-gray-500 dark:text-gray-400"
+                    }`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    {usernameValidation.message}
+                  </motion.p>
+                )}
+              </motion.div>
 
-          <div>
-            <label
-              htmlFor='password'
-              className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'
+              {/* Email field */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.6 }}
+              >
+                <label
+                  htmlFor='email'
+                  className='block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2'
+                >
+                  Email Address
+                </label>
+                <div className='relative'>
+                  <EnvelopeIcon className='absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400' />
+                  <input
+                    type='email'
+                    id='email'
+                    name='email'
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    className='w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300'
+                    placeholder='Enter your email'
+                  />
+                </div>
+              </motion.div>
+
+              {/* Password field with eye icon */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.7 }}
+              >
+                <label
+                  htmlFor='password'
+                  className='block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2'
+                >
+                  Password
+                </label>
+                <div className='relative'>
+                  <LockClosedIcon className='absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400' />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    id='password'
+                    name='password'
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    className='w-full pl-10 pr-12 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300'
+                    placeholder='Create a password'
+                  />
+                  <button
+                    type='button'
+                    onClick={() => setShowPassword(!showPassword)}
+                    className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors'
+                  >
+                    {showPassword ? (
+                      <EyeSlashIcon className='w-5 h-5' />
+                    ) : (
+                      <EyeIcon className='w-5 h-5' />
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+
+              {/* Confirm Password field with eye icon */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.8 }}
+              >
+                <label
+                  htmlFor='confirmPassword'
+                  className='block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2'
+                >
+                  Confirm Password
+                </label>
+                <div className='relative'>
+                  <LockClosedIcon className='absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400' />
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    id='confirmPassword'
+                    name='confirmPassword'
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    required
+                    className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300 ${
+                      formData.confirmPassword &&
+                      formData.password !== formData.confirmPassword
+                        ? "border-red-500"
+                        : formData.confirmPassword &&
+                          formData.password === formData.confirmPassword
+                        ? "border-green-500"
+                        : "border-gray-300 dark:border-gray-600"
+                    }`}
+                    placeholder='Confirm your password'
+                  />
+                  <button
+                    type='button'
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className='absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors'
+                  >
+                    {showConfirmPassword ? (
+                      <EyeSlashIcon className='w-5 h-5' />
+                    ) : (
+                      <EyeIcon className='w-5 h-5' />
+                    )}
+                  </button>
+                </div>
+                {/* Password match indicator */}
+                {formData.confirmPassword && (
+                  <motion.p
+                    className={`text-sm mt-1 ${
+                      formData.password === formData.confirmPassword
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                  >
+                    {formData.password === formData.confirmPassword
+                      ? "Passwords match ✓"
+                      : "Passwords do not match ✗"}
+                  </motion.p>
+                )}
+              </motion.div>
+
+              {/* Create Account button */}
+              <motion.button
+                type='submit'
+                disabled={loading}
+                className='w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-green-400 disabled:to-emerald-400 text-white py-3 px-4 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl disabled:shadow-md relative overflow-hidden group'
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.9 }}
+              >
+                {/* Animated background glow */}
+                <motion.div
+                  className='absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20'
+                  animate={{
+                    x: ["-100%", "100%"],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
+                />
+
+                <span className='relative z-10 flex items-center justify-center gap-2'>
+                  {loading ? (
+                    <>
+                      <motion.div
+                        className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full'
+                        animate={{ rotate: 360 }}
+                        transition={{
+                          duration: 1,
+                          repeat: Infinity,
+                          ease: "linear",
+                        }}
+                      />
+                      Creating Account...
+                    </>
+                  ) : (
+                    <>
+                      Create Account
+                      <ArrowRightIcon className='w-4 h-4 group-hover:translate-x-1 transition-transform' />
+                    </>
+                  )}
+                </span>
+              </motion.button>
+            </motion.form>
+
+            {/* Sign in link */}
+            <motion.div
+              className='mt-8 text-center'
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 1 }}
             >
-              Password
-            </label>
-            <input
-              type='password'
-              id='password'
-              name='password'
-              value={formData.password}
-              onChange={handleChange}
-              required
-              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-              placeholder='Create a password'
-            />
+              <p className='text-gray-600 dark:text-gray-300'>
+                Already have an account?{" "}
+                <Link
+                  to='/login'
+                  className='text-green-600 hover:text-green-700 font-semibold hover:underline transition-colors'
+                >
+                  Sign in here
+                </Link>
+              </p>
+            </motion.div>
           </div>
-
-          <div>
-            <label
-              htmlFor='confirmPassword'
-              className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'
-            >
-              Confirm Password
-            </label>
-            <input
-              type='password'
-              id='confirmPassword'
-              name='confirmPassword'
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white'
-              placeholder='Confirm your password'
-            />
-          </div>
-
-          <button
-            type='submit'
-            disabled={loading}
-            className='w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-2 px-4 rounded-lg font-semibold transition-colors'
-          >
-            {loading ? "Creating Account..." : "Create Account"}
-          </button>
-        </form>
-
-        <div className='mt-8 text-center'>
-          <p className='text-gray-600 dark:text-gray-300'>
-            Already have an account?{" "}
-            <Link
-              to='/login'
-              className='text-blue-600 hover:text-blue-700 font-semibold'
-            >
-              Sign in here
-            </Link>
-          </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

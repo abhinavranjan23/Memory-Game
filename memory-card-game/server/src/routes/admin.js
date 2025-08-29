@@ -1,20 +1,21 @@
-const express = require('express');
-const { Game } = require('../models/Game.js');
-const { User } = require('../models/User.js');
-const auth = require('../middleware/auth.js');
+const express = require("express");
+const { Game } = require("../models/Game.js");
+const { User } = require("../models/User.js");
+const auth = require("../middleware/auth.js");
+const antiCheatSystem = require("../utils/antiCheat.js");
 
 const router = express.Router();
 
 // Admin middleware to check admin privileges
 const requireAdmin = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).json({ message: 'Authentication required' });
+    return res.status(401).json({ message: "Authentication required" });
   }
-  
+
   if (!req.user.isAdmin) {
-    return res.status(403).json({ message: 'Admin privileges required' });
+    return res.status(403).json({ message: "Admin privileges required" });
   }
-  
+
   next();
 };
 
@@ -393,6 +394,77 @@ router.get("/stats/system", async (req, res) => {
   } catch (error) {
     console.error("System stats error:", error);
     res.status(500).json({ message: "Failed to fetch system statistics" });
+  }
+});
+
+// Get anti-cheat monitoring report - REQUIRES ADMIN AUTH
+router.get("/anti-cheat/report", async (req, res) => {
+  try {
+    const report = antiCheatSystem.getSuspiciousActivityReport();
+
+    // Add additional context for admin
+    const enhancedReport = {
+      ...report,
+      summary: {
+        totalSuspiciousUsers: report.totalSuspiciousUsers,
+        blockedUsers: report.blockedUsers,
+        activeMonitoring: report.details.length > 0,
+        lastUpdated: new Date().toISOString(),
+      },
+      recommendations: [],
+    };
+
+    // Add recommendations based on suspicious activity
+    if (report.details.length > 0) {
+      const highRiskUsers = report.details.filter((user) => user.count >= 3);
+      if (highRiskUsers.length > 0) {
+        enhancedReport.recommendations.push({
+          type: "high_risk",
+          message: `${highRiskUsers.length} users have 3+ suspicious activities`,
+          users: highRiskUsers.map((u) => ({
+            userId: u.userId,
+            count: u.count,
+          })),
+        });
+      }
+
+      const blockedCount = report.details.filter(
+        (user) => user.isBlocked
+      ).length;
+      if (blockedCount > 0) {
+        enhancedReport.recommendations.push({
+          type: "blocked_users",
+          message: `${blockedCount} users are currently blocked`,
+          count: blockedCount,
+        });
+      }
+    }
+
+    res.status(200).json({
+      message: "Anti-cheat report retrieved successfully",
+      report: enhancedReport,
+    });
+  } catch (error) {
+    console.error("Anti-cheat report error:", error);
+    res.status(500).json({ message: "Failed to fetch anti-cheat report" });
+  }
+});
+
+// Unblock a user - REQUIRES ADMIN AUTH
+router.post("/anti-cheat/unblock/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Unblock the user in the anti-cheat system
+    antiCheatSystem.unblockUser(userId);
+
+    res.status(200).json({
+      message: "User unblocked successfully",
+      userId: userId,
+    });
+  } catch (error) {
+    console.error("Unblock user error:", error);
+    res.status(500).json({ message: "Failed to unblock user" });
   }
 });
 

@@ -703,7 +703,7 @@ router.get("/history/matches", auth, async (req, res) => {
     const limitNum = Math.min(parseInt(limit), 50);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build query to find completed games where the user participated
+    // Build query to find completed games where the user participated (NO TIME LIMITS)
     let query = {
       "players.userId": req.user.id.toString(),
       // Ensure players array exists and is not empty
@@ -714,14 +714,27 @@ router.get("/history/matches", auth, async (req, res) => {
         // Games with a winner
         { "gameState.winner": { $exists: true, $ne: null } },
         // Games that are finished/completed
-        { "gameState.status": { $in: ["finished", "completed"] } },
+        {
+          "gameState.status": {
+            $in: ["finished", "completed", "sudden-death"],
+          },
+        },
         { status: { $in: ["finished", "completed"] } },
-        // Games that are not in waiting/starting status and have been updated recently
+        // Games that have been played (have startedAt) and are not in waiting/starting status
+        {
+          $and: [
+            { startedAt: { $exists: true, $ne: null } },
+            { "gameState.status": { $nin: ["waiting", "starting"] } },
+            { status: { $nin: ["waiting", "starting"] } },
+          ],
+        },
+        // Games that have players with scores > 0 (indicating they were played)
+        { "players.score": { $gt: 0 } },
+        // Include any game where the user participated and it's not currently waiting/starting
         {
           $and: [
             { "gameState.status": { $nin: ["waiting", "starting"] } },
             { status: { $nin: ["waiting", "starting"] } },
-            { updatedAt: { $lt: new Date(Date.now() - 5 * 60 * 1000) } }, // Updated more than 5 minutes ago
           ],
         },
       ],
@@ -733,11 +746,92 @@ router.get("/history/matches", auth, async (req, res) => {
     }
 
     // Get games with pagination
-    const games = await Game.find(query)
+    let games = await Game.find(query)
       .sort({ endedAt: -1, updatedAt: -1 })
       .skip(skip)
       .limit(limitNum)
       .lean();
+
+    // If no games found with the complex query, try a simpler query
+    if (games.length === 0) {
+      console.log(
+        `🔍 No games found with complex query, trying simpler query for user ${req.user.id}`
+      );
+
+      const simpleQuery = {
+        "players.userId": req.user.id.toString(),
+        players: { $exists: true, $ne: null, $ne: [] },
+        $or: [
+          { "gameState.status": { $nin: ["waiting", "starting"] } },
+          { status: { $nin: ["waiting", "starting"] } },
+          { "players.score": { $gt: 0 } },
+          { startedAt: { $exists: true, $ne: null } },
+          { endedAt: { $exists: true, $ne: null } },
+          { "gameState.winner": { $exists: true, $ne: null } },
+        ],
+      };
+
+      games = await Game.find(simpleQuery)
+        .sort({ updatedAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean();
+
+      console.log(
+        `🔍 Simple query found ${games.length} games for user ${req.user.id}`
+      );
+    }
+
+    // Debug: Log query and results
+    console.log(
+      `🔍 Match history query for user ${req.user.id}:`,
+      JSON.stringify(query, null, 2)
+    );
+    console.log(`📊 Found ${games.length} games for user ${req.user.id}`);
+
+    // Debug: Check what games exist for this user (without any filters)
+    const allUserGames = await Game.find({
+      "players.userId": req.user.id.toString(),
+    })
+      .select(
+        "roomId gameState.status status startedAt endedAt players.score updatedAt"
+      )
+      .limit(5);
+
+    console.log(
+      `🔍 All games for user ${req.user.id} (first 5):`,
+      allUserGames.map((g) => ({
+        roomId: g.roomId,
+        gameStateStatus: g.gameState?.status,
+        status: g.status,
+        startedAt: g.startedAt,
+        endedAt: g.endedAt,
+        playerScores: g.players?.map((p) => ({
+          userId: p.userId,
+          score: p.score,
+        })),
+        updatedAt: g.updatedAt,
+      }))
+    );
+
+    // Debug: Log each game's key fields
+    games.forEach((game, index) => {
+      console.log(`Game ${index + 1}:`, {
+        roomId: game.roomId,
+        status: game.status,
+        gameStateStatus: game.gameState?.status,
+        startedAt: game.startedAt,
+        endedAt: game.endedAt,
+        winner: game.gameState?.winner,
+        playersCount: game.players?.length,
+        playerScores: game.players?.map((p) => ({
+          userId: p.userId,
+          score: p.score,
+          matches: p.matches,
+        })),
+        updatedAt: game.updatedAt,
+      });
+    });
 
     // Transform games into match history format
     const matches = games
@@ -748,14 +842,29 @@ router.get("/history/matches", auth, async (req, res) => {
             (p) => p.userId === req.user.id.toString()
           );
           if (!userPlayer) {
-            console.log(`User ${req.user.id} not found in game ${game.roomId}`);
+            console.log(
+              `❌ User ${req.user.id} not found in game ${game.roomId}`
+            );
             return null;
           }
+
+          console.log(
+            `✅ Processing game ${game.roomId} for user ${req.user.id}:`,
+            {
+              userScore: userPlayer.score,
+              userMatches: userPlayer.matches,
+              gameStatus: game.gameState?.status,
+              gameEndedAt: game.endedAt,
+            }
+          );
 
           // Get opponents (all other players)
           // Use stored opponents information if available, otherwise use current players
           let opponents = [];
-          if (game.gameState?.opponentsForHistory && game.gameState.opponentsForHistory.length > 0) {
+          if (
+            game.gameState?.opponentsForHistory &&
+            game.gameState.opponentsForHistory.length > 0
+          ) {
             // Use stored opponents information (includes players who left)
             opponents = game.gameState.opponentsForHistory
               .filter((p) => p.userId !== req.user.id.toString())
@@ -859,16 +968,30 @@ router.get("/history/matches", auth, async (req, res) => {
 // Helper function to determine if a player won a game
 function determinePlayerWon(game, userId) {
   // Check if there's an explicit winner
-  if (game.gameState.winner) {
+  if (game.gameState?.winner) {
     return game.gameState.winner === userId;
   }
 
-  // Check if game is finished/completed
-  if (game.gameState.status === "finished" || game.status === "completed") {
+  // Check if game is finished/completed/sudden-death
+  if (
+    game.gameState?.status === "finished" ||
+    game.gameState?.status === "completed" ||
+    game.gameState?.status === "sudden-death" ||
+    game.status === "completed"
+  ) {
     const player = game.players.find((p) => p.userId === userId);
     if (!player) return false;
 
     // If game is finished, determine winner by score
+    const maxScore = Math.max(...game.players.map((p) => p.score || 0));
+    return player.score === maxScore && player.score > 0;
+  }
+
+  // For games that have endedAt timestamp but no explicit winner, check if user has the highest score
+  if (game.endedAt) {
+    const player = game.players.find((p) => p.userId === userId);
+    if (!player) return false;
+
     const maxScore = Math.max(...game.players.map((p) => p.score || 0));
     return player.score === maxScore && player.score > 0;
   }

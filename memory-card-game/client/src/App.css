@@ -3,6 +3,40 @@
   text-align: center;
 }
 
+/* Home page specific - remove only unwanted spacing */
+.home-page {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Don't remove spacing from content elements */
+.home-page .max-w-6xl,
+.home-page .text-center,
+.home-page .grid,
+.home-page .bg-white,
+.home-page .bg-gray-50,
+.home-page .rounded-lg,
+.home-page .rounded-3xl,
+.home-page .shadow-lg,
+.home-page .shadow-xl,
+.home-page .shadow-2xl,
+.home-page .p-4,
+.home-page .p-6,
+.home-page .py-16,
+.home-page .py-24,
+.home-page .px-8,
+.home-page .mb-2,
+.home-page .mb-4,
+.home-page .mb-6,
+.home-page .mb-8,
+.home-page .mb-12,
+.home-page .gap-4,
+.home-page .gap-6,
+.home-page .gap-8 {
+  margin: revert !important;
+  padding: revert !important;
+}
+
 /* Custom styles for game components */
 .card-flip {
   transform-style: preserve-3d;
@@ -15,9 +49,15 @@
 
 /* Animation for matched cards */
 @keyframes matchedPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .matched-card {

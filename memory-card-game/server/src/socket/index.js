@@ -3,6 +3,7 @@ const { User } = require("../models/User.js");
 const { GameEngine } = require("./gameEngine.js");
 const { authenticateSocket } = require("../middleware/auth.js");
 const { updateMetrics } = require("../utils/metrics.js");
+const antiCheatSystem = require("../utils/antiCheat.js");
 
 const activeGames = new Map(); // roomId -> GameEngine
 const userSockets = new Map(); // userId -> socketId
@@ -149,6 +150,18 @@ function initializeSocket(io) {
   io.on("connection", (socket) => {
     console.log(`User connected: ${socket.username} (${socket.id})`);
 
+    // Anti-cheat validation: Check if user is blocked
+    if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
+      console.warn(
+        `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to connect`
+      );
+      socket.emit("error", {
+        message: "Your account has been blocked due to suspicious activity",
+      });
+      socket.disconnect(true);
+      return;
+    }
+
     // Initialize cleanup tracking for this socket
     socketCleanup.set(socket.id, new Set());
 
@@ -192,6 +205,20 @@ function initializeSocket(io) {
           username: socket.username,
         });
         const { roomId, password } = data;
+
+        // Anti-cheat validation: Check if user is blocked
+        if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
+          console.warn(
+            `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to join room`
+          );
+          socket.emit("error", {
+            message: "Your account has been blocked due to suspicious activity",
+          });
+          socket.emit("join-room-error", {
+            message: "Your account has been blocked due to suspicious activity",
+          });
+          return;
+        }
 
         if (!roomId) {
           console.log("Join room error: Room ID is required");
@@ -625,6 +652,17 @@ function initializeSocket(io) {
         return;
       }
 
+      // Anti-cheat validation: Check if user is blocked
+      if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
+        console.warn(
+          `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to flip card`
+        );
+        socket.emit("error", {
+          message: "Your account has been blocked due to suspicious activity",
+        });
+        return;
+      }
+
       const { cardId } = data;
       const gameEngine = activeGames.get(socket.currentRoom);
 
@@ -651,6 +689,17 @@ function initializeSocket(io) {
 
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
+        return;
+      }
+
+      // Anti-cheat validation: Check if user is blocked
+      if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
+        console.warn(
+          `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to use power-up`
+        );
+        socket.emit("error", {
+          message: "Your account has been blocked due to suspicious activity",
+        });
         return;
       }
 

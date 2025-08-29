@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 class AntiCheatSystem {
   constructor() {
@@ -17,7 +17,7 @@ class AntiCheatSystem {
       timeLeft: gameState.timeLeft,
       status: gameState.status,
     });
-    return crypto.createHash('sha256').update(stateString).digest('hex');
+    return crypto.createHash("sha256").update(stateString).digest("hex");
   }
 
   // Validate game state consistency
@@ -26,7 +26,7 @@ class AntiCheatSystem {
     const storedHash = this.gameStates.get(roomId);
 
     if (storedHash && storedHash !== currentHash) {
-      this.flagSuspiciousActivity(userId, 'game_state_mismatch');
+      this.flagSuspiciousActivity(userId, "game_state_mismatch");
       return false;
     }
 
@@ -67,20 +67,21 @@ class AntiCheatSystem {
 
     // Calculate time intervals between actions
     for (let i = 1; i < recentActions.length; i++) {
-      const interval = recentActions[i].timestamp - recentActions[i - 1].timestamp;
+      const interval =
+        recentActions[i].timestamp - recentActions[i - 1].timestamp;
       timeIntervals.push(interval);
     }
 
     // Check for inhumanly fast actions (< 50ms)
-    const tooFastActions = timeIntervals.filter(interval => interval < 50);
+    const tooFastActions = timeIntervals.filter((interval) => interval < 50);
     if (tooFastActions.length > 3) {
-      this.flagSuspiciousActivity(userId, 'too_fast_actions');
+      this.flagSuspiciousActivity(userId, "too_fast_actions");
     }
 
     // Check for perfect timing patterns (bot-like behavior)
     const uniqueIntervals = new Set(timeIntervals);
     if (uniqueIntervals.size === 1 && timeIntervals.length > 5) {
-      this.flagSuspiciousActivity(userId, 'perfect_timing_pattern');
+      this.flagSuspiciousActivity(userId, "perfect_timing_pattern");
     }
 
     // Check for impossible game state transitions
@@ -95,8 +96,11 @@ class AntiCheatSystem {
 
       // Check if game state changed impossibly fast
       if (currentAction.timestamp - prevAction.timestamp < 100) {
-        if (prevAction.action.type === 'flip_card' && currentAction.action.type === 'flip_card') {
-          this.flagSuspiciousActivity(userId, 'impossible_card_flip_speed');
+        if (
+          prevAction.action.type === "flip_card" &&
+          currentAction.action.type === "flip_card"
+        ) {
+          this.flagSuspiciousActivity(userId, "impossible_card_flip_speed");
         }
       }
     }
@@ -112,11 +116,13 @@ class AntiCheatSystem {
     activity.count++;
     activity.reasons.push({ reason, timestamp: Date.now() });
 
-    console.warn(`🚨 Suspicious activity detected for user ${userId}: ${reason} (count: ${activity.count})`);
+    console.warn(
+      `🚨 Suspicious activity detected for user ${userId}: ${reason} (count: ${activity.count})`
+    );
 
     // Block user if too many suspicious activities
     if (activity.count >= 5) {
-      this.blockUser(userId, 'multiple_suspicious_activities');
+      this.blockUser(userId, "multiple_suspicious_activities");
     }
   }
 
@@ -131,30 +137,36 @@ class AntiCheatSystem {
     return this.blockedUsers.has(userId);
   }
 
+  // Unblock a user
+  unblockUser(userId) {
+    this.blockedUsers.delete(userId);
+    console.log(`✅ User ${userId} unblocked by administrator`);
+  }
+
   // Validate card flip action
   validateCardFlip(userId, cardId, gameState) {
     // Check if user is blocked
     if (this.isUserBlocked(userId)) {
-      throw new Error('User is blocked due to suspicious activity');
+      throw new Error("User is blocked due to suspicious activity");
     }
 
     // Check if card exists and can be flipped
-    const card = gameState.board.find(c => c.id === cardId);
+    const card = gameState.board.find((c) => c.id === cardId);
     if (!card) {
-      this.flagSuspiciousActivity(userId, 'invalid_card_id');
-      throw new Error('Invalid card ID');
+      this.flagSuspiciousActivity(userId, "invalid_card_id");
+      throw new Error("Invalid card ID");
     }
 
     if (card.isMatched || card.isFlipped) {
-      this.flagSuspiciousActivity(userId, 'flipping_matched_or_flipped_card');
-      throw new Error('Card cannot be flipped');
+      this.flagSuspiciousActivity(userId, "flipping_matched_or_flipped_card");
+      throw new Error("Card cannot be flipped");
     }
 
     // Check if it's the user's turn
-    const currentPlayer = gameState.players.find(p => p.isCurrentTurn);
+    const currentPlayer = gameState.players.find((p) => p.isCurrentTurn);
     if (!currentPlayer || currentPlayer.userId !== userId) {
-      this.flagSuspiciousActivity(userId, 'flipping_card_not_turn');
-      throw new Error('Not your turn');
+      this.flagSuspiciousActivity(userId, "flipping_card_not_turn");
+      throw new Error("Not your turn");
     }
 
     return true;
@@ -163,20 +175,23 @@ class AntiCheatSystem {
   // Validate power-up usage
   validatePowerUpUsage(userId, powerUpType, gameState) {
     if (this.isUserBlocked(userId)) {
-      throw new Error('User is blocked due to suspicious activity');
+      throw new Error("User is blocked due to suspicious activity");
     }
 
-    const player = gameState.players.find(p => p.userId === userId);
+    const player = gameState.players.find((p) => p.userId === userId);
     if (!player) {
-      this.flagSuspiciousActivity(userId, 'powerup_usage_by_nonexistent_player');
-      throw new Error('Player not found');
+      this.flagSuspiciousActivity(
+        userId,
+        "powerup_usage_by_nonexistent_player"
+      );
+      throw new Error("Player not found");
     }
 
     // Check if player has the power-up
-    const hasPowerUp = player.powerUps.some(p => p.type === powerUpType);
+    const hasPowerUp = player.powerUps.some((p) => p.type === powerUpType);
     if (!hasPowerUp) {
-      this.flagSuspiciousActivity(userId, 'using_nonexistent_powerup');
-      throw new Error('Power-up not available');
+      this.flagSuspiciousActivity(userId, "using_nonexistent_powerup");
+      throw new Error("Power-up not available");
     }
 
     return true;
@@ -185,7 +200,7 @@ class AntiCheatSystem {
   // Validate game completion
   validateGameCompletion(userId, gameState, matchedPairs) {
     if (this.isUserBlocked(userId)) {
-      throw new Error('User is blocked due to suspicious activity');
+      throw new Error("User is blocked due to suspicious activity");
     }
 
     const totalPairs = gameState.board.length / 2;
@@ -193,8 +208,8 @@ class AntiCheatSystem {
 
     // Check if completion is legitimate
     if (actualMatches > totalPairs) {
-      this.flagSuspiciousActivity(userId, 'impossible_game_completion');
-      throw new Error('Invalid game completion');
+      this.flagSuspiciousActivity(userId, "impossible_game_completion");
+      throw new Error("Invalid game completion");
     }
 
     return true;
@@ -205,7 +220,7 @@ class AntiCheatSystem {
     const report = {
       totalSuspiciousUsers: this.suspiciousActivities.size,
       blockedUsers: this.blockedUsers.size,
-      details: []
+      details: [],
     };
 
     for (const [userId, activity] of this.suspiciousActivities) {
@@ -213,7 +228,7 @@ class AntiCheatSystem {
         userId,
         count: activity.count,
         reasons: activity.reasons,
-        isBlocked: this.blockedUsers.has(userId)
+        isBlocked: this.blockedUsers.has(userId),
       });
     }
 
@@ -223,11 +238,13 @@ class AntiCheatSystem {
   // Clean up old data
   cleanup() {
     const now = Date.now();
-    const oneHourAgo = now - (60 * 60 * 1000);
+    const oneHourAgo = now - 60 * 60 * 1000;
 
     // Clean up old action records
     for (const [userId, actions] of this.playerActions) {
-      const recentActions = actions.filter(action => action.timestamp > oneHourAgo);
+      const recentActions = actions.filter(
+        (action) => action.timestamp > oneHourAgo
+      );
       if (recentActions.length === 0) {
         this.playerActions.delete(userId);
       } else {
@@ -237,7 +254,9 @@ class AntiCheatSystem {
 
     // Clean up old suspicious activity reasons
     for (const [userId, activity] of this.suspiciousActivities) {
-      const recentReasons = activity.reasons.filter(reason => reason.timestamp > oneHourAgo);
+      const recentReasons = activity.reasons.filter(
+        (reason) => reason.timestamp > oneHourAgo
+      );
       if (recentReasons.length === 0) {
         this.suspiciousActivities.delete(userId);
       } else {

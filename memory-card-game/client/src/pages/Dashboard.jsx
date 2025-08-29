@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useToast } from "../contexts/ToastContext.jsx";
 import useErrorHandler from "../hooks/useErrorHandler.js";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { TextPlugin } from "gsap/TextPlugin";
 import axios from "axios";
 import {
   PlayIcon,
@@ -20,7 +23,12 @@ import {
   BoltIcon,
   CalendarDaysIcon,
   ArrowRightIcon,
+  SparklesIcon,
+  RocketLaunchIcon,
 } from "@heroicons/react/24/outline";
+
+// Register GSAP plugins
+gsap.registerPlugin(ScrollTrigger, TextPlugin);
 
 const Dashboard = () => {
   const { user, token, ensureTokenSet, isProperlyAuthenticated } = useAuth();
@@ -28,17 +36,172 @@ const Dashboard = () => {
   const { handleError, handleApiCall } = useErrorHandler();
   const navigate = useNavigate();
 
+  // Refs for GSAP animations
+  const headerRef = useRef(null);
+  const statsRef = useRef(null);
+  const activityRef = useRef(null);
+  const achievementsRef = useRef(null);
+  const quickPlayRef = useRef(null);
+
   const [stats, setStats] = useState(null);
   const [recentMatches, setRecentMatches] = useState([]);
   const [achievements, setAchievements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [quickPlayLoading, setQuickPlayLoading] = useState(false);
+  const [animatedStats, setAnimatedStats] = useState({
+    gamesPlayed: 0,
+    winRate: 0,
+    bestScore: 0,
+    perfectGames: 0,
+  });
 
   useEffect(() => {
     if (isProperlyAuthenticated && isProperlyAuthenticated()) {
       fetchDashboardData();
     }
   }, [user, token]);
+
+  // GSAP Animations
+  useEffect(() => {
+    if (!loading && stats) {
+      // Initialize animations after data loads
+      initializeAnimations();
+    }
+
+    // Cleanup function to kill ScrollTriggers when component unmounts
+    return () => {
+      ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
+    };
+  }, [loading, stats]);
+
+  const initializeAnimations = () => {
+    // Header animation with text reveal
+    gsap.fromTo(
+      headerRef.current,
+      { opacity: 0, y: -50 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 1,
+        ease: "power3.out",
+      }
+    );
+
+    // Animate welcome text
+    gsap.fromTo(
+      ".welcome-text",
+      { opacity: 0, y: 30 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        delay: 0.3,
+        ease: "power2.out",
+      }
+    );
+
+    // Stats cards stagger animation
+    gsap.fromTo(
+      ".stat-card",
+      { opacity: 0, y: 50, scale: 0.8 },
+      {
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        duration: 0.8,
+        stagger: 0.1,
+        ease: "back.out(1.7)",
+        scrollTrigger: {
+          trigger: statsRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse",
+        },
+      }
+    );
+
+    // Animate stat numbers
+    animateStatNumbers();
+
+    // Activity section animation
+    gsap.fromTo(
+      activityRef.current,
+      { opacity: 0, x: -50 },
+      {
+        opacity: 1,
+        x: 0,
+        duration: 0.8,
+        ease: "power2.out",
+        scrollTrigger: {
+          trigger: activityRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse",
+        },
+      }
+    );
+
+    // Achievements section animation
+    gsap.fromTo(
+      achievementsRef.current,
+      { opacity: 0, x: 50 },
+      {
+        opacity: 1,
+        x: 0,
+        duration: 0.8,
+        ease: "power2.out",
+        scrollTrigger: {
+          trigger: achievementsRef.current,
+          start: "top 80%",
+          end: "bottom 20%",
+          toggleActions: "play none none reverse",
+        },
+      }
+    );
+
+    // Quick play button animation
+    gsap.fromTo(
+      quickPlayRef.current,
+      { opacity: 0, scale: 0.5, rotation: -180 },
+      {
+        opacity: 1,
+        scale: 1,
+        rotation: 0,
+        duration: 1,
+        delay: 0.5,
+        ease: "elastic.out(1, 0.3)",
+      }
+    );
+  };
+
+  const animateStatNumbers = () => {
+    const finalStats = {
+      gamesPlayed: stats?.gamesPlayed || 0,
+      winRate: Math.round(stats?.winRate || 0),
+      bestScore: stats?.bestScore || 0,
+      perfectGames: stats?.perfectGames || 0,
+    };
+
+    // Animate each stat number
+    Object.keys(finalStats).forEach((key, index) => {
+      gsap.to(
+        {},
+        {
+          duration: 2,
+          delay: 0.5 + index * 0.2,
+          onUpdate: function () {
+            const progress = this.progress();
+            const currentValue = Math.floor(finalStats[key] * progress);
+            setAnimatedStats((prev) => ({
+              ...prev,
+              [key]: currentValue,
+            }));
+          },
+          ease: "power2.out",
+        }
+      );
+    });
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -169,41 +332,90 @@ const Dashboard = () => {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const StatCard = ({ title, value, icon: Icon, color, subtitle, trend }) => (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg border-l-4'
-      style={{ borderLeftColor: color }}
-    >
-      <div className='flex items-center justify-between'>
-        <div>
-          <p className='text-sm font-medium text-gray-600 dark:text-gray-300'>
-            {title}
-          </p>
-          <p className='text-3xl font-bold text-gray-900 dark:text-white'>
-            {value}
-          </p>
-          {subtitle && (
-            <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
-              {subtitle}
+  const StatCard = ({
+    title,
+    value,
+    icon: Icon,
+    color,
+    subtitle,
+    trend,
+    statKey,
+  }) => {
+    const cardRef = useRef(null);
+
+    const handleMouseEnter = () => {
+      gsap.to(cardRef.current, {
+        scale: 1.05,
+        y: -10,
+        duration: 0.3,
+        ease: "power2.out",
+      });
+
+      // Animate icon
+      gsap.to(cardRef.current.querySelector(".stat-icon"), {
+        rotation: 360,
+        scale: 1.2,
+        duration: 0.5,
+        ease: "back.out(1.7)",
+      });
+    };
+
+    const handleMouseLeave = () => {
+      gsap.to(cardRef.current, {
+        scale: 1,
+        y: 0,
+        duration: 0.3,
+        ease: "power2.out",
+      });
+
+      // Reset icon
+      gsap.to(cardRef.current.querySelector(".stat-icon"), {
+        rotation: 0,
+        scale: 1,
+        duration: 0.3,
+        ease: "power2.out",
+      });
+    };
+
+    return (
+      <div
+        ref={cardRef}
+        className='stat-card bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700 cursor-pointer transform transition-all duration-300 hover:shadow-2xl mt-8'
+        style={{ borderLeftColor: color, borderLeftWidth: "4px" }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+      >
+        <div className='flex items-center justify-between'>
+          <div>
+            <p className='text-sm font-bold text-gray-600 dark:text-gray-300 tracking-wide uppercase'>
+              {title}
             </p>
-          )}
+            <p className='text-4xl font-black text-gray-900 dark:text-white tracking-tight mt-1'>
+              {statKey ? animatedStats[statKey] : value}
+              {title === "Win Rate" && "%"}
+            </p>
+            {subtitle && (
+              <p className='text-sm font-medium text-gray-500 dark:text-gray-400 mt-2 tracking-wide'>
+                {subtitle}
+              </p>
+            )}
+          </div>
+          <div
+            className='stat-icon p-4 rounded-2xl shadow-lg transform transition-all duration-300'
+            style={{ backgroundColor: `${color}15` }}
+          >
+            <Icon className='h-8 w-8' style={{ color }} />
+          </div>
         </div>
-        <div
-          className={`p-3 rounded-full`}
-          style={{ backgroundColor: `${color}20` }}
-        >
-          <Icon className='h-8 w-8' style={{ color }} />
-        </div>
+        {trend && (
+          <div className='mt-4 flex items-center'>
+            <ArrowTrendingUpIcon className='h-4 w-4 text-green-500 mr-2 animate-pulse' />
+            <span className='text-sm font-bold text-green-500'>{trend}</span>
+          </div>
+        )}
       </div>
-      {trend && (
-        <div className='mt-4 flex items-center'>
-          <ArrowTrendingUpIcon className='h-4 w-4 text-green-500 mr-1' />
-          <span className='text-sm text-green-500'>{trend}</span>
-        </div>
-      )}
-    </motion.div>
-  );
+    );
+  };
 
   if (loading || !user) {
     return (
@@ -214,58 +426,66 @@ const Dashboard = () => {
   }
 
   return (
-    <div className='max-w-7xl mx-auto space-y-6'>
+    <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8 pt-8'>
       {/* Welcome Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className='bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg p-8'
+      <div
+        ref={headerRef}
+        className='bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden'
       >
-        <div className='flex flex-col md:flex-row justify-between items-start md:items-center'>
+        {/* Animated background elements */}
+        <div className='absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16'></div>
+        <div className='absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12'></div>
+
+        <div className='flex flex-col md:flex-row justify-between items-start md:items-center relative z-10'>
           <div>
-            <h1 className='text-4xl font-bold mb-2'>
+            <h1 className='welcome-text text-4xl md:text-5xl font-black mb-3 tracking-tight'>
               Welcome back, {user?.username}! 👋
             </h1>
-            <p className='text-blue-100 text-lg'>
+            <p className='welcome-text text-blue-100 text-lg md:text-xl font-medium tracking-wide'>
               Ready to challenge your memory? Let's see what you can achieve
-              today!
+              today! 🚀
             </p>
           </div>
-          <div className='mt-4 md:mt-0 flex gap-3'>
+          <div className='mt-6 md:mt-0 flex flex-col sm:flex-row gap-3'>
             <button
+              ref={quickPlayRef}
               onClick={quickPlay}
               disabled={quickPlayLoading}
-              className='bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold
-                       hover:bg-blue-50 transition-colors duration-200 flex items-center
-                       disabled:opacity-50 disabled:cursor-not-allowed'
+              className='bg-white text-blue-600 px-8 py-4 rounded-2xl font-bold text-lg
+                       hover:bg-blue-50 hover:scale-105 transition-all duration-300 flex items-center
+                       disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl'
             >
               {quickPlayLoading ? (
-                <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-2'></div>
+                <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3'></div>
               ) : (
-                <BoltIcon className='h-5 w-5 mr-2' />
+                <RocketLaunchIcon className='h-6 w-6 mr-3' />
               )}
               Quick Play
             </button>
             <button
               onClick={() => navigate("/lobby")}
-              className='bg-purple-500 hover:bg-purple-400 text-white px-6 py-3 rounded-lg 
-                       font-semibold transition-colors duration-200 flex items-center'
+              className='bg-purple-500 hover:bg-purple-400 text-white px-8 py-4 rounded-2xl 
+                       font-bold text-lg transition-all duration-300 flex items-center shadow-lg hover:shadow-xl hover:scale-105'
             >
-              <UsersIcon className='h-5 w-5 mr-2' />
+              <UsersIcon className='h-6 w-6 mr-3' />
               Browse Lobby
             </button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Stats Overview */}
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+      <div
+        ref={statsRef}
+        className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'
+      >
         <StatCard
           title='Games Played'
           value={stats?.gamesPlayed || 0}
           icon={PuzzlePieceIcon}
           color='#3B82F6'
           subtitle='Total matches'
+          statKey='gamesPlayed'
         />
         <StatCard
           title='Win Rate'
@@ -274,6 +494,7 @@ const Dashboard = () => {
           color='#10B981'
           subtitle={`${stats?.gamesWon || 0} victories`}
           trend={stats?.winRate > 50 ? "+5% this week" : null}
+          statKey='winRate'
         />
         <StatCard
           title='Best Score'
@@ -281,6 +502,7 @@ const Dashboard = () => {
           icon={StarIcon}
           color='#F59E0B'
           subtitle='Personal record'
+          statKey='bestScore'
         />
         <StatCard
           title='Perfect Games'
@@ -288,16 +510,16 @@ const Dashboard = () => {
           icon={FireIcon}
           color='#EF4444'
           subtitle='Flawless victories'
+          statKey='perfectGames'
         />
       </div>
 
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
         {/* Recent Activity */}
         <div className='lg:col-span-2'>
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className='bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden'
+          <div
+            ref={activityRef}
+            className='bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-700'
           >
             <div className='p-6 border-b border-gray-200 dark:border-gray-700'>
               <div className='flex items-center justify-between'>
@@ -386,11 +608,63 @@ const Dashboard = () => {
                             {idx < match.opponents.length - 1 ? ", " : ""}
                           </span>
                         ))}
-                        {(match.completionReason === "opponents_left" || 
-                          match.completionReason === "last_player_winner" ||
-                          match.completionReason === "abort") && (
-                          <div className='mt-1 text-orange-500'>
-                            ⚠️ Game ended early - {match.completionReason === "abort" ? "game aborted" : "opponents left"}
+                        {match.completionReason && (
+                          <div className='mt-1 text-sm'>
+                            {(() => {
+                              const reasonMap = {
+                                game_completed: {
+                                  text: "✅ All pairs found",
+                                  color: "text-green-600",
+                                },
+                                timeout_no_matches: {
+                                  text: "⏰ Time ran out - No matches",
+                                  color: "text-orange-600",
+                                },
+                                timeout_with_matches: {
+                                  text: "⏰ Time ran out - With matches",
+                                  color: "text-orange-600",
+                                },
+                                sudden_death_winner: {
+                                  text: "⚡ Sudden Death winner",
+                                  color: "text-purple-600",
+                                },
+                                sudden_death_timeout: {
+                                  text: "⚡ Sudden Death timeout",
+                                  color: "text-orange-600",
+                                },
+                                opponents_left: {
+                                  text: "⚠️ Opponents left",
+                                  color: "text-orange-600",
+                                },
+                                last_player_winner: {
+                                  text: "👑 Last player wins",
+                                  color: "text-blue-600",
+                                },
+                                all_players_left: {
+                                  text: "🚪 All players left",
+                                  color: "text-gray-600",
+                                },
+                                blitz_timeout: {
+                                  text: "⏰ Blitz mode timeout",
+                                  color: "text-orange-600",
+                                },
+                                abort: {
+                                  text: "❌ Game aborted",
+                                  color: "text-red-600",
+                                },
+                              };
+                              const reason = reasonMap[
+                                match.completionReason
+                              ] || {
+                                text: `Game ended: ${match.completionReason}`,
+                                color: "text-gray-600",
+                              };
+                              return (
+                                <span className={reason.color}>
+                                  {reason.text}
+                                </span>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -399,54 +673,51 @@ const Dashboard = () => {
                 ))
               )}
             </div>
-          </motion.div>
+          </div>
         </div>
 
         {/* Right Sidebar */}
         <div className='space-y-6'>
           {/* Quick Actions */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6'
-          >
+          <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700'>
             <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>
               Quick Actions
             </h3>
-            <div className='space-y-3'>
+            <div className='space-y-4'>
               <button
                 onClick={() => navigate("/lobby")}
-                className='w-full flex items-center justify-center px-4 py-3 bg-blue-600 
-                         hover:bg-blue-700 text-white rounded-lg font-medium transition-colors'
+                className='w-full flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 
+                         hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-bold text-lg transition-all duration-300 
+                         transform hover:scale-105 hover:shadow-lg'
               >
-                <UsersIcon className='h-5 w-5 mr-2' />
+                <UsersIcon className='h-6 w-6 mr-3' />
                 Join Game
               </button>
               <button
                 onClick={() => navigate("/leaderboard")}
-                className='w-full flex items-center justify-center px-4 py-3 bg-green-600 
-                         hover:bg-green-700 text-white rounded-lg font-medium transition-colors'
+                className='w-full flex items-center justify-center px-6 py-4 bg-gradient-to-r from-green-600 to-green-700 
+                         hover:from-green-700 hover:to-green-800 text-white rounded-xl font-bold text-lg transition-all duration-300 
+                         transform hover:scale-105 hover:shadow-lg'
               >
-                <ChartBarIcon className='h-5 w-5 mr-2' />
+                <ChartBarIcon className='h-6 w-6 mr-3' />
                 Leaderboard
               </button>
               <button
                 onClick={() => navigate("/profile")}
-                className='w-full flex items-center justify-center px-4 py-3 bg-purple-600 
-                         hover:bg-purple-700 text-white rounded-lg font-medium transition-colors'
+                className='w-full flex items-center justify-center px-6 py-4 bg-gradient-to-r from-purple-600 to-purple-700 
+                         hover:from-purple-700 hover:to-purple-800 text-white rounded-xl font-bold text-lg transition-all duration-300 
+                         transform hover:scale-105 hover:shadow-lg'
               >
-                <EyeIcon className='h-5 w-5 mr-2' />
+                <EyeIcon className='h-6 w-6 mr-3' />
                 View Profile
               </button>
             </div>
-          </motion.div>
+          </div>
 
           {/* Achievements Preview */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className='bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6'
+          <div
+            ref={achievementsRef}
+            className='bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700'
           >
             <div className='flex items-center justify-between mb-4'>
               <h3 className='text-lg font-semibold text-gray-900 dark:text-white'>
@@ -506,15 +777,10 @@ const Dashboard = () => {
                 </motion.div>
               ))}
             </div>
-          </motion.div>
+          </div>
 
           {/* Daily Tip */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className='bg-gradient-to-br from-yellow-400 to-orange-500 text-white rounded-lg p-6'
-          >
+          <div className='bg-gradient-to-br from-yellow-400 to-orange-500 text-white rounded-2xl p-6 shadow-xl'>
             <div className='flex items-start space-x-3'>
               <LightBulbIcon className='h-6 w-6 text-yellow-100 flex-shrink-0 mt-0.5' />
               <div>
@@ -526,7 +792,7 @@ const Dashboard = () => {
                 </p>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>

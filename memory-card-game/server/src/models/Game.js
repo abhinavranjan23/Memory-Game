@@ -184,10 +184,22 @@ gameSchema.methods.addPlayer = function (userId, username, avatar) {
 gameSchema.methods.removePlayer = function (userId) {
   const playerIndex = this.players.findIndex((p) => p.userId === userId);
   if (playerIndex === -1) {
-    return false; // Player not found
+    return false;
   }
 
-  // Remove the player
+  // ❌ DON'T REMOVE if game is already finished/completed
+  if (
+    this.gameState.status === "finished" ||
+    this.status === "completed" ||
+    this.endedAt
+  ) {
+    console.log(
+      `⚠️ Cannot remove player ${userId} from finished game ${this.roomId}`
+    );
+    return false;
+  }
+
+  // ✅ Only remove from active games
   this.players.splice(playerIndex, 1);
 
   // If no players left, mark game as finished

@@ -77,8 +77,7 @@ const WaitingArea = () => {
           };
           return newPlayers;
         } else {
-          // Add new player
-          addToast(`${data.player.username} joined the room!`, "success");
+          // Add new player (no toast here - Game.jsx will handle it)
           return [...prevPlayers, data.player];
         }
       });

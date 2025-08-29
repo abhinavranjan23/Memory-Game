@@ -12,6 +12,7 @@ import { ToastProvider } from "./contexts/ToastContext.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import PublicRoute from "./components/PublicRoute.jsx";
+import ServerLoadingPopup from "./components/ServerLoadingPopup.jsx";
 import Navbar from "./components/layout/Navbar.jsx";
 import Home from "./pages/Home.jsx";
 import Login from "./pages/Login.jsx";
@@ -90,7 +91,6 @@ function App() {
                           </ProtectedRoute>
                         }
                       />
-
                       <Route
                         path='/profile'
                         element={
@@ -99,7 +99,6 @@ function App() {
                           </ProtectedRoute>
                         }
                       />
-                      {/* Admin routes */}
                       <Route
                         path='/admin'
                         element={
@@ -108,12 +107,12 @@ function App() {
                           </ProtectedRoute>
                         }
                       />
-                      {/* 404 Error page */}
-                      <Route path='/404' element={<NotFound />} />
-                      {/* Fallback for unknown routes */}
                       <Route path='*' element={<NotFound />} />
                     </Routes>
                   </main>
+
+                  {/* Server Loading Popup */}
+                  <ServerLoadingPopup />
                 </div>
               </ToastProvider>
             </SocketProvider>

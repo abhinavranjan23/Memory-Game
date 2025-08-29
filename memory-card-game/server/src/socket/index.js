@@ -5,13 +5,13 @@ const { authenticateSocket } = require("../middleware/auth.js");
 const { updateMetrics } = require("../utils/metrics.js");
 const antiCheatSystem = require("../utils/antiCheat.js");
 
-const activeGames = new Map(); // roomId -> GameEngine
-const userSockets = new Map(); // userId -> socketId
-const socketUsers = new Map(); // socketId -> userId
-const activePlayers = new Set(); // Set of active user IDs
-const userRooms = new Map(); // userId -> roomId (to prevent multiple room joins)
-const socketCleanup = new Map(); // socketId -> cleanup functions
-const operationLocks = new Map(); // roomId -> operation lock to prevent race conditions
+const activeGames = new Map();
+const userSockets = new Map();
+const socketUsers = new Map();
+const activePlayers = new Set();
+const userRooms = new Map();
+const socketCleanup = new Map();
+const operationLocks = new Map();
 
 function initializeSocket(io) {
   // Authentication middleware
@@ -21,8 +21,8 @@ function initializeSocket(io) {
   const cleanupOldGames = async () => {
     try {
       const now = new Date();
-      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 days ago
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2 hours ago
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
 
       console.log("🔄 Starting database cleanup...");
 

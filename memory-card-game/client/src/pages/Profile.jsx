@@ -276,28 +276,29 @@ const Profile = () => {
     color = "#3B82F6",
   }) => (
     <motion.div
-      whileHover={{ scale: 1.02 }}
-      className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg'
+      whileHover={{ scale: 1.05, y: -5 }}
+      transition={{ duration: 0.3 }}
+      className='bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-100 dark:border-gray-700 hover:shadow-2xl transition-all duration-300'
     >
       <div className='flex items-center justify-between'>
         <div>
-          <p className='text-sm font-medium text-gray-600 dark:text-gray-300'>
+          <p className='text-sm font-bold text-gray-600 dark:text-gray-300 tracking-wide uppercase'>
             {title}
           </p>
-          <p className='text-2xl font-bold text-gray-900 dark:text-white'>
+          <p className='text-3xl font-black text-gray-900 dark:text-white tracking-tight mt-1'>
             {value}
           </p>
           {subtitle && (
-            <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
+            <p className='text-sm font-medium text-gray-500 dark:text-gray-400 mt-2 tracking-wide'>
               {subtitle}
             </p>
           )}
         </div>
         <div
-          className='p-3 rounded-full'
-          style={{ backgroundColor: `${color}20` }}
+          className='p-4 rounded-2xl shadow-lg'
+          style={{ backgroundColor: `${color}15` }}
         >
-          <Icon className='h-6 w-6' style={{ color }} />
+          <Icon className='h-8 w-8' style={{ color }} />
         </div>
       </div>
     </motion.div>
@@ -312,63 +313,69 @@ const Profile = () => {
   }
 
   return (
-    <div className='max-w-6xl mx-auto space-y-6'>
+    <div className='max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6'>
       {/* Profile Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className='bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg p-8'
+        className='bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-700 text-white rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl'
       >
-        <div className='flex flex-col md:flex-row items-start md:items-center gap-6'>
+        <div className='flex flex-col md:flex-row items-start md:items-center gap-4 sm:gap-6'>
           <div className='relative'>
-            <div className='w-24 h-24 rounded-full bg-white/20 flex items-center justify-center text-4xl font-bold'>
+            <div className='w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl sm:text-4xl font-black tracking-wider border-2 border-white/30 shadow-lg'>
               {user?.avatar ? (
                 <img
                   src={user.avatar}
                   alt={user.username}
-                  className='w-24 h-24 rounded-full'
+                  className='w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover'
                 />
               ) : (
                 user?.username?.charAt(0).toUpperCase()
               )}
             </div>
             {user?.isAdmin && (
-              <div className='absolute -top-1 -right-1 bg-yellow-500 text-white rounded-full p-1'>
+              <div className='absolute -top-1 -right-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-full p-1 shadow-lg'>
                 <ShieldCheckIcon className='h-4 w-4' />
               </div>
             )}
           </div>
 
           <div className='flex-1'>
-            <div className='flex items-center gap-3 mb-2'>
-              <h1 className='text-3xl font-bold'>{user?.username}</h1>
+            <div className='flex items-center gap-2 sm:gap-3 mb-3'>
+              <h1 className='text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight bg-gradient-to-r from-white to-purple-100 bg-clip-text text-transparent'>
+                {user?.username}
+              </h1>
               {!user?.isGuest && (
                 <button
                   onClick={() => setEditingProfile(true)}
-                  className='p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors'
+                  className='p-1 sm:p-2 bg-white/20 hover:bg-white/30 rounded-xl transition-all duration-300 hover:scale-110 backdrop-blur-sm'
                 >
                   <PencilIcon className='h-4 w-4' />
                 </button>
               )}
             </div>
 
-            <p className='text-purple-100 mb-4'>
-              {user?.isGuest ? "Guest Player" : "Memory Master"}
-              {user?.isAdmin && " • Administrator"}
+            <p className='text-purple-100 mb-4 sm:mb-5 text-sm sm:text-base font-medium tracking-wide'>
+              {user?.isGuest ? "🎮 Guest Player" : "🧠 Memory Master"}
+              {user?.isAdmin && " • 👑 Administrator"}
             </p>
 
-            <div className='flex flex-wrap gap-4 text-sm'>
-              <div className='flex items-center gap-1'>
-                <CalendarDaysIcon className='h-4 w-4' />
-                Joined {new Date(user?.createdAt).toLocaleDateString()}
+            <div className='flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm'>
+              <div className='flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full'>
+                <CalendarDaysIcon className='h-3 w-3 sm:h-4 sm:w-4' />
+                <span className='font-medium'>
+                  Joined {new Date(user?.createdAt).toLocaleDateString()}
+                </span>
               </div>
-              <div className='flex items-center gap-1'>
-                <TrophyIcon className='h-4 w-4' />
-                {stats?.gamesWon || 0} Wins
+              <div className='flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full'>
+                <TrophyIcon className='h-3 w-3 sm:h-4 sm:w-4' />
+                <span className='font-medium'>{stats?.gamesWon || 0} Wins</span>
               </div>
-              <div className='flex items-center gap-1'>
-                <StarIcon className='h-4 w-4' />
-                {achievements.filter((a) => a.unlocked).length} Achievements
+              <div className='flex items-center gap-2 bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full'>
+                <StarIcon className='h-3 w-3 sm:h-4 sm:w-4' />
+                <span className='font-medium'>
+                  {achievements.filter((a) => a.unlocked).length} Achievements
+                </span>
               </div>
             </div>
           </div>
@@ -376,27 +383,27 @@ const Profile = () => {
       </motion.div>
 
       {/* Navigation Tabs */}
-      <div className='bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden'>
+      <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-700'>
         <div className='border-b border-gray-200 dark:border-gray-700'>
-          <nav className='flex'>
+          <nav className='flex overflow-x-auto scrollbar-hide'>
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-6 py-4 text-sm font-medium transition-colors ${
+                className={`flex items-center px-4 sm:px-6 py-4 text-xs sm:text-sm font-bold transition-all duration-300 whitespace-nowrap tracking-wide ${
                   activeTab === tab.id
-                    ? "border-b-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+                    ? "border-b-2 border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 text-blue-600 dark:text-blue-400 shadow-sm"
+                    : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                 }`}
               >
-                <tab.icon className='h-4 w-4 mr-2' />
-                {tab.name}
+                <tab.icon className='h-4 w-4 mr-2 sm:mr-3' />
+                <span className='font-black'>{tab.name}</span>
               </button>
             ))}
           </nav>
         </div>
 
-        <div className='p-6'>
+        <div className='p-4 sm:p-6'>
           <AnimatePresence mode='wait'>
             {/* Overview Tab */}
             {activeTab === "overview" && (
@@ -436,8 +443,8 @@ const Profile = () => {
 
                 {/* Recent Achievements */}
                 <div>
-                  <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>
-                    Recent Achievements
+                  <h3 className='text-xl font-black text-gray-900 dark:text-white mb-6 tracking-tight'>
+                    🏆 Recent Achievements
                   </h3>
                   <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                     {achievements
@@ -551,12 +558,12 @@ const Profile = () => {
                 className='space-y-6'
               >
                 <div className='flex items-center justify-between'>
-                  <h3 className='text-lg font-semibold text-gray-900 dark:text-white'>
-                    Achievements (
+                  <h3 className='text-xl font-black text-gray-900 dark:text-white tracking-tight'>
+                    🏅 Achievements (
                     {achievements.filter((a) => a.unlocked).length}/
                     {achievements.length})
                   </h3>
-                  <div className='text-sm text-gray-500 dark:text-gray-400'>
+                  <div className='text-sm font-bold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full'>
                     Progress:{" "}
                     {Math.round(
                       (achievements.filter((a) => a.unlocked).length /
@@ -571,28 +578,29 @@ const Profile = () => {
                   {achievements.map((achievement) => (
                     <motion.div
                       key={achievement.id}
-                      whileHover={{ scale: 1.02 }}
-                      className={`p-6 rounded-lg border-2 transition-all ${
+                      whileHover={{ scale: 1.05, y: -5 }}
+                      transition={{ duration: 0.3 }}
+                      className={`p-6 rounded-2xl border-2 transition-all duration-300 shadow-lg hover:shadow-2xl ${
                         achievement.unlocked
-                          ? `${getRarityColor(achievement.rarity)} shadow-md`
+                          ? `${getRarityColor(achievement.rarity)}`
                           : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 opacity-60"
                       }`}
                     >
                       <div className='flex items-start space-x-4'>
                         <span
-                          className={`text-4xl ${
+                          className={`text-5xl ${
                             achievement.unlocked ? "" : "grayscale opacity-50"
                           }`}
                         >
                           {achievement.iconUrl}
                         </span>
                         <div className='flex-1'>
-                          <div className='flex items-center gap-2 mb-1'>
-                            <h4 className='font-bold text-gray-900 dark:text-white'>
+                          <div className='flex items-center gap-3 mb-2'>
+                            <h4 className='font-black text-gray-900 dark:text-white text-lg tracking-tight'>
                               {achievement.name}
                             </h4>
                             <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              className={`px-3 py-1 rounded-full text-xs font-black tracking-wide ${
                                 achievement.rarity === "common"
                                   ? "bg-gray-100 text-gray-800"
                                   : achievement.rarity === "uncommon"
@@ -604,22 +612,22 @@ const Profile = () => {
                                   : "bg-yellow-100 text-yellow-800"
                               }`}
                             >
-                              {achievement.rarity}
+                              {achievement.rarity.toUpperCase()}
                             </span>
                           </div>
-                          <p className='text-sm text-gray-600 dark:text-gray-300 mb-2'>
+                          <p className='text-sm font-medium text-gray-600 dark:text-gray-300 mb-3 tracking-wide'>
                             {achievement.description}
                           </p>
                           {achievement.unlocked ? (
-                            <div className='flex items-center text-xs text-green-600 dark:text-green-400'>
-                              <StarIcon className='h-3 w-3 mr-1' />
+                            <div className='flex items-center text-xs font-bold text-green-600 dark:text-green-400'>
+                              <StarIcon className='h-3 w-3 mr-2' />
                               Unlocked{" "}
                               {new Date(
                                 achievement.unlockedAt
                               ).toLocaleDateString()}
                             </div>
                           ) : (
-                            <div className='text-xs text-gray-500 dark:text-gray-400'>
+                            <div className='text-xs font-bold text-gray-500 dark:text-gray-400'>
                               🔒 Locked
                             </div>
                           )}
@@ -640,8 +648,8 @@ const Profile = () => {
                 exit={{ opacity: 0, x: -20 }}
                 className='space-y-4'
               >
-                <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>
-                  Match History ({matches.length} games)
+                <h3 className='text-xl font-black text-gray-900 dark:text-white mb-6 tracking-tight'>
+                  📊 Match History ({matches.length} games)
                 </h3>
 
                 {matches.length === 0 ? (
@@ -662,27 +670,28 @@ const Profile = () => {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className='bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:shadow-md transition-shadow'
+                        className='bg-gray-50 dark:bg-gray-700 rounded-2xl p-4 sm:p-5 hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-gray-600'
                       >
-                        <div className='flex items-center justify-between mb-2'>
-                          <div className='flex items-center space-x-4'>
+                        {/* Header - Result and Score */}
+                        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 space-y-2 sm:space-y-0'>
+                          <div className='flex items-center space-x-2 sm:space-x-4'>
                             <span
-                              className={`font-bold text-lg ${getResultColor(
+                              className={`font-black text-lg sm:text-xl tracking-wide ${getResultColor(
                                 match.result
                               )}`}
                             >
                               {match.result.toUpperCase()}
                             </span>
-                            <div className='flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300'>
+                            <div className='flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 dark:text-gray-300'>
                               <span>{match.gameMode}</span>
-                              <span>•</span>
+                              <span className='hidden sm:inline'>•</span>
                               <span>{match.boardSize}</span>
-                              <span>•</span>
+                              <span className='hidden sm:inline'>•</span>
                               <span>{match.playerCount} players</span>
                             </div>
                           </div>
-                          <div className='text-right'>
-                            <p className='font-semibold text-gray-900 dark:text-white'>
+                          <div className='text-left sm:text-right'>
+                            <p className='font-black text-gray-900 dark:text-white text-lg sm:text-xl tracking-tight'>
                               {match.score} pts
                             </p>
                             <p className='text-xs text-gray-500 dark:text-gray-400'>
@@ -691,8 +700,9 @@ const Profile = () => {
                           </div>
                         </div>
 
-                        <div className='flex items-center justify-between text-sm'>
-                          <div className='flex items-center space-x-4 text-gray-600 dark:text-gray-300'>
+                        {/* Stats Row */}
+                        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs sm:text-sm space-y-2 sm:space-y-0'>
+                          <div className='flex flex-wrap items-center gap-3 sm:gap-4 text-gray-600 dark:text-gray-300'>
                             <span>{match.matches} matches</span>
                             <span>{match.flips} flips</span>
                             <span>
@@ -716,7 +726,7 @@ const Profile = () => {
                             <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
                               Opponents:
                             </p>
-                            <div className='flex flex-wrap gap-2'>
+                            <div className='flex flex-wrap gap-1 sm:gap-2'>
                               {match.opponents.map((opponent, i) => (
                                 <span
                                   key={i}
@@ -727,7 +737,12 @@ const Profile = () => {
                                                : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
                                            }`}
                                 >
-                                  {opponent.username} ({opponent.score} pts)
+                                  <span className='hidden sm:inline'>
+                                    {opponent.username} ({opponent.score} pts)
+                                  </span>
+                                  <span className='sm:hidden'>
+                                    {opponent.username}
+                                  </span>
                                   {opponent.leftEarly && (
                                     <span className='ml-1 text-orange-600 dark:text-orange-400'>
                                       • left
@@ -736,11 +751,70 @@ const Profile = () => {
                                 </span>
                               ))}
                             </div>
-                            {(match.completionReason === "opponents_left" || 
-                              match.completionReason === "last_player_winner" ||
-                              match.completionReason === "abort") && (
-                              <p className='text-xs text-orange-600 dark:text-orange-400 mt-2'>
-                                ⚠️ Game ended early - {match.completionReason === "abort" ? "game aborted" : "opponents left"}
+                            {match.completionReason && (
+                              <p className='text-xs mt-2'>
+                                {(() => {
+                                  const reasonMap = {
+                                    game_completed: {
+                                      text: "✅ All pairs found",
+                                      color:
+                                        "text-green-600 dark:text-green-400",
+                                    },
+                                    timeout_no_matches: {
+                                      text: "⏰ Time ran out - No matches",
+                                      color:
+                                        "text-orange-600 dark:text-orange-400",
+                                    },
+                                    timeout_with_matches: {
+                                      text: "⏰ Time ran out - With matches",
+                                      color:
+                                        "text-orange-600 dark:text-orange-400",
+                                    },
+                                    sudden_death_winner: {
+                                      text: "⚡ Sudden Death winner",
+                                      color:
+                                        "text-purple-600 dark:text-purple-400",
+                                    },
+                                    sudden_death_timeout: {
+                                      text: "⚡ Sudden Death timeout",
+                                      color:
+                                        "text-orange-600 dark:text-orange-400",
+                                    },
+                                    opponents_left: {
+                                      text: "⚠️ Opponents left",
+                                      color:
+                                        "text-orange-600 dark:text-orange-400",
+                                    },
+                                    last_player_winner: {
+                                      text: "👑 Last player wins",
+                                      color: "text-blue-600 dark:text-blue-400",
+                                    },
+                                    all_players_left: {
+                                      text: "🚪 All players left",
+                                      color: "text-gray-600 dark:text-gray-400",
+                                    },
+                                    blitz_timeout: {
+                                      text: "⏰ Blitz mode timeout",
+                                      color:
+                                        "text-orange-600 dark:text-orange-400",
+                                    },
+                                    abort: {
+                                      text: "❌ Game aborted",
+                                      color: "text-red-600 dark:text-red-400",
+                                    },
+                                  };
+                                  const reason = reasonMap[
+                                    match.completionReason
+                                  ] || {
+                                    text: `Game ended: ${match.completionReason}`,
+                                    color: "text-gray-600 dark:text-gray-400",
+                                  };
+                                  return (
+                                    <span className={reason.color}>
+                                      {reason.text}
+                                    </span>
+                                  );
+                                })()}
                               </p>
                             )}
                           </div>
@@ -761,14 +835,14 @@ const Profile = () => {
                 exit={{ opacity: 0, x: -20 }}
                 className='space-y-6'
               >
-                <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>
-                  Settings
+                <h3 className='text-xl font-black text-gray-900 dark:text-white mb-6 tracking-tight'>
+                  ⚙️ Settings
                 </h3>
 
                 {/* Appearance */}
-                <div className='bg-gray-50 dark:bg-gray-700 rounded-lg p-6'>
-                  <h4 className='font-semibold text-gray-900 dark:text-white mb-4'>
-                    Appearance
+                <div className='bg-gray-50 dark:bg-gray-700 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-600'>
+                  <h4 className='font-black text-gray-900 dark:text-white mb-4 text-lg tracking-tight'>
+                    🎨 Appearance
                   </h4>
                   <div className='flex items-center justify-between'>
                     <div>
@@ -796,9 +870,9 @@ const Profile = () => {
 
                 {/* Account Info */}
                 {!user?.isGuest && (
-                  <div className='bg-gray-50 dark:bg-gray-700 rounded-lg p-6'>
-                    <h4 className='font-semibold text-gray-900 dark:text-white mb-4'>
-                      Account Information
+                  <div className='bg-gray-50 dark:bg-gray-700 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-600'>
+                    <h4 className='font-black text-gray-900 dark:text-white mb-4 text-lg tracking-tight'>
+                      👤 Account Information
                     </h4>
                     <div className='space-y-4'>
                       <div>
@@ -902,9 +976,9 @@ const Profile = () => {
                 )}
 
                 {/* Privacy */}
-                <div className='bg-gray-50 dark:bg-gray-700 rounded-lg p-6'>
-                  <h4 className='font-semibold text-gray-900 dark:text-white mb-4'>
-                    Privacy
+                <div className='bg-gray-50 dark:bg-gray-700 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-600'>
+                  <h4 className='font-black text-gray-900 dark:text-white mb-4 text-lg tracking-tight'>
+                    🔒 Privacy
                   </h4>
                   <div className='space-y-4'>
                     <div className='flex items-center justify-between'>

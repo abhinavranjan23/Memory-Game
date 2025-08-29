@@ -12,6 +12,9 @@ axios.defaults.baseURL = API_BASE_URL;
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem("token"));
+  const [refreshToken, setRefreshToken] = useState(
+    localStorage.getItem("refreshToken")
+  );
   const [loading, setLoading] = useState(true);
 
   // Set auth header when token changes
@@ -24,6 +27,15 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem("token");
     }
   }, [token]);
+
+  // Store refresh token when it changes
+  useEffect(() => {
+    if (refreshToken) {
+      localStorage.setItem("refreshToken", refreshToken);
+    } else {
+      localStorage.removeItem("refreshToken");
+    }
+  }, [refreshToken]);
 
   // Ensure token is properly set before allowing API calls
   const ensureTokenSet = async () => {
@@ -41,6 +53,32 @@ export const AuthProvider = ({ children }) => {
     );
   };
 
+  // Refresh access token using refresh token
+  const refreshAccessToken = async () => {
+    if (!refreshToken) {
+      throw new Error("No refresh token available");
+    }
+
+    try {
+      const response = await axios.post("/auth/refresh", {
+        refreshToken: refreshToken,
+      });
+
+      const { tokens } = response.data;
+      setToken(tokens.accessToken);
+      setRefreshToken(tokens.refreshToken);
+
+      return tokens.accessToken;
+    } catch (error) {
+      console.error("Failed to refresh token:", error);
+      // Clear tokens on refresh failure
+      setToken(null);
+      setRefreshToken(null);
+      setUser(null);
+      throw error;
+    }
+  };
+
   // Load user on mount if token exists
   useEffect(() => {
     const loadUser = async () => {
@@ -51,15 +89,31 @@ export const AuthProvider = ({ children }) => {
           setUser(response.data.user);
         } catch (error) {
           console.error("Failed to load user:", error);
-          setToken(null);
-          setUser(null);
+
+          // Try to refresh token if we have a refresh token
+          if (refreshToken && error.response?.status === 401) {
+            try {
+              await refreshAccessToken();
+              // Retry loading user after token refresh
+              const retryResponse = await axios.get("/auth/me");
+              setUser(retryResponse.data.user);
+            } catch (refreshError) {
+              console.error("Failed to refresh token:", refreshError);
+              setToken(null);
+              setRefreshToken(null);
+              setUser(null);
+            }
+          } else {
+            setToken(null);
+            setUser(null);
+          }
         }
       }
       setLoading(false);
     };
 
     loadUser();
-  }, [token]);
+  }, [token, refreshToken]);
 
   const login = async (emailOrUsername, password) => {
     try {
@@ -72,10 +126,15 @@ export const AuthProvider = ({ children }) => {
           },
         }
       );
-      const { token: newToken, user: userData } = response.data;
+      const {
+        token: newToken,
+        refreshToken: newRefreshToken,
+        user: userData,
+      } = response.data;
 
-      // Set token and user atomically
+      // Set token, refresh token and user atomically
       setToken(newToken);
+      setRefreshToken(newRefreshToken);
       setUser(userData);
     } catch (error) {
       console.error("Login error details:", error);
@@ -94,10 +153,15 @@ export const AuthProvider = ({ children }) => {
           },
         }
       );
-      const { token: newToken, user: userData } = response.data;
+      const {
+        token: newToken,
+        refreshToken: newRefreshToken,
+        user: userData,
+      } = response.data;
 
-      // Set token and user atomically
+      // Set token, refresh token and user atomically
       setToken(newToken);
+      setRefreshToken(newRefreshToken);
       setUser(userData);
     } catch (error) {
       console.error("Registration error details:", error);
@@ -116,10 +180,15 @@ export const AuthProvider = ({ children }) => {
           },
         }
       );
-      const { token: newToken, user: userData } = response.data;
+      const {
+        token: newToken,
+        refreshToken: newRefreshToken,
+        user: userData,
+      } = response.data;
 
-      // Set token and user atomically
+      // Set token, refresh token and user atomically
       setToken(newToken);
+      setRefreshToken(newRefreshToken);
       setUser(userData);
     } catch (error) {
       console.error("Guest login error details:", error);
@@ -135,10 +204,15 @@ export const AuthProvider = ({ children }) => {
         name: googleData.name,
         picture: googleData.picture,
       });
-      const { token: newToken, user: userData } = response.data;
+      const {
+        token: newToken,
+        refreshToken: newRefreshToken,
+        user: userData,
+      } = response.data;
 
-      // Set token and user atomically
+      // Set token, refresh token and user atomically
       setToken(newToken);
+      setRefreshToken(newRefreshToken);
       setUser(userData);
     } catch (error) {
       throw new Error(error.response?.data?.message || "Google login failed");
@@ -154,6 +228,7 @@ export const AuthProvider = ({ children }) => {
       console.error("Logout error:", error);
     } finally {
       setToken(null);
+      setRefreshToken(null);
       setUser(null);
     }
   };

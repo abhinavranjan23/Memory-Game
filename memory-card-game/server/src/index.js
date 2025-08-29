@@ -48,6 +48,7 @@ const corsOptions = {
   origin: [
     process.env.CLIENT_URL || "http://localhost:5173",
     "http://localhost:5174",
+    "https://e95fedc38c75.ngrok-free.app",
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],

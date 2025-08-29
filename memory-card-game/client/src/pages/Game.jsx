@@ -167,8 +167,8 @@ const Game = () => {
       !gamePausedForCurrentState.current
     ) {
       console.log("Not enough players to continue game - showing pause toast");
-      // Don't override game status if game is already completed
-      if (gameStatus !== "completed") {
+      // Don't override game status if game is already completed or in sudden death
+      if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
         setGameStatus("waiting");
       }
       addToast("Game paused - waiting for more players", "warning");
@@ -322,8 +322,8 @@ const Game = () => {
         );
       }
 
-      // Don't override game status if game is already completed
-      if (gameStatus !== "completed") {
+      // Don't override game status if game is already completed or in sudden death
+      if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
         setGameStatus(data.gameState?.status || "waiting");
       }
       setTimeLeft(data.gameState?.timeLeft || 0);
@@ -386,8 +386,8 @@ const Game = () => {
 
       const newGameStatus = data.gameState?.status || "playing";
       console.log("Setting gameStatus to:", newGameStatus);
-      // Don't override game status if game is already completed
-      if (gameStatus !== "completed") {
+      // Don't override game status if game is already completed or in sudden death
+      if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
         setGameStatus(newGameStatus);
       }
 
@@ -484,8 +484,8 @@ const Game = () => {
           console.log(
             "Not enough players to continue game - showing pause toast from player left"
           );
-          // Don't override game status if game is already completed
-          if (gameStatus !== "completed") {
+          // Don't override game status if game is already completed or in sudden death
+          if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
             setGameStatus("waiting");
           }
           addToast("Game paused - waiting for more players", "warning");
@@ -568,6 +568,7 @@ const Game = () => {
       console.log("=== CARDS-MATCHED EVENT RECEIVED ===");
       console.log("Cards matched data:", data);
       console.log("Current user ID:", user?.id);
+      console.log("Current game status:", gameStatus);
       console.log("Current cards state:", cards);
 
       // Check if the matched cards had power-ups
@@ -624,11 +625,21 @@ const Game = () => {
 
       // Show toast for match
       if (playerId === user?.id) {
-        addToast("You found a match!", "success");
+        // Check if this is sudden death mode
+        if (gameStatus === "sudden-death") {
+          addToast("🎯 You found the final pair! You win!", "success");
+        } else {
+          addToast("You found a match!", "success");
+        }
       } else {
         const playerName =
           players.find((p) => p.userId === playerId)?.username || "Opponent";
-        addToast(`${playerName} found a match!`, "info");
+        // Check if this is sudden death mode
+        if (gameStatus === "sudden-death") {
+          addToast(`${playerName} found the final pair! They win!`, "info");
+        } else {
+          addToast(`${playerName} found a match!`, "info");
+        }
       }
     };
 
@@ -766,13 +777,22 @@ const Game = () => {
       const isUserWinner = data.winners?.some((w) => w.userId === user?.id);
       if (data.winners && data.winners.length > 0) {
         if (isUserWinner) {
-          addToast("Congratulations! You won the game! 🎉", "success");
+          addToast("🎉 Congratulations! You won the game! 🎉", "success");
         } else {
-          addToast("Game Over! Better luck next time!", "info");
+          addToast(
+            "Game Over! Thanks for playing! Better luck next time!",
+            "info"
+          );
         }
       } else {
         // No winners (e.g., Blitz mode timeout with no matches)
-        addToast("Time's up! No one found any matches.", "info");
+        if (data.reason === "timeout" || data.reason === "blitz_timeout") {
+          addToast("⏰ Time's up! No one found any matches.", "info");
+        } else if (data.reason === "sudden_death_timeout") {
+          addToast("⚡ Sudden Death timeout! No winner this round.", "info");
+        } else {
+          addToast("Game ended! No winners this round.", "info");
+        }
       }
     };
 
@@ -801,7 +821,10 @@ const Game = () => {
         }
       }
 
-      addToast("Sudden Death Mode! Find the last pair to win!", "warning");
+      addToast(
+        "⚡ Sudden Death Mode! Find the last pair to win! ⚡",
+        "warning"
+      );
     };
 
     const handleChatMessage = (data) => {
@@ -1290,8 +1313,8 @@ const Game = () => {
           console.log("Attempting to manually set currentTurn to first player");
           if (players.length > 0) {
             setCurrentTurn(players[0].userId);
-            // Don't override game status if game is already completed
-            if (gameStatus !== "completed") {
+            // Don't override game status if game is already completed or in sudden death
+            if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
               setGameStatus("playing");
             }
           }
@@ -2008,21 +2031,7 @@ const Game = () => {
                   {cards.map((card) => (
                     <motion.div
                       key={`card-${card.id}`}
-                      className={`aspect-square rounded-lg shadow-md flex items-center justify-center text-2xl sm:text-3xl md:text-4xl cursor-pointer transition-all duration-300 relative ${
-                        card.isMatched
-                          ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 opacity-60"
-                          : card.isFlipped
-                          ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
-                          : card.isRevealed
-                          ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
-                          : selectedCardsForSwap.includes(card.id)
-                          ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 border-2 border-purple-500"
-                          : swapMode && !card.isMatched
-                          ? "bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-700 dark:to-purple-800 text-purple-600 dark:text-purple-300 hover:from-purple-200 hover:to-purple-300 dark:hover:from-purple-600 dark:hover:to-purple-700"
-                          : revealMode && !card.isMatched && !card.isFlipped
-                          ? "bg-gradient-to-br from-yellow-100 to-yellow-200 dark:from-yellow-700 dark:to-yellow-800 text-yellow-600 dark:text-yellow-300 hover:from-yellow-200 hover:to-yellow-300 dark:hover:from-yellow-600 dark:hover:to-yellow-700"
-                          : "bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-400 dark:text-gray-500 hover:from-gray-200 hover:to-gray-300 dark:hover:from-gray-600 dark:hover:to-gray-700"
-                      } ${
+                      className={`w-16 h-24 sm:w-20 sm:h-28 md:w-24 md:h-32 rounded-lg cursor-pointer relative ${
                         card.isMatched ? "cursor-default" : "hover:scale-105"
                       }`}
                       animate={
@@ -2063,7 +2072,111 @@ const Game = () => {
                       }
                       whileTap={!card.isMatched ? { scale: 0.95 } : {}}
                       onClick={() => !card.isMatched && flipCard(card.id)}
+                      style={{
+                        transformStyle: "preserve-3d",
+                        perspective: "1000px",
+                      }}
                     >
+                      {/* Card Back Side */}
+                      <motion.div
+                        className={`absolute inset-0 rounded-lg flex items-center justify-center text-lg sm:text-xl md:text-2xl ${
+                          card.isMatched
+                            ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 opacity-60"
+                            : card.isRevealed
+                            ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300"
+                            : selectedCardsForSwap.includes(card.id)
+                            ? "bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 border-2 border-purple-500"
+                            : swapMode && !card.isMatched
+                            ? "bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-700 dark:to-purple-800 text-purple-600 dark:text-purple-300 hover:from-purple-200 hover:to-purple-300 dark:hover:from-purple-600 dark:hover:to-purple-700"
+                            : revealMode && !card.isMatched && !card.isFlipped
+                            ? "bg-gradient-to-br from-yellow-100 to-yellow-200 dark:from-yellow-700 dark:to-yellow-800 text-yellow-600 dark:text-yellow-300 hover:from-yellow-200 hover:to-yellow-300 dark:hover:from-yellow-600 dark:hover:to-yellow-700"
+                            : "bg-gradient-to-br from-yellow-200 to-yellow-300 dark:from-yellow-600 dark:to-yellow-700 text-yellow-800 dark:text-yellow-200 border-2 border-white dark:border-gray-300 hover:from-yellow-300 hover:to-yellow-400 dark:hover:from-yellow-500 dark:hover:to-yellow-600"
+                        }`}
+                        animate={{
+                          rotateY: card.isFlipped || card.isMatched ? 180 : 0,
+                          scale: card.isFlipped || card.isMatched ? 1 : 1,
+                          boxShadow:
+                            card.isFlipped || card.isMatched
+                              ? "0 8px 25px rgba(0, 0, 0, 0.3), 0 4px 10px rgba(0, 0, 0, 0.2)"
+                              : "0 4px 15px rgba(0, 0, 0, 0.2), 0 2px 5px rgba(0, 0, 0, 0.1)",
+                        }}
+                        transition={{
+                          duration: 0.6,
+                          ease: "easeInOut",
+                        }}
+                        style={{
+                          backfaceVisibility: "hidden",
+                          transformOrigin: "center center",
+                          transform: "rotateY(0deg)",
+                        }}
+                      >
+                        {/* Card Back Content */}
+                        <div className='flex flex-col items-center justify-center'>
+                          <div className='w-12 h-8 bg-white dark:bg-gray-200 rounded-lg flex items-center justify-center mb-1 shadow-sm'>
+                            <div className='text-xs font-bold text-yellow-600 dark:text-yellow-700'>
+                              😄
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      {/* Card Front Side */}
+                      <motion.div
+                        className={`absolute inset-0 rounded-lg flex items-center justify-center text-lg sm:text-xl md:text-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`}
+                        animate={{
+                          rotateY: card.isFlipped || card.isMatched ? 0 : -180,
+                          scale: card.isFlipped || card.isMatched ? 1 : 1,
+                          boxShadow:
+                            card.isFlipped || card.isMatched
+                              ? "0 8px 25px rgba(0, 0, 0, 0.3), 0 4px 10px rgba(0, 0, 0, 0.2)"
+                              : "0 4px 15px rgba(0, 0, 0, 0.2), 0 2px 5px rgba(0, 0, 0, 0.1)",
+                        }}
+                        transition={{
+                          duration: 0.6,
+                          ease: "easeInOut",
+                        }}
+                        style={{
+                          backfaceVisibility: "hidden",
+                          transformOrigin: "center center",
+                          transform: "rotateY(-180deg)",
+                        }}
+                      >
+                        {/* Card Front Content */}
+                        {card.isFlipped || card.isMatched ? (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{
+                              type: "spring",
+                              damping: 15,
+                              stiffness: 300,
+                            }}
+                          >
+                            {card.value}
+                          </motion.div>
+                        ) : card.isRevealed ? (
+                          <motion.div
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{
+                              type: "spring",
+                              damping: 15,
+                              stiffness: 300,
+                            }}
+                          >
+                            {(() => {
+                              console.log("Rendering revealed card:", {
+                                cardId: card.id,
+                                isRevealed: card.isRevealed,
+                                revealedValue: card.revealedValue,
+                                cardValue: card.value,
+                                finalValue: card.revealedValue || card.value,
+                              });
+                              return card.revealedValue || card.value;
+                            })()}
+                          </motion.div>
+                        ) : null}
+                      </motion.div>
                       {/* Power-up indicator */}
                       {card.powerUp && !card.isMatched && (
                         <motion.div
@@ -2126,43 +2239,6 @@ const Game = () => {
                         >
                           <span className='text-lg'>{card.value}</span>
                         </motion.div>
-                      )}
-
-                      {card.isFlipped || card.isMatched ? (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{
-                            type: "spring",
-                            damping: 15,
-                            stiffness: 300,
-                          }}
-                        >
-                          {card.value}
-                        </motion.div>
-                      ) : card.isRevealed ? (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          transition={{
-                            type: "spring",
-                            damping: 15,
-                            stiffness: 300,
-                          }}
-                        >
-                          {(() => {
-                            console.log("Rendering revealed card:", {
-                              cardId: card.id,
-                              isRevealed: card.isRevealed,
-                              revealedValue: card.revealedValue,
-                              cardValue: card.value,
-                              finalValue: card.revealedValue || card.value,
-                            });
-                            return card.revealedValue || card.value;
-                          })()}
-                        </motion.div>
-                      ) : (
-                        "?"
                       )}
                     </motion.div>
                   ))}
@@ -2440,6 +2516,42 @@ const Game = () => {
                     : "Thanks for playing! Better luck next time!"
                   : "No one found any matches before time ran out!"}
               </motion.p>
+
+              {/* Game Completion Reason */}
+              {gameResults.reason && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className='mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700'
+                >
+                  <div className='flex items-center justify-center space-x-2'>
+                    <span className='text-blue-600 dark:text-blue-400'>ℹ️</span>
+                    <span className='text-sm font-medium text-blue-800 dark:text-blue-200'>
+                      {(() => {
+                        const reasonMap = {
+                          game_completed: "All pairs found - Game completed!",
+                          timeout_no_matches: "Time ran out - No matches found",
+                          timeout_with_matches:
+                            "Time ran out - Game ended with matches",
+                          sudden_death_winner: "Sudden Death winner found!",
+                          sudden_death_timeout:
+                            "Sudden Death timeout - No winner",
+                          opponents_left: "Opponents left the game",
+                          last_player_winner: "Last player remaining wins",
+                          all_players_left: "All players left the game",
+                          blitz_timeout: "Blitz mode timeout",
+                          abort: "Game was aborted",
+                        };
+                        return (
+                          reasonMap[gameResults.reason] ||
+                          `Game ended: ${gameResults.reason}`
+                        );
+                      })()}
+                    </span>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* Results */}

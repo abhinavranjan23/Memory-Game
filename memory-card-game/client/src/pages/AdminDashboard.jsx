@@ -67,6 +67,34 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleTestAntiCheat = async () => {
+    try {
+      await handleApiCall(
+        () => axios.get("/admin/anti-cheat/report?demo=true"),
+        "Test data loaded successfully",
+        "Failed to load test data"
+      );
+      // Refresh the report
+      fetchAntiCheatReport();
+    } catch (error) {
+      // Error already handled by handleApiCall
+    }
+  };
+
+  const handleClearTestData = async () => {
+    try {
+      await handleApiCall(
+        () => axios.post("/admin/anti-cheat/clear-test-data"),
+        "Test data cleared successfully",
+        "Failed to clear test data"
+      );
+      // Refresh the report
+      fetchAntiCheatReport();
+    } catch (error) {
+      // Error already handled by handleApiCall
+    }
+  };
+
   useEffect(() => {
     fetchAntiCheatReport();
   }, []);
@@ -113,13 +141,29 @@ const AdminDashboard = () => {
             <ShieldExclamationIcon className='h-6 w-6 mr-2 text-red-500' />
             Anti-Cheat Monitoring
           </h2>
-          <button
-            onClick={fetchAntiCheatReport}
-            disabled={loading}
-            className='px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50'
-          >
-            {loading ? "Loading..." : "Refresh"}
-          </button>
+          <div className='flex space-x-2'>
+            <button
+              onClick={fetchAntiCheatReport}
+              disabled={loading}
+              className='px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50'
+            >
+              {loading ? "Loading..." : "Refresh"}
+            </button>
+            <button
+              onClick={handleTestAntiCheat}
+              disabled={loading}
+              className='px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50'
+            >
+              Test Data
+            </button>
+            <button
+              onClick={handleClearTestData}
+              disabled={loading}
+              className='px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50'
+            >
+              Clear Test
+            </button>
+          </div>
         </div>
 
         {antiCheatReport ? (

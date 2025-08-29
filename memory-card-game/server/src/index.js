@@ -48,6 +48,7 @@ const corsOptions = {
   origin: [
     process.env.CLIENT_URL || "http://localhost:5173",
     "http://localhost:5174",
+    "https://memory-game-pink-six.vercel.app/",
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
@@ -569,7 +570,9 @@ const startServer = async () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
       console.log(
-        `📍 Client URL: ${process.env.CLIENT_URL || "http://localhost:5173"}`
+        `📍 Client URL: ${
+          process.env.CLIENT_URL || "https://memory-game-pink-six.vercel.app/"
+        }`
       );
       console.log(`🔗 API Base: http://localhost:${PORT}/api`);
       console.log(`💚 Health Check: http://localhost:${PORT}/health`);

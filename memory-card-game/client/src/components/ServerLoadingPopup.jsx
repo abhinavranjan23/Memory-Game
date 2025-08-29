@@ -63,14 +63,17 @@ const ServerLoadingPopup = () => {
 
     try {
       const startTime = Date.now();
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/health`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        // Short timeout for quick detection
-        signal: AbortSignal.timeout(3000), // Reduced timeout
-      });
+      const response = await fetch(
+        `https://memory-game-mogf.onrender.com/health`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          // Short timeout for quick detection
+          signal: AbortSignal.timeout(3000), // Reduced timeout
+        }
+      );
 
       const endTime = Date.now();
       const responseTime = endTime - startTime;

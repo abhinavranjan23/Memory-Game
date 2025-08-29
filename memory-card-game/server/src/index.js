@@ -69,6 +69,9 @@ const io = new SocketIOServer(server, {
 // Log Socket.IO configuration
 console.log("Socket.IO initialized with CORS:", corsOptions);
 
+// Trust proxy middleware
+app.set("trust proxy", 1);
+
 // Security middleware
 app.use(
   helmet({
@@ -87,7 +90,7 @@ app.use(
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,

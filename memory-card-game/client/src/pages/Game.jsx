@@ -135,10 +135,10 @@ const Game = () => {
 
   const playFlipCardNotification = () => {
     try {
-      if (flipCardAudio.current.paused) {
-        flipCardAudio.current.currentTime = 0;
-        flipCardAudio.current.play().catch(console.error);
-      }
+      // Always stop the current audio and restart it
+      flipCardAudio.current.pause();
+      flipCardAudio.current.currentTime = 0;
+      flipCardAudio.current.play().catch(console.error);
     } catch (error) {
       console.error("Error playing flip card notification:", error);
     }

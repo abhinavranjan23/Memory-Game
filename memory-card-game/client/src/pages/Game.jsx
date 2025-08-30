@@ -2931,16 +2931,6 @@ const Game = () => {
                 >
                   Back to Lobby
                 </button>
-
-                <button
-                  onClick={() => {
-                    setShowGameResults(false);
-                    // Option to play again or stay in current room
-                  }}
-                  className='px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors transform hover:scale-105'
-                >
-                  Close
-                </button>
               </motion.div>
             </div>
           </motion.div>

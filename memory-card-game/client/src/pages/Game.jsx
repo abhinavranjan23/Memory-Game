@@ -14,6 +14,12 @@ import {
   HeartIcon,
 } from "@heroicons/react/24/outline";
 
+// Import notification sounds
+import turnNotificationSound from "../../notifications/turn-notification.wav";
+import matchFoundNotificationSound from "../../notifications/match-found-notification.wav";
+import gameCompletionNotificationSound from "../../notifications/game-completion-notification.wav";
+import powerUpNotificationSound from "../../notifications/power-up-notification.wav";
+
 const Game = () => {
   const { roomId } = useParams();
   const { socket, joinRoom } = useSocket();
@@ -62,6 +68,51 @@ const Game = () => {
   const [revealMode, setRevealMode] = useState(false);
   const [showPowerUpNotification, setShowPowerUpNotification] = useState(false);
   const [newPowerUp, setNewPowerUp] = useState(null);
+
+  // Audio objects for notification sounds
+  const turnAudio = useRef(new Audio(turnNotificationSound));
+  const matchFoundAudio = useRef(new Audio(matchFoundNotificationSound));
+  const gameCompletionAudio = useRef(
+    new Audio(gameCompletionNotificationSound)
+  );
+  const powerUpAudio = useRef(new Audio(powerUpNotificationSound));
+
+  // Sound playing functions
+  const playTurnNotification = () => {
+    try {
+      turnAudio.current.currentTime = 0;
+      turnAudio.current.play().catch(console.error);
+    } catch (error) {
+      console.error("Error playing turn notification:", error);
+    }
+  };
+
+  const playMatchFoundNotification = () => {
+    try {
+      matchFoundAudio.current.currentTime = 0;
+      matchFoundAudio.current.play().catch(console.error);
+    } catch (error) {
+      console.error("Error playing match found notification:", error);
+    }
+  };
+
+  const playGameCompletionNotification = () => {
+    try {
+      gameCompletionAudio.current.currentTime = 0;
+      gameCompletionAudio.current.play().catch(console.error);
+    } catch (error) {
+      console.error("Error playing game completion notification:", error);
+    }
+  };
+
+  const playPowerUpNotification = () => {
+    try {
+      powerUpAudio.current.currentTime = 0;
+      powerUpAudio.current.play().catch(console.error);
+    } catch (error) {
+      console.error("Error playing power-up notification:", error);
+    }
+  };
 
   // Store all timers for proper cleanup
   const timersRef = useRef(new Set());
@@ -631,6 +682,7 @@ const Game = () => {
         } else {
           addToast("You found a match!", "success");
         }
+        playMatchFoundNotification(); // Play match found notification sound
       } else {
         const playerName =
           players.find((p) => p.userId === playerId)?.username || "Opponent";
@@ -685,6 +737,7 @@ const Game = () => {
       if (data.playerId === user?.id) {
         console.log("Turn switched to current user");
         addToast("🎯 It's your turn!", "success");
+        playTurnNotification(); // Play turn notification sound
       } else {
         // Check if this turn change was due to using the last extra turn
         const previousPlayer = data.previousPlayerId;
@@ -693,7 +746,7 @@ const Game = () => {
             "Turn changed from current user to another player - extra turns finished"
           );
           addToast(
-            "⏰ Your extra turns are finished. Turn passed to next player.",
+            "⏰ Your turns are finished. Turn passed to next player.",
             "warning"
           );
         } else {
@@ -746,22 +799,14 @@ const Game = () => {
           if (data.remainingExtraTurns > 0) {
             addToast(`🎯 Extra turn used! `, "info");
           } else {
-            addToast(
-              "🎯 Extra turn used! No more extra turns remaining.",
-              "info"
-            );
+            addToast("🎯 Extra turn used!", "info");
           }
         } else if (data.reason === "extra_turn_powerup_used") {
           addToast(`Extra turn power-up activated!`, "success");
         } else if (data.reason === "match_found") {
           addToast(`Great match! You get another turn!`, "success");
         } else if (data.reason === "powerup_used") {
-          addToast(
-            `Power-up used! You still have ${
-              data.remainingExtraTurns || 0
-            } extra turns available.`,
-            "info"
-          );
+          addToast(`Power-up used!`, "info");
         } else {
           addToast("Great match! You get another turn!", "success");
         }
@@ -784,6 +829,7 @@ const Game = () => {
             "info"
           );
         }
+        playGameCompletionNotification(); // Play game completion notification sound
       } else {
         // No winners (e.g., Blitz mode timeout with no matches)
         if (data.reason === "timeout" || data.reason === "blitz_timeout") {
@@ -927,6 +973,9 @@ const Game = () => {
           // Show power-up notification (only notification, not manual)
           setNewPowerUp(data.newPowerUp);
           setShowPowerUpNotification(true);
+
+          // Play power-up notification sound
+          playPowerUpNotification();
 
           // Hide notification after 3 seconds
           addTimer(
@@ -1097,7 +1146,7 @@ const Game = () => {
       // Show toast with animation indication
       addTimer(
         setTimeout(() => {
-          addToast("🔄 Cards swapped with animation!", "info");
+          addToast("🔄 Cards swapped ", "info");
         }, 100)
       );
     };
@@ -1225,7 +1274,7 @@ const Game = () => {
             );
             addTimer(
               setTimeout(() => {
-                addToast("🔄 Cards shuffled with animation!", "info");
+                addToast("🔄 Cards shuffled ", "info");
               }, 100)
             );
           } else {
@@ -1238,7 +1287,7 @@ const Game = () => {
             }
             addTimer(
               setTimeout(() => {
-                addToast("🔄 Cards shuffled with animation!", "info");
+                addToast("🔄 Cards shuffled ", "info");
               }, 100)
             );
           }
@@ -1363,6 +1412,16 @@ const Game = () => {
       gamePausedForCurrentState.current = false;
       playerLeftToastShown.current.clear();
       playerJoinedToastShown.current.clear();
+
+      // Cleanup audio objects
+      turnAudio.current.pause();
+      turnAudio.current.currentTime = 0;
+      matchFoundAudio.current.pause();
+      matchFoundAudio.current.currentTime = 0;
+      gameCompletionAudio.current.pause();
+      gameCompletionAudio.current.currentTime = 0;
+      powerUpAudio.current.pause();
+      powerUpAudio.current.currentTime = 0;
 
       socket.off("game-state", handleGameState);
       socket.off("game-started", handleGameStarted);
@@ -1595,7 +1654,7 @@ const Game = () => {
       extraTurn: "Get an additional turn after a miss - Perfect for recovery!",
       peek: "Reveal all cards for 3 seconds - Great for memorizing positions!",
       swap: "Swap the positions of two cards - Create favorable layouts!",
-      revealOne: "Permanently reveal one card - Break deadlocks!",
+      revealOne: "Reveal one card for 3 seconds - Break deadlocks!",
       freeze: "Freeze the timer for 10 seconds - Essential in Blitz mode!",
       shuffle: "Shuffle all unmatched cards - Reset when stuck!",
     };

@@ -19,6 +19,7 @@ import turnNotificationSound from "../../notifications/turn-notification.wav";
 import matchFoundNotificationSound from "../../notifications/match-found-notification.wav";
 import gameCompletionNotificationSound from "../../notifications/game-completion-notification.wav";
 import powerUpNotificationSound from "../../notifications/power-up-notification.wav";
+import flipCardSound from "../../notifications/flipcard-sound.mp3";
 
 const Game = () => {
   const { roomId } = useParams();
@@ -69,6 +70,15 @@ const Game = () => {
   const [showPowerUpNotification, setShowPowerUpNotification] = useState(false);
   const [newPowerUp, setNewPowerUp] = useState(null);
 
+  // Floating chat state
+  const [showFloatingChat, setShowFloatingChat] = useState(false);
+  const [floatingChatPosition, setFloatingChatPosition] = useState({
+    x: 20,
+    y: 100,
+  });
+  const [isDraggingChat, setIsDraggingChat] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
   // Audio objects for notification sounds
   const turnAudio = useRef(new Audio(turnNotificationSound));
   const matchFoundAudio = useRef(new Audio(matchFoundNotificationSound));
@@ -76,12 +86,15 @@ const Game = () => {
     new Audio(gameCompletionNotificationSound)
   );
   const powerUpAudio = useRef(new Audio(powerUpNotificationSound));
+  const flipCardAudio = useRef(new Audio(flipCardSound));
 
   // Sound playing functions
   const playTurnNotification = () => {
     try {
-      turnAudio.current.currentTime = 0;
-      turnAudio.current.play().catch(console.error);
+      if (turnAudio.current.paused) {
+        turnAudio.current.currentTime = 0;
+        turnAudio.current.play().catch(console.error);
+      }
     } catch (error) {
       console.error("Error playing turn notification:", error);
     }
@@ -89,8 +102,10 @@ const Game = () => {
 
   const playMatchFoundNotification = () => {
     try {
-      matchFoundAudio.current.currentTime = 0;
-      matchFoundAudio.current.play().catch(console.error);
+      if (matchFoundAudio.current.paused) {
+        matchFoundAudio.current.currentTime = 0;
+        matchFoundAudio.current.play().catch(console.error);
+      }
     } catch (error) {
       console.error("Error playing match found notification:", error);
     }
@@ -98,8 +113,10 @@ const Game = () => {
 
   const playGameCompletionNotification = () => {
     try {
-      gameCompletionAudio.current.currentTime = 0;
-      gameCompletionAudio.current.play().catch(console.error);
+      if (gameCompletionAudio.current.paused) {
+        gameCompletionAudio.current.currentTime = 0;
+        gameCompletionAudio.current.play().catch(console.error);
+      }
     } catch (error) {
       console.error("Error playing game completion notification:", error);
     }
@@ -107,11 +124,58 @@ const Game = () => {
 
   const playPowerUpNotification = () => {
     try {
-      powerUpAudio.current.currentTime = 0;
-      powerUpAudio.current.play().catch(console.error);
+      if (powerUpAudio.current.paused) {
+        powerUpAudio.current.currentTime = 0;
+        powerUpAudio.current.play().catch(console.error);
+      }
     } catch (error) {
       console.error("Error playing power-up notification:", error);
     }
+  };
+
+  const playFlipCardNotification = () => {
+    try {
+      if (flipCardAudio.current.paused) {
+        flipCardAudio.current.currentTime = 0;
+        flipCardAudio.current.play().catch(console.error);
+      }
+    } catch (error) {
+      console.error("Error playing flip card notification:", error);
+    }
+  };
+
+  const toggleFloatingChat = () => {
+    setShowFloatingChat(!showFloatingChat);
+    if (!showFloatingChat) {
+      setUnreadMessages(0); // Clear unread messages when opening
+    }
+  };
+
+  const handleChatDragStart = (e) => {
+    setIsDraggingChat(true);
+    e.preventDefault();
+  };
+
+  const handleChatDrag = (e) => {
+    if (!isDraggingChat) return;
+
+    const touch = e.touches ? e.touches[0] : e;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.width / 2;
+    const y = touch.clientY - rect.height / 2;
+
+    // Constrain to screen bounds
+    const maxX = window.innerWidth - rect.width;
+    const maxY = window.innerHeight - rect.height;
+
+    setFloatingChatPosition({
+      x: Math.max(0, Math.min(x, maxX)),
+      y: Math.max(0, Math.min(y, maxY)),
+    });
+  };
+
+  const handleChatDragEnd = () => {
+    setIsDraggingChat(false);
   };
 
   // Store all timers for proper cleanup
@@ -875,6 +939,12 @@ const Game = () => {
 
     const handleChatMessage = (data) => {
       setChatMessages((prev) => [...prev, data]);
+
+      // Increment unread messages if chat is not open (mobile only)
+      if (!showFloatingChat && window.innerWidth < 1024) {
+        setUnreadMessages((prev) => prev + 1);
+      }
+
       // Scroll to bottom of chat
       addTimer(
         setTimeout(() => {
@@ -1414,14 +1484,20 @@ const Game = () => {
       playerJoinedToastShown.current.clear();
 
       // Cleanup audio objects
-      turnAudio.current.pause();
-      turnAudio.current.currentTime = 0;
-      matchFoundAudio.current.pause();
-      matchFoundAudio.current.currentTime = 0;
-      gameCompletionAudio.current.pause();
-      gameCompletionAudio.current.currentTime = 0;
-      powerUpAudio.current.pause();
-      powerUpAudio.current.currentTime = 0;
+      try {
+        turnAudio.current.pause();
+        turnAudio.current.currentTime = 0;
+        matchFoundAudio.current.pause();
+        matchFoundAudio.current.currentTime = 0;
+        gameCompletionAudio.current.pause();
+        gameCompletionAudio.current.currentTime = 0;
+        powerUpAudio.current.pause();
+        powerUpAudio.current.currentTime = 0;
+        flipCardAudio.current.pause();
+        flipCardAudio.current.currentTime = 0;
+      } catch (error) {
+        console.error("Error cleaning up audio:", error);
+      }
 
       socket.off("game-state", handleGameState);
       socket.off("game-started", handleGameStarted);
@@ -1513,6 +1589,9 @@ const Game = () => {
 
     // Add card to selected cards
     setSelectedCards((prev) => [...prev, cardId]);
+
+    // Play flip card notification sound
+    playFlipCardNotification();
 
     // Emit flip card event
     socket.emit("flip-card", { cardId });
@@ -2048,7 +2127,14 @@ const Game = () => {
                 )}
               </div>
             ) : cards.length > 0 ? (
-              <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700'>
+              <div
+                className={`rounded-xl shadow-lg p-2 sm:p-3 md:p-4 border transition-all duration-500 ${
+                  currentTurn === user?.id &&
+                  (gameStatus === "playing" || gameStatus === "sudden-death")
+                    ? "bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/30 dark:to-emerald-900/30 border-green-300 dark:border-green-600 shadow-green-200 dark:shadow-green-900/20"
+                    : "bg-gradient-to-tr from-red-200 to-red-300 dark:from-red-400/40 dark:to-red-800/80 border-red-500 dark:border-red-300"
+                }`}
+              >
                 <div className='flex items-center justify-between mb-6'>
                   <h3 className='text-xl font-semibold text-gray-900 dark:text-white'>
                     {gameStatus === "sudden-death"
@@ -2086,11 +2172,11 @@ const Game = () => {
                     </div>
                   )}
                 </div>
-                <div className='grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3 sm:gap-4 relative'>
+                <div className='grid grid-cols-6 sm:grid-cols-6 md:grid-cols-8 gap-0.5 sm:gap-1 md:gap-2 lg:gap-3 relative'>
                   {cards.map((card) => (
                     <motion.div
                       key={`card-${card.id}`}
-                      className={`w-16 h-24 sm:w-20 sm:h-28 md:w-24 md:h-32 rounded-lg cursor-pointer relative ${
+                      className={`w-10 h-14 sm:w-16 sm:h-20 md:w-20 md:h-24 lg:w-24 lg:h-32 rounded-lg cursor-pointer relative aspect-[3/4] ${
                         card.isMatched ? "cursor-default" : "hover:scale-105"
                       }`}
                       animate={
@@ -2171,8 +2257,8 @@ const Game = () => {
                       >
                         {/* Card Back Content */}
                         <div className='flex flex-col items-center justify-center'>
-                          <div className='w-12 h-8 bg-white dark:bg-gray-200 rounded-lg flex items-center justify-center mb-1 shadow-sm'>
-                            <div className='text-xs font-bold text-yellow-600 dark:text-yellow-700'>
+                          <div className='w-6 h-4 sm:w-8 sm:h-6 md:w-10 md:h-8 lg:w-12 lg:h-9 bg-white dark:bg-gray-200 rounded-lg flex items-center justify-center mb-1 shadow-sm'>
+                            <div className='text-xs sm:text-sm font-bold text-yellow-600 dark:text-yellow-700'>
                               😄
                             </div>
                           </div>
@@ -2181,7 +2267,7 @@ const Game = () => {
 
                       {/* Card Front Side */}
                       <motion.div
-                        className={`absolute inset-0 rounded-lg flex items-center justify-center text-lg sm:text-xl md:text-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`}
+                        className={`absolute inset-0 rounded-lg flex items-center justify-center text-xs sm:text-sm md:text-lg lg:text-xl xl:text-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`}
                         animate={{
                           rotateY: card.isFlipped || card.isMatched ? 0 : -180,
                           scale: card.isFlipped || card.isMatched ? 1 : 1,
@@ -2352,9 +2438,9 @@ const Game = () => {
             )}
           </div>
 
-          {/* Chat Sidebar */}
-          <div className='lg:col-span-1'>
-            <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 h-full'>
+          {/* Chat Sidebar - Hidden on mobile, shown on desktop */}
+          <div className='hidden lg:block lg:col-span-1 max-h-[470px]'>
+            <div className='bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 h-full flex flex-col'>
               <div className='p-4 border-b border-gray-200 dark:border-gray-700'>
                 <div className='flex items-center justify-between'>
                   <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center'>
@@ -2392,9 +2478,13 @@ const Game = () => {
                 </div>
               )}
 
-              <div className={`${showChat ? "block" : "hidden"} lg:block`}>
+              <div
+                className={`${
+                  showChat ? "flex" : "hidden"
+                } lg:flex flex-col flex-1 min-h-0`}
+              >
                 {/* Chat Messages */}
-                <div className='h-64 overflow-y-auto p-4 space-y-3'>
+                <div className='flex-1 overflow-y-auto p-4 space-y-3 min-h-0'>
                   {chatMessages.length === 0 ? (
                     <div className='text-center py-8'>
                       <ChatBubbleLeftIcon className='h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-3' />
@@ -2442,8 +2532,8 @@ const Game = () => {
                   <div ref={chatEndRef} />
                 </div>
 
-                {/* Chat Input */}
-                <div className='p-4 border-t border-gray-200 dark:border-gray-700'>
+                {/* Chat Input - Now properly aligned to bottom */}
+                <div className='p-4 border-t border-gray-200 dark:border-gray-700 mt-auto'>
                   <form onSubmit={sendChatMessage} className='flex gap-2'>
                     <input
                       type='text'
@@ -2471,6 +2561,147 @@ const Game = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Floating Chat - Mobile Only */}
+      <div className='lg:hidden'>
+        {/* Floating Chat Button */}
+        <motion.div
+          className='fixed z-40 cursor-pointer'
+          style={{
+            left: `${floatingChatPosition.x}px`,
+            top: `${floatingChatPosition.y}px`,
+          }}
+          onMouseDown={handleChatDragStart}
+          onMouseMove={handleChatDrag}
+          onMouseUp={handleChatDragEnd}
+          onTouchStart={handleChatDragStart}
+          onTouchMove={handleChatDrag}
+          onTouchEnd={handleChatDragEnd}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+        >
+          <div className='relative' onClick={toggleFloatingChat}>
+            <div className='w-14 h-14 bg-blue-500 hover:bg-blue-600 rounded-full shadow-lg flex items-center justify-center'>
+              <ChatBubbleLeftIcon className='h-6 w-6 text-white' />
+            </div>
+            {unreadMessages > 0 && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className='absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-bold'
+              >
+                {unreadMessages > 9 ? "9+" : unreadMessages}
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Floating Chat Window */}
+        {showFloatingChat && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            className='fixed inset-8 z-50 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col h-[470px]   '
+          >
+            {/* Chat Header */}
+            <div className='p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between'>
+              <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center'>
+                <ChatBubbleLeftIcon className='h-5 w-5 mr-2' />
+                Chat
+              </h3>
+              <button
+                onClick={toggleFloatingChat}
+                className='p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700'
+              >
+                <svg
+                  className='h-5 w-5 text-gray-500'
+                  fill='none'
+                  viewBox='0 0 24 24'
+                  stroke='currentColor'
+                >
+                  <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    strokeWidth={2}
+                    d='M6 18L18 6M6 6l12 12'
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Chat Messages */}
+            <div className='flex-1 overflow-y-auto p-4 space-y-3'>
+              {chatMessages.length === 0 ? (
+                <div className='text-center py-8'>
+                  <ChatBubbleLeftIcon className='h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-3' />
+                  <p className='text-gray-500 dark:text-gray-400 text-sm'>
+                    No messages yet. Start the conversation!
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((message, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className={`flex flex-col ${
+                      message.userId === user?.id ? "items-end" : "items-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-xs px-3 py-2 rounded-lg text-sm ${
+                        message.type === "powerup"
+                          ? "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700"
+                          : message.userId === user?.id
+                          ? "bg-blue-500 text-white"
+                          : "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
+                      }`}
+                    >
+                      <p className='font-medium text-xs mb-1 opacity-80'>
+                        {message.username}
+                        {message.userId === user?.id && " (You)"}
+                      </p>
+                      <p
+                        className={
+                          message.type === "powerup" ? "font-semibold" : ""
+                        }
+                      >
+                        {message.message}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Chat Input */}
+            <div className='p-4 border-t border-gray-200 dark:border-gray-700'>
+              <form onSubmit={sendChatMessage} className='flex gap-2'>
+                <input
+                  type='text'
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder='Type a message...'
+                  className='flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all'
+                  maxLength={500}
+                />
+                <motion.button
+                  type='submit'
+                  disabled={!chatInput.trim()}
+                  className='px-3 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition-colors'
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <PaperAirplaneIcon className='h-4 w-4' />
+                </motion.button>
+              </form>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Game Results Modal */}

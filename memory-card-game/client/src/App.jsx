@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext.jsx";
 import { ThemeProvider } from "./contexts/ThemeContext.jsx";
@@ -27,6 +28,94 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import NotFound from "./pages/NotFound.jsx";
 import "./App.css";
 
+// Component to conditionally render Navbar
+function AppContent() {
+  const location = useLocation();
+  const isGamePage = location.pathname.startsWith("/game/");
+
+  return (
+    <div className='min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300'>
+      {!isGamePage && <Navbar />}
+      <main className='container mx-auto'>
+        <Routes>
+          {/* Public routes */}
+          <Route path='/' element={<Home />} />
+          <Route
+            path='/login'
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path='/register'
+            element={
+              <PublicRoute>
+                <Register />
+              </PublicRoute>
+            }
+          />
+          <Route path='/leaderboard' element={<Leaderboard />} />
+          {/* Protected routes */}
+          <Route
+            path='/dashboard'
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/lobby'
+            element={
+              <ProtectedRoute>
+                <Lobby />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/waiting/:roomId'
+            element={
+              <ProtectedRoute>
+                <WaitingArea />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/game/:roomId'
+            element={
+              <ProtectedRoute>
+                <Game />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/profile'
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/admin'
+            element={
+              <ProtectedRoute requireAdmin>
+                <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route path='*' element={<NotFound />} />
+        </Routes>
+      </main>
+
+      {/* Server Loading Popup */}
+      <ServerLoadingPopup />
+    </div>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -35,85 +124,7 @@ function App() {
           <AuthProvider>
             <SocketProvider>
               <ToastProvider>
-                <div className='min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300'>
-                  <Navbar />
-                  <main className='container mx-auto'>
-                    <Routes>
-                      {/* Public routes */}
-                      <Route path='/' element={<Home />} />
-                      <Route
-                        path='/login'
-                        element={
-                          <PublicRoute>
-                            <Login />
-                          </PublicRoute>
-                        }
-                      />
-                      <Route
-                        path='/register'
-                        element={
-                          <PublicRoute>
-                            <Register />
-                          </PublicRoute>
-                        }
-                      />
-                      <Route path='/leaderboard' element={<Leaderboard />} />
-                      {/* Protected routes */}
-                      <Route
-                        path='/dashboard'
-                        element={
-                          <ProtectedRoute>
-                            <Dashboard />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path='/lobby'
-                        element={
-                          <ProtectedRoute>
-                            <Lobby />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path='/waiting/:roomId'
-                        element={
-                          <ProtectedRoute>
-                            <WaitingArea />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path='/game/:roomId'
-                        element={
-                          <ProtectedRoute>
-                            <Game />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path='/profile'
-                        element={
-                          <ProtectedRoute>
-                            <Profile />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route
-                        path='/admin'
-                        element={
-                          <ProtectedRoute requireAdmin>
-                            <AdminDashboard />
-                          </ProtectedRoute>
-                        }
-                      />
-                      <Route path='*' element={<NotFound />} />
-                    </Routes>
-                  </main>
-
-                  {/* Server Loading Popup */}
-                  <ServerLoadingPopup />
-                </div>
+                <AppContent />
               </ToastProvider>
             </SocketProvider>
           </AuthProvider>

@@ -2267,7 +2267,7 @@ const Game = () => {
 
                       {/* Card Front Side */}
                       <motion.div
-                        className={`absolute inset-0 rounded-lg flex items-center justify-center text-xs sm:text-sm md:text-lg lg:text-xl xl:text-2xl bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`}
+                        className={`absolute inset-0 rounded-lg flex items-center justify-center text-lg sm:text-xl md:text-2xl lg:text-3xl xl:text-4xl bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`}
                         animate={{
                           rotateY: card.isFlipped || card.isMatched ? 0 : -180,
                           scale: card.isFlipped || card.isMatched ? 1 : 1,

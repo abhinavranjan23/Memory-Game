@@ -202,13 +202,8 @@ gameSchema.methods.removePlayer = function (userId) {
   // ✅ Only remove from active games
   this.players.splice(playerIndex, 1);
 
-  // If no players left, mark game as finished
-  if (this.players.length === 0) {
-    this.gameState.status = "finished";
-    this.status = "completed";
-    this.endedAt = new Date();
-    return true;
-  }
+  // 🔧 REMOVED: Don't automatically mark as completed when no players left
+  // Let the calling code decide whether to delete or mark as completed
 
   // If the removed player was the current turn, switch to next player
   if (this.gameState.currentTurn === userId) {

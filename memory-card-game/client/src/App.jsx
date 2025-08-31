@@ -26,6 +26,7 @@ import Profile from "./pages/Profile.jsx";
 import Leaderboard from "./pages/Leaderboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import CookieConsent from "./components/CookieConsent";
 import "./App.css";
 
 // Component to conditionally render Navbar
@@ -112,6 +113,9 @@ function AppContent() {
 
       {/* Server Loading Popup */}
       <ServerLoadingPopup />
+
+      {/* Cookie Consent */}
+      <CookieConsent />
     </div>
   );
 }

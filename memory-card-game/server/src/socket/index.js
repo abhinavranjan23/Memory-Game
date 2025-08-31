@@ -1008,10 +1008,14 @@ function initializeSocket(io) {
         }
       }
 
-      // Get opponents before removing the player
-      const opponents = gameBeforeUpdate.players
-        .filter((p) => p.userId !== socket.userId)
-        .map((opponent) => ({
+      // 🔧 FIX: Use the game model's removePlayer method instead of $pull
+      const game = await Game.findOne({ roomId });
+      if (game) {
+        // 🔧 BUG FIX: Emit player-left event BEFORE removing player from database
+        // This ensures the event is sent while the player is still in the room
+
+        // Get opponents BEFORE removal (including the leaving player)
+        const opponentsBeforeRemoval = game.players.map((opponent) => ({
           userId: opponent.userId,
           username: opponent.username,
           avatar: opponent.avatar,
@@ -1019,135 +1023,103 @@ function initializeSocket(io) {
           matches: opponent.matches || 0,
         }));
 
-      // Atomically pull the player from the room's players list
-      const updated = await Game.findOneAndUpdate(
-        { roomId },
-        {
-          $pull: { players: { userId: socket.userId } },
-          $set: { updatedAt: new Date() },
-        },
-        { new: true }
-      );
+        console.log(
+          `🔍 DEBUG: About to emit player-left event for room ${roomId}`
+        );
+        console.log(
+          `🔍 DEBUG: Player leaving: ${socket.username} (${socket.userId})`
+        );
+        console.log(`🔍 DEBUG: Players before removal: ${game.players.length}`);
+        console.log(
+          `🔍 DEBUG: Players before removal:`,
+          game.players.map((p) => p.username)
+        );
 
-      if (updated) {
-        // Emit player left event with opponent information
-        io.to(roomId).emit("player-left", {
-          userId: socket.userId,
-          username: socket.username,
-          remainingPlayers: updated.players.length,
-          opponents: opponents,
-          gameStatus: updated.gameState?.status || updated.status,
-        });
-
-        // If game was starting and now lacks required players, revert to waiting and clear readiness
-        if (
-          updated.gameState.status === "starting" &&
-          updated.players.length < updated.settings.maxPlayers
-        ) {
-          try {
-            await Game.findOneAndUpdate(
-              { roomId, "gameState.status": "starting" },
-              {
-                $set: {
-                  "gameState.status": "waiting",
-                  "players.$[].isReady": false,
-                },
-              }
-            );
-          } catch (error) {
-            console.error(
-              "Error updating game status after player left:",
-              error
-            );
-          }
+        // Check if the socket is still in the room
+        const roomClients = io.sockets.adapter.rooms.get(roomId);
+        if (roomClients) {
+          console.log(
+            `🔍 DEBUG: Room ${roomId} has ${roomClients.size} connected clients`
+          );
+          console.log(`🔍 DEBUG: Connected clients:`, Array.from(roomClients));
+        } else {
+          console.log(`🔍 DEBUG: Room ${roomId} has no connected clients!`);
         }
 
-        // Check if the game was completed (regardless of player count)
-        if (
-          updated.gameState?.status === "finished" ||
-          updated.status === "completed"
-        ) {
-          console.log(
-            `Game ${roomId} was completed - keeping for 10-day retention period`
-          );
+        // Emit player left event BEFORE removing player from database
+        const playerLeftData = {
+          userId: socket.userId,
+          username: socket.username,
+          remainingPlayers: game.players.length - 1, // Will be remaining after removal
+          opponents: opponentsBeforeRemoval.filter(
+            (p) => p.userId !== socket.userId
+          ), // Exclude leaving player
+          gameStatus: game.gameState?.status || game.status,
+        };
 
-          // Clean up game engine but keep the game in database for 10 days
-          const gameEngine = activeGames.get(roomId);
-          if (gameEngine) {
-            gameEngine.cleanup();
-            activeGames.delete(roomId);
-            console.log(`Cleaned up game engine for completed game ${roomId}`);
+        // Primary emission to room
+        io.to(roomId).emit("player-left", playerLeftData);
+
+        // 🔧 BUG FIX: Also emit to individual players as fallback
+        // This ensures all remaining players receive the event even if room emission fails
+        const remainingPlayerIds = game.players
+          .filter((p) => p.userId !== socket.userId)
+          .map((p) => p.userId);
+
+        console.log(
+          `🔍 DEBUG: Emitting to individual players as fallback:`,
+          remainingPlayerIds
+        );
+
+        remainingPlayerIds.forEach((playerId) => {
+          const playerSocket = userSockets.get(playerId);
+          if (playerSocket) {
+            console.log(
+              `🔍 DEBUG: Emitting player-left to individual player ${playerId}`
+            );
+            playerSocket.emit("player-left", playerLeftData);
+          } else {
+            console.log(`🔍 DEBUG: No socket found for player ${playerId}`);
           }
+        });
 
-          // Don't delete the game - let the scheduled cleanup handle it after 10 days
-          // This ensures match history is preserved and 10-day retention policy is followed
-        } else if (updated.players.length === 0) {
-          // Delete empty games that weren't completed
-          try {
-            await Game.deleteOne({ _id: updated._id });
-            console.log(`Deleted empty game ${roomId}`);
+        console.log(
+          `🔍 DEBUG: Player-left event emitted to room ${roomId} and individual players`
+        );
 
-            // Clean up game engine
+        // Now remove the player from database
+        const playerRemoved = game.removePlayer(socket.userId);
+
+        if (playerRemoved) {
+          await game.save();
+
+          // 🔧 NEW: Handle game deletion when last player leaves
+          if (game.players.length === 0) {
+            console.log(
+              `Last player left game ${roomId} - deleting from database`
+            );
+
+            // Clean up game engine first
             const gameEngine = activeGames.get(roomId);
             if (gameEngine) {
               gameEngine.cleanup();
               activeGames.delete(roomId);
+              console.log(`Cleaned up game engine for deleted game ${roomId}`);
             }
 
-            // Broadcast room deletion to all clients
-            io.emit("room-deleted", roomId);
-          } catch (error) {
-            console.error("Error deleting empty game:", error);
-          }
-        } else {
-          // Check if the remaining players can continue the game
-          const remainingPlayers = updated.players.length;
-          const maxPlayers = updated.settings.maxPlayers;
-          const gameStatus = updated.gameState.status;
-
-          // If game is in waiting/starting phase and not enough players, delete the game
-          if (
-            (gameStatus === "waiting" || gameStatus === "starting") &&
-            remainingPlayers < 2
-          ) {
-            console.log(
-              `Game ${roomId} has insufficient players (${remainingPlayers}) for waiting/starting phase - deleting`
-            );
+            // Delete the game from database
             try {
-              await Game.deleteOne({ _id: updated._id });
-
-              // Clean up game engine
-              const gameEngine = activeGames.get(roomId);
-              if (gameEngine) {
-                gameEngine.cleanup();
-                activeGames.delete(roomId);
-              }
+              await Game.findByIdAndDelete(game._id);
+              console.log(`Successfully deleted game ${roomId} from database`);
 
               // Broadcast room deletion to all clients
               io.emit("room-deleted", roomId);
             } catch (error) {
               console.error(
-                "Error deleting game with insufficient players:",
+                `Error deleting game ${roomId} from database:`,
                 error
               );
             }
-          } else if (gameStatus === "playing" && remainingPlayers === 1) {
-            // If game is playing and only one player remains, the game engine should have already handled this
-            // The handlePlayerDisconnect call at the beginning of this function should have taken care of this scenario
-            console.log(
-              `Only one player remaining in game ${roomId} - game engine should have already handled this`
-            );
-          } else {
-            // Game continues with remaining players
-            console.log(
-              `Game ${roomId} continues with ${remainingPlayers} players`
-            );
-
-            // Update game state for remaining players
-            io.to(roomId).emit("game-state", {
-              players: updated.players,
-              gameState: updated.gameState,
-            });
           }
         }
       }

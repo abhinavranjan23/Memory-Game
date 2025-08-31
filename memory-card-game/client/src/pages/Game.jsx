@@ -1362,21 +1362,7 @@ const Game = () => {
       playerLeftToastShown.current.clear();
       playerJoinedToastShown.current.clear();
 
-      // Cleanup audio objects
-      try {
-        turnAudio.current.pause();
-        turnAudio.current.currentTime = 0;
-        matchFoundAudio.current.pause();
-        matchFoundAudio.current.currentTime = 0;
-        gameCompletionAudio.current.pause();
-        gameCompletionAudio.current.currentTime = 0;
-        powerUpAudio.current.pause();
-        powerUpAudio.current.currentTime = 0;
-        flipCardAudio.current.pause();
-        flipCardAudio.current.currentTime = 0;
-      } catch (error) {
-        console.error("Error cleaning up audio:", error);
-      }
+      // Audio cleanup is now handled by the useAudio hook
 
       socket.off("game-state", handleGameState);
       socket.off("game-started", handleGameStarted);

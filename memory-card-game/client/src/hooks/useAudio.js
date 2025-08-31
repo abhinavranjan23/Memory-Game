@@ -24,6 +24,8 @@ export const useAudio = () => {
   useEffect(() => {
     const initializeAudio = async () => {
       try {
+        console.log("Initializing audio with URLs:", audioUrls);
+
         // Create audio objects with proper error handling
         Object.keys(audioUrls).forEach((key) => {
           const audio = new Audio();
@@ -34,7 +36,7 @@ export const useAudio = () => {
 
           // Handle load events
           audio.addEventListener("loadstart", () => {
-            console.log(`Loading audio: ${key} from ${audioUrls[key]}`);
+            console.log(`Loading audio: ${key} from ${audio.src}`);
           });
 
           audio.addEventListener("canplaythrough", () => {
@@ -46,10 +48,26 @@ export const useAudio = () => {
             console.error(`Audio src: ${audio.src}`);
             console.error(`Audio error code: ${audio.error?.code}`);
             console.error(`Audio error message: ${audio.error?.message}`);
+
+            // If the URL got corrupted, restore the original
+            if (audio._originalSrc && audio.src !== audio._originalSrc) {
+              console.log(
+                `Restoring original URL for ${key}: ${audio._originalSrc}`
+              );
+              audio.src = audio._originalSrc;
+            }
           });
 
-          // Set the source
-          audio.src = audioUrls[key];
+          // Set the source with absolute URL to ensure it works
+          const baseUrl = window.location.origin;
+          const fullUrl = `${baseUrl}${audioUrls[key]}`;
+          console.log(`Setting audio src for ${key}: ${fullUrl}`);
+
+          // Set the source and protect it from being changed
+          audio.src = fullUrl;
+
+          // Store the original URL to restore if needed
+          audio._originalSrc = fullUrl;
 
           // Store the audio object
           audioRefs.current[key] = audio;
@@ -75,27 +93,54 @@ export const useAudio = () => {
   const playAudio = (audioKey) => {
     try {
       const audio = audioRefs.current[audioKey];
+
+      // Check if the URL got corrupted and restore it
+      if (audio && audio._originalSrc && audio.src !== audio._originalSrc) {
+        console.log(
+          `URL corrupted for ${audioKey}, restoring: ${audio._originalSrc}`
+        );
+        audio.src = audio._originalSrc;
+      }
+
+      console.log(`Attempting to play ${audioKey} audio:`, {
+        audio: !!audio,
+        readyState: audio?.readyState,
+        src: audio?.src,
+        paused: audio?.paused,
+        currentTime: audio?.currentTime,
+      });
+
       if (audio && audio.readyState >= 2) {
         // HAVE_CURRENT_DATA or higher
         // Reset and play
         audio.currentTime = 0;
-        audio.play().catch((error) => {
-          console.error(`Error playing ${audioKey} audio:`, error);
-          // Retry once after a short delay
-          setTimeout(() => {
-            try {
-              audio.currentTime = 0;
-              audio.play().catch((retryError) => {
-                console.error(
-                  `Retry failed for ${audioKey} audio:`,
-                  retryError
-                );
-              });
-            } catch (retryError) {
-              console.error(`Retry error for ${audioKey} audio:`, retryError);
-            }
-          }, 100);
-        });
+        audio
+          .play()
+          .then(() => {
+            console.log(`Successfully started playing ${audioKey} audio`);
+          })
+          .catch((error) => {
+            console.error(`Error playing ${audioKey} audio:`, error);
+            // Retry once after a short delay
+            setTimeout(() => {
+              try {
+                audio.currentTime = 0;
+                audio
+                  .play()
+                  .then(() => {
+                    console.log(`Retry successful for ${audioKey} audio`);
+                  })
+                  .catch((retryError) => {
+                    console.error(
+                      `Retry failed for ${audioKey} audio:`,
+                      retryError
+                    );
+                  });
+              } catch (retryError) {
+                console.error(`Retry error for ${audioKey} audio:`, retryError);
+              }
+            }, 100);
+          });
       } else {
         console.warn(
           `Audio ${audioKey} not ready yet, readyState: ${audio?.readyState}`

@@ -31,6 +31,8 @@ const AuthProvider = ({ children }) => {
       const savedToken = localStorage.getItem("token");
       const savedRefreshToken = localStorage.getItem("refreshToken");
 
+      // Only restore tokens if they exist and we don't already have them
+      // This prevents auto-restoration after logout
       if (savedToken && !token) {
         setToken(savedToken);
       }
@@ -260,9 +262,19 @@ const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
+      // Clear tokens and user state
       setToken(null);
       setRefreshToken(null);
       setUser(null);
+
+      // Clear localStorage immediately to prevent auto-restoration
+      if (canStore("essential")) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+      }
+
+      // Clear axios headers
+      delete axios.defaults.headers.common["Authorization"];
     }
   };
 

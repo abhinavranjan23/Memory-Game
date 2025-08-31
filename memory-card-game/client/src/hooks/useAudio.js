@@ -1,21 +1,21 @@
 import { useRef, useEffect } from "react";
 
-// Import audio files as modules for better Vite compatibility
-import turnAudio from "../assets/audio/turn-notification.wav";
-import matchFoundAudio from "../assets/audio/match-found-notification.wav";
-import gameCompletionAudio from "../assets/audio/game-completion-notification.wav";
-import powerUpAudio from "../assets/audio/power-up-notification.wav";
-import flipCardAudio from "../assets/audio/flipcard-sound.mp3";
-import messageAudio from "../assets/audio/message-notification.mp3";
-
-// Audio file URLs - now using imported module URLs
+// Import audio files using Vite's new URL() syntax for proper asset resolution
 const audioUrls = {
-  turn: turnAudio,
-  matchFound: matchFoundAudio,
-  gameCompletion: gameCompletionAudio,
-  powerUp: powerUpAudio,
-  flipCard: flipCardAudio,
-  message: messageAudio,
+  turn: new URL("../assets/audio/turn-notification.wav", import.meta.url).href,
+  matchFound: new URL(
+    "../assets/audio/match-found-notification.wav",
+    import.meta.url
+  ).href,
+  gameCompletion: new URL(
+    "../assets/audio/game-completion-notification.wav",
+    import.meta.url
+  ).href,
+  powerUp: new URL("../assets/audio/power-up-notification.wav", import.meta.url)
+    .href,
+  flipCard: new URL("../assets/audio/flipcard-sound.mp3", import.meta.url).href,
+  message: new URL("../assets/audio/message-notification.mp3", import.meta.url)
+    .href,
 };
 
 export const useAudio = () => {
@@ -56,11 +56,22 @@ export const useAudio = () => {
             console.error(`Audio src: ${audio.src}`);
             console.error(`Audio error code: ${audio.error?.code}`);
             console.error(`Audio error message: ${audio.error?.message}`);
+
+            // If the URL got corrupted, restore the original
+            if (audio._originalSrc && audio.src !== audio._originalSrc) {
+              console.log(
+                `Restoring original URL for ${key}: ${audio._originalSrc}`
+              );
+              audio.src = audio._originalSrc;
+            }
           });
 
           // Set the source using the imported module URL
           console.log(`Setting audio src for ${key}: ${audioUrls[key]}`);
           audio.src = audioUrls[key];
+
+          // Store the original URL to protect against corruption
+          audio._originalSrc = audioUrls[key];
 
           // Store the audio object
           audioRefs.current[key] = audio;
@@ -87,6 +98,14 @@ export const useAudio = () => {
     try {
       const audio = audioRefs.current[audioKey];
 
+      // Check if the URL got corrupted and restore it
+      if (audio && audio._originalSrc && audio.src !== audio._originalSrc) {
+        console.log(
+          `URL corrupted for ${audioKey}, restoring: ${audio._originalSrc}`
+        );
+        audio.src = audio._originalSrc;
+      }
+
       console.log(`Attempting to play ${audioKey} audio:`, {
         audio: !!audio,
         readyState: audio?.readyState,
@@ -106,6 +125,12 @@ export const useAudio = () => {
           })
           .catch((error) => {
             console.error(`Error playing ${audioKey} audio:`, error);
+            console.error(`Audio details:`, {
+              src: audio.src,
+              readyState: audio.readyState,
+              error: audio.error,
+            });
+
             // Retry once after a short delay
             setTimeout(() => {
               try {
@@ -120,6 +145,13 @@ export const useAudio = () => {
                       `Retry failed for ${audioKey} audio:`,
                       retryError
                     );
+                    // Log additional details for debugging
+                    console.error(`Final audio state:`, {
+                      src: audio.src,
+                      readyState: audio.readyState,
+                      error: audio.error,
+                      networkState: audio.networkState,
+                    });
                   });
               } catch (retryError) {
                 console.error(`Retry error for ${audioKey} audio:`, retryError);
@@ -133,6 +165,7 @@ export const useAudio = () => {
         // Try to load the audio if it's not ready
         if (audio && audio.readyState === 0) {
           // HAVE_NOTHING
+          console.log(`Attempting to load audio ${audioKey}...`);
           audio.load();
         }
       }

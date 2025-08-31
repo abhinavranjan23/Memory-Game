@@ -324,9 +324,23 @@ const Game = () => {
         );
       }
 
-      // Don't override game status if game is already completed or in sudden death
+      // Don't override game status if game is already completed, in sudden death, or if we're in a transitional state
       if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
-        setGameStatus(data.gameState?.status || "waiting");
+        const newStatus = data.gameState?.status || "waiting";
+
+        // Don't set status to "waiting" if we're currently playing and have players
+        // This prevents race conditions during player disconnect scenarios
+        if (
+          newStatus === "waiting" &&
+          gameStatus === "playing" &&
+          data.players?.length > 0
+        ) {
+          console.log(
+            "Ignoring game-state status change to 'waiting' while game is playing with players"
+          );
+        } else {
+          setGameStatus(newStatus);
+        }
       }
       setTimeLeft(data.gameState?.timeLeft || 0);
 
@@ -455,19 +469,18 @@ const Game = () => {
           (p) => p.userId !== data.userId
         );
 
-        // If less than 2 players remain, handle game end
+        // If less than 2 players remain, let the server handle game completion
         if (
           updatedPlayers.length < 2 &&
           gameStatus === "playing" &&
           !gamePausedForCurrentState.current
         ) {
           console.log(
-            "Not enough players to continue game - showing pause toast from player left"
+            "Not enough players to continue game - server will handle game completion"
           );
-          // Don't override game status if game is already completed or in sudden death
-          if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
-            setGameStatus("waiting");
-          }
+
+          // Don't set game status to waiting - let server handle completion
+          // The server should emit game-over event when only one player remains
 
           gamePausedForCurrentState.current = true;
           gamePausedToastShown.current = true;
@@ -480,12 +493,12 @@ const Game = () => {
             }, 5000)
           );
 
-          // If current user is the only one left, show appropriate message
+          // Show temporary message while server processes game completion
           if (
             updatedPlayers.length === 1 &&
             updatedPlayers[0].userId === user?.id
           ) {
-            addToast("You are the only player left. The Game is over!", "info");
+            addToast("Processing game completion...", "info");
           }
         }
 

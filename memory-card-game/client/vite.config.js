@@ -20,7 +20,7 @@ export default defineConfig({
           const info = assetInfo.name.split(".");
           const ext = info[info.length - 1];
           if (/\.(wav|mp3)$/.test(assetInfo.name)) {
-            return `assets/audio/[name]-[hash].[ext]`;
+            return `audio/[name].[ext]`;
           }
           return `assets/[name]-[hash].[ext]`;
         },

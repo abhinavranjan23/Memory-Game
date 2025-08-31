@@ -1,20 +1,13 @@
 import { useRef, useEffect } from "react";
 
-// Audio file paths - use base URL to ensure proper loading in production
-const getAudioUrl = (filename) => {
-  // In development, use relative path
-  // In production, use absolute path from the domain root
-  const baseUrl = import.meta.env.DEV ? "" : window.location.origin;
-  return `${baseUrl}/audio/${filename}`;
-};
-
+// Audio file paths - use simple relative paths that work in both dev and production
 const audioUrls = {
-  turn: getAudioUrl("turn-notification.wav"),
-  matchFound: getAudioUrl("match-found-notification.wav"),
-  gameCompletion: getAudioUrl("game-completion-notification.wav"),
-  powerUp: getAudioUrl("power-up-notification.wav"),
-  flipCard: getAudioUrl("flipcard-sound.mp3"),
-  message: getAudioUrl("message-notification.mp3"),
+  turn: "/audio/turn-notification.wav",
+  matchFound: "/audio/match-found-notification.wav",
+  gameCompletion: "/audio/game-completion-notification.wav",
+  powerUp: "/audio/power-up-notification.wav",
+  flipCard: "/audio/flipcard-sound.mp3",
+  message: "/audio/message-notification.mp3",
 };
 
 export const useAudio = () => {
@@ -53,14 +46,6 @@ export const useAudio = () => {
             console.error(`Audio src: ${audio.src}`);
             console.error(`Audio error code: ${audio.error?.code}`);
             console.error(`Audio error message: ${audio.error?.message}`);
-
-            // Try alternative paths for production
-            if (audio.error?.code === 4) {
-              // NETWORK_ERR
-              console.log(`Trying alternative path for ${key}`);
-              const alternativePath = audio.src.replace("/audio/", "./audio/");
-              audio.src = alternativePath;
-            }
           });
 
           // Set the source

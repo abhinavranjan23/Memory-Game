@@ -1,22 +1,47 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useCookieConsent } from "../hooks/useCookieConsent";
 
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
+  const { canStore, hasConsent } = useCookieConsent();
+
   const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem('theme');
-    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    // Always try to read from localStorage first
+    const saved = localStorage.getItem("theme");
+    if (saved) {
+      return saved === "dark";
+    }
+    // Fall back to system preference if no saved theme
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
+
+  // Update theme when consent changes
+  useEffect(() => {
+    if (hasConsent) {
+      // If user has given consent, read from localStorage
+      const saved = localStorage.getItem("theme");
+      if (saved) {
+        setIsDark(saved === "dark");
+      }
+    }
+  }, [hasConsent]);
 
   useEffect(() => {
     if (isDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      document.documentElement.classList.add("dark");
+      // Only save to localStorage if user has given consent for preferences
+      if (canStore("preferences")) {
+        localStorage.setItem("theme", "dark");
+      }
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      document.documentElement.classList.remove("dark");
+      // Only save to localStorage if user has given consent for preferences
+      if (canStore("preferences")) {
+        localStorage.setItem("theme", "light");
+      }
     }
-  }, [isDark]);
+  }, [isDark, canStore]);
 
   const toggleTheme = () => setIsDark(!isDark);
 
@@ -30,7 +55,7 @@ export const ThemeProvider = ({ children }) => {
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    throw new Error("useTheme must be used within a ThemeProvider");
   }
   return context;
 };

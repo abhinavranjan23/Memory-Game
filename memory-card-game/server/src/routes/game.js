@@ -298,14 +298,17 @@ router.post("/leave/:roomId", auth, async (req, res) => {
       game.hostId = game.players[0].userId;
     }
 
-    // If no players left, mark the game as completed instead of deleting
+    // If no players left, delete the game instead of marking as completed
     if (game.players.length === 0) {
-      game.gameState.status = "finished";
-      game.status = "completed";
-      game.endedAt = new Date();
-      await game.save();
+      console.log(
+        `Last player left game ${roomId} via API - deleting from database`
+      );
+
+      // Delete the game from database
+      await Game.findByIdAndDelete(game._id);
+
       return res.status(200).json({
-        message: "Left game successfully",
+        message: "Left game successfully - game deleted",
         gameDeleted: true,
       });
     }

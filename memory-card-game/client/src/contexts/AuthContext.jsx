@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
+import { useCookieConsent } from "../hooks/useCookieConsent";
 
 const AuthContext = createContext();
 
@@ -9,33 +10,65 @@ const API_BASE_URL =
 // Setup axios defaults
 axios.defaults.baseURL = API_BASE_URL;
 
-export const AuthProvider = ({ children }) => {
+const AuthProvider = ({ children }) => {
+  const { canStore, hasConsent } = useCookieConsent();
+
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token"));
-  const [refreshToken, setRefreshToken] = useState(
-    localStorage.getItem("refreshToken")
-  );
+  const [token, setToken] = useState(() => {
+    // Always try to read from localStorage first
+    return localStorage.getItem("token");
+  });
+  const [refreshToken, setRefreshToken] = useState(() => {
+    // Always try to read from localStorage first
+    return localStorage.getItem("refreshToken");
+  });
   const [loading, setLoading] = useState(true);
+
+  // Update tokens when consent changes
+  useEffect(() => {
+    if (hasConsent) {
+      // If user has given consent, read from localStorage
+      const savedToken = localStorage.getItem("token");
+      const savedRefreshToken = localStorage.getItem("refreshToken");
+
+      if (savedToken && !token) {
+        setToken(savedToken);
+      }
+      if (savedRefreshToken && !refreshToken) {
+        setRefreshToken(savedRefreshToken);
+      }
+    }
+  }, [hasConsent, token, refreshToken]);
 
   // Set auth header when token changes
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      localStorage.setItem("token", token);
+      // Only save to localStorage if user has given consent for essential cookies
+      if (canStore("essential")) {
+        localStorage.setItem("token", token);
+      }
     } else {
       delete axios.defaults.headers.common["Authorization"];
-      localStorage.removeItem("token");
+      if (canStore("essential")) {
+        localStorage.removeItem("token");
+      }
     }
-  }, [token]);
+  }, [token, canStore]);
 
   // Store refresh token when it changes
   useEffect(() => {
     if (refreshToken) {
-      localStorage.setItem("refreshToken", refreshToken);
+      // Only save to localStorage if user has given consent for essential cookies
+      if (canStore("essential")) {
+        localStorage.setItem("refreshToken", refreshToken);
+      }
     } else {
-      localStorage.removeItem("refreshToken");
+      if (canStore("essential")) {
+        localStorage.removeItem("refreshToken");
+      }
     }
-  }, [refreshToken]);
+  }, [refreshToken, canStore]);
 
   // Ensure token is properly set before allowing API calls
   const ensureTokenSet = async () => {
@@ -260,10 +293,15 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-export const useAuth = () => {
+// Export both the provider and hook
+export { AuthProvider };
+
+const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
+
+export { useAuth };

@@ -86,14 +86,29 @@ class GameEngine {
 
         console.log(`Saving game state for room ${this.roomId}:`, {
           status: this.game.gameState.status,
-          matchedPairs: this.game.gameState.board.filter((c) => c.isMatched)
+          matchedCards: this.game.gameState.board.filter((c) => c.isMatched)
             .length,
+          matchedPairsArray: this.game.gameState.matchedPairs.length,
+          flippedCardsArray: this.game.gameState.flippedCards.length,
           totalCards: this.game.gameState.board.length,
           players: this.game.players.length,
         });
 
         await this.game.save();
         console.log(`Game saved successfully for room ${this.roomId}`);
+
+        // Verify the saved state by fetching from database
+        const savedGame = await Game.findOne({ roomId: this.roomId });
+        if (savedGame) {
+          console.log(`Database verification for room ${this.roomId}:`, {
+            savedFlippedCards: savedGame.gameState.flippedCards,
+            savedMatchedPairs: savedGame.gameState.matchedPairs,
+            savedMatchedCards: savedGame.gameState.board.filter(
+              (c) => c.isMatched
+            ).length,
+            totalCards: savedGame.gameState.board.length,
+          });
+        }
       }
     } catch (error) {
       console.error(`Error saving game for room ${this.roomId}:`, error);
@@ -392,6 +407,15 @@ class GameEngine {
       currentPlayer.flips += 1;
       currentPlayer.lastFlipTime = new Date();
 
+      // Update flippedCards array in game state
+      if (!this.game.gameState.flippedCards.includes(card.id)) {
+        this.game.gameState.flippedCards.push(card.id);
+        console.log(
+          `Added card ${card.id} to flippedCards array. Current flipped cards:`,
+          this.game.gameState.flippedCards
+        );
+      }
+
       // Update activity
       this.game.gameState.lastActivity = new Date();
       this.game.updatedAt = new Date(); // Update the main updatedAt field
@@ -487,6 +511,29 @@ class GameEngine {
         card2.isMatched = true;
         card1.isFlipped = true;
         card2.isFlipped = true;
+
+        // Update matchedPairs array in game state
+        if (!this.game.gameState.matchedPairs.includes(card1.id)) {
+          this.game.gameState.matchedPairs.push(card1.id);
+        }
+        if (!this.game.gameState.matchedPairs.includes(card2.id)) {
+          this.game.gameState.matchedPairs.push(card2.id);
+        }
+
+        // Remove cards from flippedCards array since they're now matched
+        this.game.gameState.flippedCards =
+          this.game.gameState.flippedCards.filter(
+            (id) => id !== card1.id && id !== card2.id
+          );
+
+        console.log(
+          `Cards ${card1.id} and ${card2.id} matched. Updated matchedPairs:`,
+          this.game.gameState.matchedPairs
+        );
+        console.log(
+          `Removed matched cards from flippedCards. Current flipped cards:`,
+          this.game.gameState.flippedCards
+        );
 
         // Update current player's stats
         currentPlayer.matches += 1;
@@ -606,6 +653,17 @@ class GameEngine {
         // Set cards back to not flipped in the game state
         card1.isFlipped = false;
         card2.isFlipped = false;
+
+        // Remove cards from flippedCards array since they're flipped back
+        this.game.gameState.flippedCards =
+          this.game.gameState.flippedCards.filter(
+            (id) => id !== card1.id && id !== card2.id
+          );
+
+        console.log(
+          `Cards ${card1.id} and ${card2.id} flipped back. Updated flippedCards:`,
+          this.game.gameState.flippedCards
+        );
 
         // Emit cards flipped back event
         this.io.to(this.roomId).emit("cards-flipped-back", {
@@ -1761,9 +1819,6 @@ class GameEngine {
       console.log(
         `Player ${player.username} disconnected from room ${this.roomId}`
       );
-      console.log(
-        `Current players in game engine: ${this.game.players.length}`
-      );
 
       // Store opponent information before removing player
       const disconnectedPlayer = {
@@ -1818,35 +1873,20 @@ class GameEngine {
 
       // Determine if game should continue or end based on remaining players
       const remainingPlayers = this.game.players.length;
-      const maxPlayers = this.game.settings.maxPlayers;
-
-      console.log(
-        `Game logic: ${remainingPlayers} remaining players, max: ${maxPlayers}`
-      );
 
       if (remainingPlayers === 0) {
-        // No players left - end game with no winners
-        console.log("No players remaining, ending game with no winners");
-        await this.endGame("all_players_left");
+        // 🔧 NEW: No players left - game will be deleted by handleLeaveRoom
+        console.log(
+          "No players remaining - game will be deleted by handleLeaveRoom"
+        );
+        // Don't call endGame here as the game will be deleted
       } else if (remainingPlayers === 1) {
         // Only one player left - they are the winner
         console.log("Only one player remaining, making them the winner");
-        console.log(
-          `Remaining player: ${this.game.players[0].username} (${this.game.players[0].userId})`
-        );
-
-        // Opponent info already stored above, no need to duplicate
-
-        console.log("About to call endGame with reason: last_player_winner");
         await this.endGame("last_player_winner");
-        console.log("endGame call completed");
       } else if (remainingPlayers >= 2) {
         // 2 or more players remaining - continue the game
         console.log("2+ players remaining, continuing the game");
-
-        // Opponent info already stored above, no need to duplicate
-
-        // Game continues, save the updated state
         await this.protectedSave();
       }
     } catch (error) {
@@ -1854,13 +1894,6 @@ class GameEngine {
         `Error handling player disconnect for user ${userId}:`,
         error
       );
-      // If game document not found, clean up the game engine
-      if (error.name === "DocumentNotFoundError") {
-        console.log(
-          `Game document not found for room ${this.roomId}, cleaning up game engine`
-        );
-        this.cleanup();
-      }
     }
   }
 

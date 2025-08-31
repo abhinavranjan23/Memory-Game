@@ -17,11 +17,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         assetFileNames: (assetInfo) => {
-          const info = assetInfo.name.split(".");
-          const ext = info[info.length - 1];
-          if (/\.(wav|mp3)$/.test(assetInfo.name)) {
-            return `audio/[name].[ext]`;
-          }
+          // Let Vite handle audio files with default asset naming
+          // This ensures proper module resolution and caching
           return `assets/[name]-[hash].[ext]`;
         },
       },

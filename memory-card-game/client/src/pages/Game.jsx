@@ -2234,10 +2234,16 @@ const Game = () => {
                       <motion.div
                         className={`absolute inset-0 rounded-lg flex items-center justify-center text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300`}
                         animate={{
-                          rotateY: card.isFlipped || card.isMatched ? 0 : -180,
-                          scale: card.isFlipped || card.isMatched ? 1 : 1,
+                          rotateY:
+                            card.isFlipped || card.isMatched || card.isRevealed
+                              ? 0
+                              : -180,
+                          scale:
+                            card.isFlipped || card.isMatched || card.isRevealed
+                              ? 1
+                              : 1,
                           boxShadow:
-                            card.isFlipped || card.isMatched
+                            card.isFlipped || card.isMatched || card.isRevealed
                               ? "0 8px 25px rgba(0, 0, 0, 0.3), 0 4px 10px rgba(0, 0, 0, 0.2)"
                               : "0 4px 15px rgba(0, 0, 0, 0.2), 0 2px 5px rgba(0, 0, 0, 0.1)",
                         }}
@@ -2248,7 +2254,9 @@ const Game = () => {
                         style={{
                           backfaceVisibility: "hidden",
                           transformOrigin: "center center",
-                          transform: "rotateY(-180deg)",
+                          transform: card.isRevealed
+                            ? "rotateY(0deg)"
+                            : "rotateY(-180deg)",
                         }}
                       >
                         {/* Card Front Content */}

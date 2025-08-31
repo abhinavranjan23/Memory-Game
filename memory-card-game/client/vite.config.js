@@ -27,4 +27,8 @@ export default defineConfig({
       },
     },
   },
+  // Ensure public assets are copied correctly
+  publicDir: "public",
+  // Add base URL for production
+  base: "/",
 });

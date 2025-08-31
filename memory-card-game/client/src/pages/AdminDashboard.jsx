@@ -100,15 +100,16 @@ const AdminDashboard = () => {
   }, []);
 
   return (
-    <div className='max-w-7xl mx-auto space-y-6'>
+    <div className='max-w-7xl mx-auto space-y-6 p-4 sm:p-6'>
       <div className='text-center mb-8'>
-        <h1 className='text-3xl font-bold text-gray-900 dark:text-white mb-4'>
-          AdminDashboard
+        <h1 className='text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-4'>
+          Admin Dashboard
         </h1>
       </div>
+
       {/* Admin Actions */}
-      <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg'>
-        <h2 className='text-2xl font-bold text-gray-900 dark:text-white mb-4'>
+      <div className='bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-lg'>
+        <h2 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-4'>
           Admin Actions
         </h2>
 
@@ -135,31 +136,34 @@ const AdminDashboard = () => {
       </div>
 
       {/* Anti-Cheat Monitoring */}
-      <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg'>
-        <div className='flex items-center justify-between mb-4'>
-          <h2 className='text-2xl font-bold text-gray-900 dark:text-white flex items-center'>
-            <ShieldExclamationIcon className='h-6 w-6 mr-2 text-red-500' />
+      <div className='bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 shadow-lg'>
+        {/* Header Section - Made Responsive */}
+        <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6'>
+          <h2 className='text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center'>
+            <ShieldExclamationIcon className='h-5 w-5 sm:h-6 sm:w-6 mr-2 text-red-500 flex-shrink-0' />
             Anti-Cheat Monitoring
           </h2>
-          <div className='flex space-x-2'>
+
+          {/* Button Group - Made Responsive */}
+          <div className='flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto'>
             <button
               onClick={fetchAntiCheatReport}
               disabled={loading}
-              className='px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50'
+              className='flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 text-sm sm:text-base'
             >
               {loading ? "Loading..." : "Refresh"}
             </button>
             <button
               onClick={handleTestAntiCheat}
               disabled={loading}
-              className='px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50'
+              className='flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 text-sm sm:text-base'
             >
               Test Data
             </button>
             <button
               onClick={handleClearTestData}
               disabled={loading}
-              className='px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50'
+              className='flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 text-sm sm:text-base'
             >
               Clear Test
             </button>
@@ -168,16 +172,16 @@ const AdminDashboard = () => {
 
         {antiCheatReport ? (
           <div className='space-y-6'>
-            {/* Summary Cards */}
-            <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+            {/* Summary Cards - Made Responsive */}
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4'>
               <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4'>
                 <div className='flex items-center'>
-                  <ExclamationTriangleIcon className='h-8 w-8 text-red-500 mr-3' />
-                  <div>
+                  <ExclamationTriangleIcon className='h-6 w-6 sm:h-8 sm:w-8 text-red-500 mr-3 flex-shrink-0' />
+                  <div className='min-w-0 flex-1'>
                     <p className='text-sm text-red-600 dark:text-red-300'>
                       Suspicious Users
                     </p>
-                    <p className='text-2xl font-bold text-red-800 dark:text-red-200'>
+                    <p className='text-xl sm:text-2xl font-bold text-red-800 dark:text-red-200'>
                       {antiCheatReport.totalSuspiciousUsers}
                     </p>
                   </div>
@@ -186,26 +190,26 @@ const AdminDashboard = () => {
 
               <div className='bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4'>
                 <div className='flex items-center'>
-                  <XCircleIcon className='h-8 w-8 text-orange-500 mr-3' />
-                  <div>
+                  <XCircleIcon className='h-6 w-6 sm:h-8 sm:w-8 text-orange-500 mr-3 flex-shrink-0' />
+                  <div className='min-w-0 flex-1'>
                     <p className='text-sm text-orange-600 dark:text-orange-300'>
                       Blocked Users
                     </p>
-                    <p className='text-2xl font-bold text-orange-800 dark:text-orange-200'>
+                    <p className='text-xl sm:text-2xl font-bold text-orange-800 dark:text-orange-200'>
                       {antiCheatReport.blockedUsers}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4'>
+              <div className='bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 sm:col-span-2 lg:col-span-1'>
                 <div className='flex items-center'>
-                  <CheckCircleIcon className='h-8 w-8 text-green-500 mr-3' />
-                  <div>
+                  <CheckCircleIcon className='h-6 w-6 sm:h-8 sm:w-8 text-green-500 mr-3 flex-shrink-0' />
+                  <div className='min-w-0 flex-1'>
                     <p className='text-sm text-green-600 dark:text-green-300'>
                       Status
                     </p>
-                    <p className='text-2xl font-bold text-green-800 dark:text-green-200'>
+                    <p className='text-xl sm:text-2xl font-bold text-green-800 dark:text-green-200'>
                       {antiCheatReport.summary?.activeMonitoring
                         ? "Active"
                         : "Inactive"}
@@ -247,11 +251,11 @@ const AdminDashboard = () => {
                       key={index}
                       className='bg-gray-50 dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600'
                     >
-                      <div className='flex items-center justify-between'>
-                        <div className='flex items-center'>
-                          <UserIcon className='h-5 w-5 text-gray-500 mr-2' />
-                          <div>
-                            <p className='font-medium text-gray-900 dark:text-white'>
+                      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3'>
+                        <div className='flex items-start sm:items-center min-w-0 flex-1'>
+                          <UserIcon className='h-5 w-5 text-gray-500 mr-2 flex-shrink-0 mt-0.5 sm:mt-0' />
+                          <div className='min-w-0 flex-1'>
+                            <p className='font-medium text-gray-900 dark:text-white text-sm sm:text-base'>
                               User ID: {user.userId}
                             </p>
                             <p className='text-sm text-gray-600 dark:text-gray-300'>
@@ -271,26 +275,26 @@ const AdminDashboard = () => {
                             </p>
                           </div>
                         </div>
-                        <div className='flex space-x-2'>
+                        <div className='flex justify-end'>
                           <button
                             onClick={() => handleUnblockUser(user.userId)}
                             disabled={!user.isBlocked}
-                            className='px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded disabled:opacity-50 disabled:cursor-not-allowed'
+                            className='px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
                           >
                             Unblock
                           </button>
                         </div>
                       </div>
                       {user.reasons && user.reasons.length > 0 && (
-                        <div className='mt-2'>
-                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-1'>
+                        <div className='mt-3 pt-3 border-t border-gray-200 dark:border-gray-600'>
+                          <p className='text-xs text-gray-500 dark:text-gray-400 mb-2'>
                             Recent violations:
                           </p>
                           <div className='space-y-1'>
                             {user.reasons.slice(-3).map((reason, rIndex) => (
                               <div
                                 key={rIndex}
-                                className='text-xs text-gray-600 dark:text-gray-300'
+                                className='text-xs text-gray-600 dark:text-gray-300 break-words'
                               >
                                 • {reason.reason} (
                                 {new Date(reason.timestamp).toLocaleString()})

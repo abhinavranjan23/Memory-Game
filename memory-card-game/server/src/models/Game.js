@@ -248,6 +248,7 @@ gameSchema.methods.togglePlayerReady = function (userId) {
   if (allReady && this.players.length >= 2) {
     if (this.gameState.status === "waiting") {
       this.gameState.status = "starting";
+      this.status = "starting"; // Synchronize main game status
     }
   }
   this.gameState.lastActivity = new Date();

@@ -204,6 +204,9 @@ class GameEngine {
         powerUpPool: [],
       };
 
+      // Update main game status to match gameState status
+      this.game.status = "playing";
+
       // Update metrics
       updateMetrics.incrementActiveGames();
       updateMetrics.incrementTotalGames();
@@ -1411,6 +1414,7 @@ class GameEngine {
       // Update game state
       this.game.gameState.board = suddenDeathBoard;
       this.game.gameState.status = "sudden-death";
+      this.game.status = "playing"; // Keep main game status as playing during sudden death
       this.game.gameState.timeLeft = 30; // 30 seconds for sudden death
       this.game.gameState.matchedPairs = [];
 

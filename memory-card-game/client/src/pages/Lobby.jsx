@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useSocket } from "../contexts/SocketContext.jsx";
 import { useToast } from "../contexts/ToastContext.jsx";
@@ -20,6 +20,7 @@ import {
   EyeIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
+import GameLoadingScreen from "../components/GameLoadingScreen";
 
 const Lobby = () => {
   const { user } = useAuth();
@@ -459,9 +460,7 @@ const Lobby = () => {
         </div>
 
         {loading ? (
-          <div className='flex items-center justify-center p-12'>
-            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500'></div>
-          </div>
+          <GameLoadingScreen />
         ) : rooms.length === 0 ? (
           <div className='text-center p-12'>
             <UserGroupIcon className='h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-4' />

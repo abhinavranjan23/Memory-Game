@@ -25,7 +25,7 @@
       "headers": [
         {
           "key": "Content-Type",
-          "value": "application/xml"
+          "value": "application/xml; charset=utf-8"
         },
         {
           "key": "Cache-Control",
@@ -38,7 +38,7 @@
       "headers": [
         {
           "key": "Content-Type",
-          "value": "text/plain"
+          "value": "text/plain; charset=utf-8"
         },
         {
           "key": "Cache-Control",
@@ -50,8 +50,8 @@
       "source": "/(.*)",
       "headers": [
         {
-          "key": " Last-Modified",
-          "value": "Mon , 01 Sep 2025 00:00:00 GMT"
+          "key": "Last-Modified",
+          "value": "Mon, 01 Sep 2025 00:00:00 GMT"
         },
         {
           "key": "X-Content-Type-Options",

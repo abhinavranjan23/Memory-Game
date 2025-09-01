@@ -22,9 +22,9 @@ import RegisterShimmer from "./components/RegisterShimmer.jsx";
 import LeaderboardShimmer from "./components/LeaderboardShimmer.jsx";
 import DashboardShimmer from "./components/DashboardShimmer.jsx";
 import LoginShimmer from "./components/LoginShimmer.jsx";
+import ProfileShimmer from "./components/ProfileShimmer.jsx";
 import "./App.css";
 
-// Lazy load pages for better performance
 const Home = lazy(() => import("./pages/Home.jsx"));
 const Login = lazy(() => import("./pages/Login.jsx"));
 const Register = lazy(() => import("./pages/Register.jsx"));
@@ -37,7 +37,6 @@ const Leaderboard = lazy(() => import("./pages/Leaderboard.jsx"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard.jsx"));
 const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
-// Component to conditionally render Navbar and loading screens
 function AppContent() {
   const location = useLocation();
   const isGamePage = location.pathname.startsWith("/game/");
@@ -50,6 +49,7 @@ function AppContent() {
     if (path === "/register") return <RegisterShimmer />;
     if (path === "/leaderboard") return <LeaderboardShimmer />;
     if (path === "/dashboard") return <DashboardShimmer />;
+    if (path === "/profile") return <ProfileShimmer />;
 
     // Default loading screen for other pages
     return <GameLoadingScreen />;

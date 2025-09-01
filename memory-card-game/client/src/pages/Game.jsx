@@ -1765,233 +1765,402 @@ const Game = () => {
         `}
       </style>
       <div className='max-w-7xl mx-auto px-4 py-8'>
-        {/* Header */}
-        <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4'>
-          <button
-            onClick={() => handleLeaveAttempt("/lobby")}
-            className='flex items-center text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors'
-          >
-            <ArrowLeftIcon className='h-5 w-5 mr-2' />
-            Back to Lobby
-          </button>
+        {/* Enhanced Header */}
+        <div className='mb-6'>
+          {/* Top Navigation Bar */}
+          <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4'>
+            <motion.button
+              onClick={() => handleLeaveAttempt("/lobby")}
+              className='flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border border-gray-200 dark:border-gray-600'
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <ArrowLeftIcon className='h-5 w-5' />
+              <span className='font-medium'>Back to Lobby</span>
+            </motion.button>
 
-          <div className='text-center sm:text-right'>
-            <h2 className='text-lg font-medium text-gray-900 dark:text-white'>
-              Room:{" "}
-              <span className='font-mono bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded'>
-                {roomId}
-              </span>
-            </h2>
-            <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
-              {gameStatus === "waiting" && "Waiting for players..."}
-              {gameStatus === "starting" && "Game is starting..."}
-              {gameStatus === "playing" &&
-                (() => {
-                  console.log(
-                    "Rendering turn display - currentTurn:",
-                    currentTurn,
-                    "players:",
-                    players
-                  );
-                  const currentPlayer = players.find(
-                    (p) => p.userId === currentTurn
-                  );
-                  console.log("Found current player:", currentPlayer);
-                  console.log(
-                    "All players:",
-                    players.map((p) => ({
-                      userId: p.userId,
-                      username: p.username,
-                    }))
-                  );
-                  console.log("Looking for player with userId:", currentTurn);
-                  if (currentPlayer) {
-                    console.log(
-                      "Returning turn display for:",
-                      currentPlayer.username
-                    );
-                    return `${currentPlayer.username}'s turn`;
-                  } else if (currentTurn) {
-                    console.log(
-                      "Player not found, returning generic turn display"
-                    );
-                    return `Player ${currentTurn}'s turn`;
-                  } else {
-                    console.log("No currentTurn, returning waiting message");
-                    return "Waiting for turn...";
-                  }
-                })()}
-              {gameStatus === "sudden-death" && "Sudden Death Mode!"}
-              {gameStatus === "completed" && "Game completed"}
-            </p>
-            {(gameStatus === "playing" || gameStatus === "sudden-death") && (
-              <div className='flex items-center justify-center space-x-4 mt-2 text-sm'>
-                {timeLeft !== null && timeLeft !== undefined && (
-                  <div className='flex items-center space-x-2 timer-frozen'>
-                    <ClockIcon className='h-4 w-4 text-blue-500' />
-                    <span
-                      className='font-mono font-semibold transition-all duration-300'
-                      style={{
-                        filter: "drop-shadow(0 0 8px rgba(59, 130, 246, 0.5))",
-                      }}
-                    >
-                      {timeLeft}s
-                    </span>
-                  </div>
-                )}
-                <div className='flex items-center space-x-2'>
-                  <motion.div
-                    animate={{
-                      scale: [1, 1.2, 1],
-                      opacity: [0.5, 1, 0.5],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                    }}
-                    className='w-2 h-2 bg-green-500 rounded-full'
-                  />
-                  <span className='text-green-600 dark:text-green-400'>
-                    {gameStatus === "sudden-death" ? "Sudden Death!" : "Active"}
-                  </span>
-                </div>
-                {game?.settings?.powerUpsEnabled && (
-                  <div className='flex items-center space-x-2'>
-                    <span className='text-purple-500'>⚡</span>
-                    <span className='text-purple-600 dark:text-purple-400'>
-                      Power-ups: {powerUps.length}
-                    </span>
-                  </div>
-                )}
+            <div className='text-center sm:text-right'>
+              <div className='flex items-center justify-center sm:justify-end gap-2 mb-2'>
+                <h2 className='text-lg font-bold text-gray-900 dark:text-white'>
+                  Room
+                </h2>
+                <span className='font-mono bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-lg text-sm font-semibold shadow-md'>
+                  {roomId}
+                </span>
               </div>
-            )}
+            </div>
           </div>
+
+          {/* Game Stats Bar - Mobile Optimized */}
+          {(gameStatus === "playing" || gameStatus === "sudden-death") && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className='bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 p-4'
+            >
+              <div className='grid grid-cols-2 sm:grid-cols-4 gap-4'>
+                {/* Timer - Only show when there's a timer running */}
+                {timeLeft !== null &&
+                  timeLeft !== undefined &&
+                  timeLeft > 0 && (
+                    <div className='flex items-center justify-center sm:justify-start gap-2 timer-frozen'>
+                      <div className='p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg'>
+                        <ClockIcon className='h-5 w-5 text-blue-600 dark:text-blue-400' />
+                      </div>
+                      <div className='text-center sm:text-left'>
+                        <div className='text-xs text-gray-500 dark:text-gray-400'>
+                          Time Left
+                        </div>
+                        <div
+                          className='font-mono font-bold text-lg text-blue-600 dark:text-blue-400 transition-all duration-300'
+                          style={{
+                            filter:
+                              "drop-shadow(0 0 8px rgba(59, 130, 246, 0.5))",
+                          }}
+                        >
+                          {timeLeft}s
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                {/* Game Status */}
+                <div className='flex items-center justify-center sm:justify-start gap-2'>
+                  <div className='p-2 bg-green-100 dark:bg-green-900/30 rounded-lg'>
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.2, 1],
+                        opacity: [0.5, 1, 0.5],
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                      }}
+                      className='w-3 h-3 bg-green-500 rounded-full'
+                    />
+                  </div>
+                  <div className='text-center sm:text-left'>
+                    <div className='text-xs text-gray-500 dark:text-gray-400'>
+                      Status
+                    </div>
+                    <div className='font-semibold text-green-600 dark:text-green-400'>
+                      {gameStatus === "waiting" && "Waiting for players..."}
+                      {gameStatus === "starting" && "Game is starting..."}
+                      {gameStatus === "playing" && "Playing"}
+                      {gameStatus === "sudden-death" && "⚡ Sudden Death Mode!"}
+                      {gameStatus === "completed" && "Game completed"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Power-ups */}
+                {game?.settings?.powerUpsEnabled && (
+                  <div className='flex items-center justify-center sm:justify-start gap-2'>
+                    <div className='p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg'>
+                      <span className='text-lg'>⚡</span>
+                    </div>
+                    <div className='text-center sm:text-left'>
+                      <div className='text-xs text-gray-500 dark:text-gray-400'>
+                        Power-ups
+                      </div>
+                      <div className='font-semibold text-purple-600 dark:text-purple-400'>
+                        {powerUps.length}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Progress */}
+                <div className='flex items-center justify-center sm:justify-start gap-2'>
+                  <div className='p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg'>
+                    <TrophyIcon className='h-5 w-5 text-yellow-600 dark:text-yellow-400' />
+                  </div>
+                  <div className='text-center sm:text-left'>
+                    <div className='text-xs text-gray-500 dark:text-gray-400'>
+                      Progress
+                    </div>
+                    <div className='font-semibold text-yellow-600 dark:text-yellow-400'>
+                      {cards.filter((c) => c.isMatched).length / 2}/
+                      {cards.length / 2}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         <div className='grid grid-cols-1 lg:grid-cols-4 gap-6'>
           {/* Main Game Area */}
           <div className='lg:col-span-3'>
-            {/* Players */}
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-8'>
-              {players.map((player) => {
-                const isCurrentTurn = currentTurn === player.userId;
-                console.log(
-                  `Player ${player.username} (${player.userId}) - isCurrentTurn: ${isCurrentTurn}, currentTurn: ${currentTurn}`
-                );
-                return (
-                  <div
-                    key={player.userId}
-                    className={`flex items-center p-4 rounded-lg border-2 transition-all ${
-                      isCurrentTurn
-                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 shadow-lg"
-                        : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                    }`}
-                  >
-                    <div className='flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-xl shadow-lg overflow-hidden'>
-                      {player.avatar && player.avatar.startsWith("http") ? (
-                        <img
-                          src={player.avatar}
-                          alt={player.username}
-                          className='h-full w-full object-cover'
-                          onError={(e) => {
-                            e.target.style.display = "none";
-                            e.target.nextSibling.style.display = "flex";
+            {/* Enhanced Players Section - Mobile Side by Side */}
+            <div className='mb-8'>
+              <div className='flex items-center justify-between mb-4'>
+                <h3 className='text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2'>
+                  <UsersIcon className='h-6 w-6 text-blue-500' />
+                  Players
+                  <span className='text-sm font-normal text-gray-500 dark:text-gray-400'>
+                    ({players.length})
+                  </span>
+                </h3>
+                {gameStatus === "playing" && (
+                  <div className='flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400'>
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "linear",
+                      }}
+                      className='w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full'
+                    />
+                    <span>Game Active</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile: Side by side, Desktop: Grid layout */}
+              <div className='grid grid-cols-2 gap-2 md:gap-4'>
+                {players.map((player, index) => {
+                  const isCurrentTurn = currentTurn === player.userId;
+                  const isCurrentUser = player.userId === user?.id;
+
+                  return (
+                    <motion.div
+                      key={player.userId}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`relative group cursor-pointer ${
+                        isCurrentTurn
+                          ? "transform scale-105"
+                          : "hover:scale-102"
+                      } transition-all duration-300`}
+                    >
+                      {/* Glow effect for current turn */}
+                      {isCurrentTurn && (
+                        <motion.div
+                          className='absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-400 to-purple-500 opacity-20 blur-xl'
+                          animate={{
+                            scale: [1, 1.05, 1],
+                            opacity: [0.2, 0.3, 0.2],
+                          }}
+                          transition={{
+                            duration: 2,
+                            repeat: Infinity,
                           }}
                         />
-                      ) : null}
-                      <span
-                        className={
-                          player.avatar && player.avatar.startsWith("http")
-                            ? "hidden"
-                            : "flex"
-                        }
+                      )}
+
+                      <div
+                        className={`relative p-3 md:p-5 rounded-xl md:rounded-2xl border-2 transition-all duration-300 ${
+                          isCurrentTurn
+                            ? "bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 border-blue-300 dark:border-blue-600 shadow-xl shadow-blue-200/50 dark:shadow-blue-900/20"
+                            : isCurrentUser
+                            ? "bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-600 shadow-lg"
+                            : "bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-700 border-gray-200 dark:border-gray-600 shadow-md hover:shadow-lg"
+                        }`}
                       >
-                        {player.username.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className='ml-4 flex-grow'>
-                      <p className='text-base font-medium text-gray-900 dark:text-white flex items-center gap-2'>
-                        {player.username}
-                        {player.userId === user?.id && (
-                          <span className='px-2 py-1 text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 rounded-full font-medium'>
-                            You
-                          </span>
-                        )}
-                        {isCurrentTurn && (
-                          <motion.span
-                            className='px-2 py-1 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 rounded-full font-medium'
-                            animate={{
-                              scale: [1, 1.1, 1],
-                              boxShadow: [
-                                "0 0 0 0 rgba(59, 130, 246, 0.4)",
-                                "0 0 0 10px rgba(59, 130, 246, 0)",
-                                "0 0 0 0 rgba(59, 130, 246, 0)",
-                              ],
-                            }}
-                            transition={{
-                              duration: 1.5,
-                              repeat: Infinity,
-                            }}
-                          >
-                            Current Turn
-                          </motion.span>
-                        )}
-                      </p>
-                      <div className='flex items-center justify-between mt-1'>
-                        <p className='text-sm text-gray-500 dark:text-gray-400'>
-                          Score:{" "}
-                          <span className='font-semibold'>
-                            {player.score || 0}
-                          </span>{" "}
-                          pairs
-                        </p>
-                        <p className='text-sm text-gray-500 dark:text-gray-400'>
-                          Matches:{" "}
-                          <span className='font-semibold'>
-                            {player.matches || 0}
-                          </span>
-                        </p>
+                        <div className='flex items-center space-x-2 md:space-x-4'>
+                          {/* Enhanced Avatar */}
+                          <div className='relative flex-shrink-0'>
+                            <motion.div
+                              className={`h-10 w-10 md:h-16 md:w-16 rounded-xl md:rounded-2xl flex items-center justify-center font-bold text-lg md:text-2xl shadow-lg overflow-hidden ${
+                                isCurrentTurn
+                                  ? "bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500"
+                                  : isCurrentUser
+                                  ? "bg-gradient-to-br from-green-500 to-emerald-600"
+                                  : "bg-gradient-to-br from-gray-500 to-gray-600"
+                              } text-white`}
+                              animate={
+                                isCurrentTurn
+                                  ? {
+                                      scale: [1, 1.05, 1],
+                                      rotate: [0, 5, -5, 0],
+                                    }
+                                  : {}
+                              }
+                              transition={
+                                isCurrentTurn
+                                  ? {
+                                      duration: 2,
+                                      repeat: Infinity,
+                                    }
+                                  : {}
+                              }
+                            >
+                              {player.avatar &&
+                              player.avatar.startsWith("http") ? (
+                                <img
+                                  src={player.avatar}
+                                  alt={player.username}
+                                  className='h-full w-full object-cover'
+                                  onError={(e) => {
+                                    e.target.style.display = "none";
+                                    e.target.nextSibling.style.display = "flex";
+                                  }}
+                                />
+                              ) : null}
+                              <span
+                                className={
+                                  player.avatar &&
+                                  player.avatar.startsWith("http")
+                                    ? "hidden"
+                                    : "flex"
+                                }
+                              >
+                                {player.username.charAt(0).toUpperCase()}
+                              </span>
+                            </motion.div>
+
+                            {/* Status indicators */}
+                            {isCurrentTurn && (
+                              <motion.div
+                                className='absolute -top-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center'
+                                animate={{
+                                  scale: [1, 1.2, 1],
+                                  boxShadow: [
+                                    "0 0 0 0 rgba(59, 130, 246, 0.4)",
+                                    "0 0 0 8px rgba(59, 130, 246, 0)",
+                                    "0 0 0 0 rgba(59, 130, 246, 0)",
+                                  ],
+                                }}
+                                transition={{
+                                  duration: 1.5,
+                                  repeat: Infinity,
+                                }}
+                              >
+                                <PlayIcon className='h-3 w-3 text-white' />
+                              </motion.div>
+                            )}
+
+                            {isCurrentUser && (
+                              <div className='absolute -bottom-1 -left-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center'>
+                                <UserIcon className='h-2.5 w-2.5 text-white' />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Player Info */}
+                          <div className='flex-1 min-w-0'>
+                            <div className='flex items-center gap-1 md:gap-2 mb-1'>
+                              <h4 className='text-sm md:text-lg font-bold text-gray-900 dark:text-white truncate'>
+                                {player.username}
+                              </h4>
+
+                              {/* Badges */}
+                              <div className='flex items-center gap-1'>
+                                {isCurrentUser && (
+                                  <span className='px-1.5 py-0.5 text-xs bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 rounded-full font-semibold'>
+                                    You
+                                  </span>
+                                )}
+                                {isCurrentTurn && (
+                                  <motion.span
+                                    className='px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 rounded-full font-semibold flex items-center gap-1'
+                                    animate={{
+                                      scale: [1, 1.05, 1],
+                                    }}
+                                    transition={{
+                                      duration: 1,
+                                      repeat: Infinity,
+                                    }}
+                                  >
+                                    <PlayIcon className='h-3 w-3' />
+                                    <span className='hidden sm:inline'>
+                                      Turn
+                                    </span>
+                                  </motion.span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Stats - Compact on mobile */}
+                            <div className='grid grid-cols-2 gap-1 md:gap-2 text-xs md:text-sm'>
+                              <div className='flex items-center gap-1'>
+                                <TrophyIcon className='h-3 w-3 md:h-4 md:w-4 text-yellow-500' />
+                                <span className='text-gray-600 dark:text-gray-400 hidden sm:inline'>
+                                  Score:
+                                </span>
+                                <span className='font-bold text-gray-900 dark:text-white'>
+                                  {player.score || 0}
+                                </span>
+                              </div>
+                              <div className='flex items-center gap-1'>
+                                <StarIcon className='h-3 w-3 md:h-4 md:w-4 text-purple-500' />
+                                <span className='text-gray-600 dark:text-gray-400 hidden sm:inline'>
+                                  Matches:
+                                </span>
+                                <span className='font-bold text-gray-900 dark:text-white'>
+                                  {player.matches || 0}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Progress bar for matches - Hidden on mobile to save space */}
+                            <div className='mt-1 md:mt-2 hidden md:block'>
+                              <div className='flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1'>
+                                <span>Progress</span>
+                                <span>
+                                  {player.matches || 0} / {cards.length / 2}
+                                </span>
+                              </div>
+                              <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5'>
+                                <motion.div
+                                  className={`h-1.5 rounded-full ${
+                                    isCurrentTurn
+                                      ? "bg-gradient-to-r from-blue-500 to-purple-500"
+                                      : isCurrentUser
+                                      ? "bg-gradient-to-r from-green-500 to-emerald-500"
+                                      : "bg-gradient-to-r from-gray-500 to-gray-600"
+                                  }`}
+                                  initial={{ width: 0 }}
+                                  animate={{
+                                    width: `${
+                                      ((player.matches || 0) /
+                                        (cards.length / 2)) *
+                                      100
+                                    }%`,
+                                  }}
+                                  transition={{ duration: 0.8, delay: 0.2 }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Power-ups Section */}
+            {/* Compact Power-ups Section */}
             {(game?.settings?.powerUpsEnabled || powerUps.length > 0) && (
-              <div className='mb-6'>
-                <div className='flex items-center justify-between mb-3'>
-                  <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center'>
-                    <span className='text-purple-500 mr-2'>⚡</span>
-                    Your Power-ups
+              <div className='mb-4'>
+                <div className='flex items-center justify-between mb-2'>
+                  <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2'>
+                    <span className='text-lg'>⚡</span>
+                    Power-ups ({powerUps.length})
                   </h3>
-                  <div className='flex items-center gap-2'>
-                    <div className='text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded'>
-                      {powerUps.length} available
-                    </div>
-                    <button
-                      onClick={() => setShowPowerUpTutorial(true)}
-                      className='text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline'
-                    >
-                      Help
-                    </button>
-                    <button
-                      onClick={() => setShowPowerUpTutorial(true)}
-                      className='text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-1 rounded hover:bg-purple-200 dark:hover:bg-purple-900/50'
-                    >
-                      Manual
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setShowPowerUpTutorial(true)}
+                    className='p-1 text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-all'
+                    title='Power-up Help'
+                  >
+                    <span className='text-sm'>❓</span>
+                  </button>
                 </div>
+
                 {powerUps.length > 0 ? (
                   <>
+                    {/* Compact power-up buttons */}
                     <div className='flex flex-wrap gap-2'>
                       {powerUps.map((powerUp, index) => (
                         <motion.button
                           key={`${powerUp.type}-${index}`}
                           onClick={() => handlePowerUpClick(powerUp)}
-                          className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 shadow-lg ${getPowerUpButtonStyle(
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg ${getPowerUpButtonStyle(
                             powerUp.type
                           )}`}
                           whileHover={{ scale: 1.05 }}
@@ -2006,11 +2175,11 @@ const Game = () => {
                       ))}
                     </div>
 
-                    {/* Swap mode indicator and cancel button */}
+                    {/* Compact mode indicators */}
                     {swapMode && (
-                      <div className='mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700'>
+                      <div className='mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700'>
                         <div className='flex items-center justify-between'>
-                          <div className='flex items-center space-x-2'>
+                          <div className='flex items-center gap-2'>
                             <span className='text-purple-600 dark:text-purple-400'>
                               🔀
                             </span>
@@ -2029,11 +2198,10 @@ const Game = () => {
                       </div>
                     )}
 
-                    {/* Reveal mode indicator and cancel button */}
                     {revealMode && (
-                      <div className='mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700'>
+                      <div className='mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700'>
                         <div className='flex items-center justify-between'>
-                          <div className='flex items-center space-x-2'>
+                          <div className='flex items-center gap-2'>
                             <span className='text-yellow-600 dark:text-yellow-400'>
                               💡
                             </span>
@@ -2050,13 +2218,9 @@ const Game = () => {
                         </div>
                       </div>
                     )}
-
-                    <div className='mt-2 text-xs text-gray-600 dark:text-gray-400'>
-                      💡 <strong>Strategy:</strong> {getPowerUpStrategy()}
-                    </div>
                   </>
                 ) : (
-                  <div className='text-center py-4 bg-gray-50 dark:bg-gray-700 rounded-lg'>
+                  <div className='text-center py-3 bg-gray-50 dark:bg-gray-700 rounded-lg'>
                     <p className='text-gray-500 dark:text-gray-400 text-sm'>
                       No power-ups yet. Find them on cards during gameplay!
                     </p>
@@ -2113,7 +2277,7 @@ const Game = () => {
                   {(gameStatus === "playing" ||
                     gameStatus === "sudden-death") && (
                     <div className='flex items-center space-x-3'>
-                      <div className='text-sm text-gray-600 dark:text-gray-400'>
+                      {/* <div className='text-sm text-gray-600 dark:text-gray-400'>
                         Progress: {cards.filter((c) => c.isMatched).length / 2}{" "}
                         / {cards.length / 2}
                       </div>
@@ -2130,7 +2294,7 @@ const Game = () => {
                           }}
                           transition={{ duration: 0.5 }}
                         />
-                      </div>
+                      </div> */}
                       {(game?.settings?.powerUpsEnabled ||
                         powerUps.length > 0) && (
                         <div className='flex items-center space-x-1 text-sm text-purple-600 dark:text-purple-400'>

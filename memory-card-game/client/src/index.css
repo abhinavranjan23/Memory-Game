@@ -2,6 +2,96 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Smooth Form Animations - Optimized for all devices */
+.smooth-fade-in {
+  animation: smoothFadeIn 0.8s ease-out forwards;
+}
+
+.smooth-slide-up {
+  animation: smoothSlideUp 0.6s ease-out forwards;
+}
+
+.smooth-slide-left {
+  animation: smoothSlideLeft 0.6s ease-out forwards;
+}
+
+.smooth-scale-in {
+  animation: smoothScaleIn 0.5s ease-out forwards;
+}
+
+@keyframes smoothFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes smoothSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes smoothSlideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes smoothScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Performance optimizations for animations */
+@media (prefers-reduced-motion: reduce) {
+  .smooth-fade-in,
+  .smooth-slide-up,
+  .smooth-slide-left,
+  .smooth-scale-in {
+    animation: none;
+  }
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .smooth-fade-in {
+    animation-duration: 0.6s;
+  }
+
+  .smooth-slide-up {
+    animation-duration: 0.5s;
+  }
+
+  .smooth-slide-left {
+    animation-duration: 0.5s;
+  }
+
+  .smooth-scale-in {
+    animation-duration: 0.4s;
+  }
+}
+
 @layer base {
   * {
     margin: 0;

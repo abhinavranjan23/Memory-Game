@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useToast } from "../contexts/ToastContext.jsx";
 import { motion } from "framer-motion";
+import { useMobileOptimization } from "../hooks/useMobileOptimization.js";
 import {
   EyeIcon,
   EyeSlashIcon,
@@ -22,6 +23,11 @@ const Login = () => {
   const { login, loginAsGuest } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+
+  // Get mobile optimization settings
+  const { isMobile, isLowEndDevice, getOptimizedAnimations } =
+    useMobileOptimization();
+  const animations = getOptimizedAnimations();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,63 +66,65 @@ const Login = () => {
 
   return (
     <div className='relative min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4'>
-      {/* Animated background elements */}
-      <motion.div
-        className='absolute inset-0 overflow-hidden pointer-events-none'
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-      >
-        {/* Floating particles */}
+      {/* Animated background elements - only on desktop */}
+      {animations.floatingParticles && (
         <motion.div
-          className='absolute top-20 left-20 w-2 h-2 bg-blue-400/30 rounded-full'
-          animate={{
-            y: [0, -20, 0],
-            x: [0, 10, 0],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className='absolute top-40 right-32 w-1 h-1 bg-purple-400/40 rounded-full'
-          animate={{
-            y: [0, -15, 0],
-            x: [0, -8, 0],
-          }}
-          transition={{
-            duration: 2.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className='absolute bottom-32 left-32 w-1.5 h-1.5 bg-indigo-400/35 rounded-full'
-          animate={{
-            y: [0, -25, 0],
-            x: [0, 12, 0],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className='absolute bottom-20 right-20 w-1 h-1 bg-blue-400/25 rounded-full'
-          animate={{
-            y: [0, -18, 0],
-            x: [0, -6, 0],
-          }}
-          transition={{
-            duration: 3.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      </motion.div>
+          className='absolute inset-0 overflow-hidden pointer-events-none'
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
+        >
+          {/* Floating particles */}
+          <motion.div
+            className='absolute top-20 left-20 w-2 h-2 bg-blue-400/30 rounded-full'
+            animate={{
+              y: [0, -20, 0],
+              x: [0, 10, 0],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div
+            className='absolute top-40 right-32 w-1 h-1 bg-purple-400/40 rounded-full'
+            animate={{
+              y: [0, -15, 0],
+              x: [0, -8, 0],
+            }}
+            transition={{
+              duration: 2.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div
+            className='absolute bottom-32 left-32 w-1.5 h-1.5 bg-indigo-400/35 rounded-full'
+            animate={{
+              y: [0, -25, 0],
+              x: [0, 12, 0],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div
+            className='absolute bottom-20 right-20 w-1 h-1 bg-blue-400/25 rounded-full'
+            animate={{
+              y: [0, -18, 0],
+              x: [0, -6, 0],
+            }}
+            transition={{
+              duration: 3.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        </motion.div>
+      )}
 
       <motion.div
         className='w-full max-w-md relative z-10'
@@ -126,40 +134,44 @@ const Login = () => {
       >
         {/* Main card with animated border */}
         <div className='relative'>
-          {/* Animated border */}
-          <motion.div
-            className='absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-indigo-500/20 backdrop-blur-sm'
-            animate={{
-              background: [
-                "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))",
-                "linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2), rgba(59, 130, 246, 0.2))",
-                "linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))",
-              ],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
+          {/* Animated border - only on desktop */}
+          {animations.backgroundAnimations && (
+            <motion.div
+              className='absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-indigo-500/20 backdrop-blur-sm'
+              animate={{
+                background: [
+                  "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2))",
+                  "linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2), rgba(59, 130, 246, 0.2))",
+                  "linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2))",
+                ],
+              }}
+              transition={{
+                duration: 4,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+            />
+          )}
 
-          {/* Glowing border effect */}
-          <motion.div
-            className='absolute inset-0 rounded-3xl border-2 border-transparent'
-            style={{
-              background:
-                "linear-gradient(45deg, #3B82F6, #8B5CF6, #6366F1, #3B82F6)",
-              backgroundSize: "400% 400%",
-            }}
-            animate={{
-              backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
+          {/* Glowing border effect - only on desktop */}
+          {animations.glowEffects && (
+            <motion.div
+              className='absolute inset-0 rounded-3xl border-2 border-transparent'
+              style={{
+                background:
+                  "linear-gradient(45deg, #3B82F6, #8B5CF6, #6366F1, #3B82F6)",
+                backgroundSize: "400% 400%",
+              }}
+              animate={{
+                backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+            />
+          )}
 
           <div className='relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-3xl shadow-2xl p-6 border border-white/20 dark:border-gray-700/50'>
             {/* Header */}
@@ -171,20 +183,26 @@ const Login = () => {
             >
               <motion.div
                 className='w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mx-auto mb-4 flex items-center justify-center'
-                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileHover={
+                  animations.hoverEffects ? { scale: 1.1, rotate: 5 } : {}
+                }
                 transition={{ duration: 0.3 }}
               >
                 <SparklesIcon className='w-8 h-8 text-white' />
               </motion.div>
               <motion.h1
                 className='text-3xl font-black text-gray-900 dark:text-white mb-2'
-                animate={{
-                  textShadow: [
-                    "0 0 0px rgba(59, 130, 246, 0)",
-                    "0 0 20px rgba(59, 130, 246, 0.3)",
-                    "0 0 0px rgba(59, 130, 246, 0)",
-                  ],
-                }}
+                animate={
+                  animations.glowEffects
+                    ? {
+                        textShadow: [
+                          "0 0 0px rgba(59, 130, 246, 0)",
+                          "0 0 20px rgba(59, 130, 246, 0.3)",
+                          "0 0 0px rgba(59, 130, 246, 0)",
+                        ],
+                      }
+                    : {}
+                }
                 transition={{
                   duration: 3,
                   repeat: Infinity,
@@ -275,24 +293,26 @@ const Login = () => {
                 type='submit'
                 disabled={loading}
                 className='w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 disabled:from-blue-400 disabled:to-purple-400 text-white py-3 px-4 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl disabled:shadow-md relative overflow-hidden group'
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={animations.hoverEffects ? { scale: 1.02 } : {}}
+                whileTap={animations.buttonAnimations ? { scale: 0.98 } : {}}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.7 }}
               >
-                {/* Animated background glow */}
-                <motion.div
-                  className='absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20'
-                  animate={{
-                    x: ["-100%", "100%"],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
-                />
+                {/* Animated background glow - only on desktop */}
+                {animations.glowEffects && (
+                  <motion.div
+                    className='absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20'
+                    animate={{
+                      x: ["-100%", "100%"],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                  />
+                )}
 
                 <span className='relative z-10 flex items-center justify-center gap-2'>
                   {loading ? (
@@ -341,8 +361,8 @@ const Login = () => {
                 onClick={handleGuestLogin}
                 disabled={loading}
                 className='w-full mt-4 bg-white/60 dark:bg-gray-700/60 hover:bg-white/80 dark:hover:bg-gray-700/80 text-gray-900 dark:text-white py-3 px-4 rounded-xl font-semibold transition-all duration-300 shadow-lg hover:shadow-xl border border-gray-200 dark:border-gray-600 backdrop-blur-sm'
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={animations.hoverEffects ? { scale: 1.02 } : {}}
+                whileTap={animations.buttonAnimations ? { scale: 0.98 } : {}}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.9 }}

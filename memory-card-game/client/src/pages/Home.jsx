@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { gsap } from "gsap";
+import { useMobileOptimization } from "../hooks/useMobileOptimization.js";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { TextPlugin } from "gsap/TextPlugin";
 import {
@@ -27,6 +28,11 @@ const Home = () => {
   const { user } = useAuth();
   const [scrollY, setScrollY] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+
+  // Get mobile optimization settings
+  const { isMobile, isLowEndDevice, getOptimizedAnimations } =
+    useMobileOptimization();
+  const animations = getOptimizedAnimations();
 
   // Refs for sections
   const heroRef = useRef(null);
@@ -833,12 +839,12 @@ const Home = () => {
           <div ref={ctaRef} className='text-center py-24 relative mt-16'>
             {/* Animated border for CTA section */}
             <motion.div
-              className='absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-r from-white/30 via-gray-100/30 to-slate-100/30 dark:from-gray-700/30 dark:via-gray-600/30 dark:to-slate-600/30 backdrop-blur-sm'
+              className='absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-br from-blue-50/80 via-indigo-50/70 to-purple-50/80 dark:from-blue-900/40 dark:via-indigo-900/30 dark:to-purple-900/40 backdrop-blur-sm'
               animate={{
                 background: [
-                  "linear-gradient(135deg, rgba(255, 255, 255, 0.3), rgba(243, 244, 246, 0.3), rgba(241, 245, 249, 0.3))",
-                  "linear-gradient(135deg, rgba(243, 244, 246, 0.3), rgba(241, 245, 249, 0.3), rgba(255, 255, 255, 0.3))",
-                  "linear-gradient(135deg, rgba(241, 245, 249, 0.3), rgba(255, 255, 255, 0.3), rgba(243, 244, 246, 0.3))",
+                  "linear-gradient(135deg, rgba(239, 246, 255, 0.8), rgba(238, 242, 255, 0.7), rgba(243, 232, 255, 0.8))",
+                  "linear-gradient(135deg, rgba(238, 242, 255, 0.7), rgba(243, 232, 255, 0.8), rgba(239, 246, 255, 0.8))",
+                  "linear-gradient(135deg, rgba(243, 232, 255, 0.8), rgba(239, 246, 255, 0.8), rgba(238, 242, 255, 0.7))",
                 ],
               }}
               transition={{
@@ -853,7 +859,7 @@ const Home = () => {
               className='absolute inset-0 rounded-3xl border-2 border-transparent'
               style={{
                 background:
-                  "linear-gradient(45deg, rgba(255, 255, 255, 0.4), rgba(243, 244, 246, 0.4), rgba(241, 245, 249, 0.4), rgba(255, 255, 255, 0.4))",
+                  "linear-gradient(45deg, rgba(59, 130, 246, 0.6), rgba(99, 102, 241, 0.6), rgba(139, 92, 246, 0.6), rgba(59, 130, 246, 0.6))",
                 backgroundSize: "400% 400%",
               }}
               animate={{
@@ -868,12 +874,12 @@ const Home = () => {
 
             {/* Animated background */}
             <motion.div
-              className='absolute inset-0 bg-gradient-to-r from-white/10 via-gray-50/10 to-slate-50/10 dark:from-gray-800/10 dark:via-gray-700/10 dark:to-slate-700/10 rounded-3xl'
+              className='absolute inset-0 bg-gradient-to-r from-blue-100/20 via-indigo-100/20 to-purple-100/20 dark:from-blue-800/20 dark:via-indigo-800/20 dark:to-purple-800/20 rounded-3xl'
               animate={{
                 background: [
-                  "linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(249, 250, 251, 0.1), rgba(248, 250, 252, 0.1))",
-                  "linear-gradient(135deg, rgba(249, 250, 251, 0.1), rgba(248, 250, 252, 0.1), rgba(255, 255, 255, 0.1))",
-                  "linear-gradient(135deg, rgba(248, 250, 252, 0.1), rgba(255, 255, 255, 0.1), rgba(249, 250, 251, 0.1))",
+                  "linear-gradient(135deg, rgba(219, 234, 254, 0.2), rgba(224, 231, 255, 0.2), rgba(237, 233, 254, 0.2))",
+                  "linear-gradient(135deg, rgba(224, 231, 255, 0.2), rgba(237, 233, 254, 0.2), rgba(219, 234, 254, 0.2))",
+                  "linear-gradient(135deg, rgba(237, 233, 254, 0.2), rgba(219, 234, 254, 0.2), rgba(224, 231, 255, 0.2))",
                 ],
               }}
               transition={{
@@ -883,6 +889,65 @@ const Home = () => {
               }}
             />
 
+            {/* Floating particles for visual appeal - only on desktop */}
+            {animations.floatingParticles && (
+              <motion.div
+                className='absolute inset-0 overflow-hidden pointer-events-none'
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 1 }}
+              >
+                <motion.div
+                  className='absolute top-20 left-20 w-2 h-2 bg-blue-400/40 rounded-full'
+                  animate={{
+                    y: [0, -30, 0],
+                    x: [0, 15, 0],
+                  }}
+                  transition={{
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+                <motion.div
+                  className='absolute top-40 right-32 w-1.5 h-1.5 bg-indigo-400/50 rounded-full'
+                  animate={{
+                    y: [0, -25, 0],
+                    x: [0, -12, 0],
+                  }}
+                  transition={{
+                    duration: 3.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+                <motion.div
+                  className='absolute bottom-32 left-32 w-1 h-1 bg-purple-400/60 rounded-full'
+                  animate={{
+                    y: [0, -35, 0],
+                    x: [0, 18, 0],
+                  }}
+                  transition={{
+                    duration: 5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+                <motion.div
+                  className='absolute bottom-20 right-20 w-1.5 h-1.5 bg-blue-400/45 rounded-full'
+                  animate={{
+                    y: [0, -28, 0],
+                    x: [0, -10, 0],
+                  }}
+                  transition={{
+                    duration: 4.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
+              </motion.div>
+            )}
+
             <div className='relative z-10 px-8'>
               <motion.h2
                 className='text-4xl lg:text-5xl font-black text-gray-900 dark:text-white mb-8 tracking-tight relative z-10'
@@ -890,7 +955,7 @@ const Home = () => {
                 animate={{
                   textShadow: [
                     "0 0 0px rgba(59, 130, 246, 0)",
-                    "0 0 20px rgba(59, 130, 246, 0.3)",
+                    "0 0 25px rgba(59, 130, 246, 0.4)",
                     "0 0 0px rgba(59, 130, 246, 0)",
                   ],
                 }}
@@ -902,7 +967,7 @@ const Home = () => {
               >
                 Ready to Test Your Memory?
               </motion.h2>
-              <motion.p className='text-xl lg:text-2xl text-gray-600 dark:text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed relative z-10'>
+              <motion.p className='text-xl lg:text-2xl text-gray-700 dark:text-gray-200 mb-12 max-w-3xl mx-auto leading-relaxed relative z-10'>
                 Join thousands of players and start your memory training journey
                 today!
               </motion.p>

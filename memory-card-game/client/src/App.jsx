@@ -16,6 +16,7 @@ import PublicRoute from "./components/PublicRoute.jsx";
 import ServerLoadingPopup from "./components/ServerLoadingPopup.jsx";
 import Navbar from "./components/layout/Navbar.jsx";
 import CookieConsent from "./components/CookieConsent";
+import GameLoadingScreen from "./components/GameLoadingScreen.jsx";
 import "./App.css";
 
 // Lazy load pages for better performance
@@ -40,18 +41,7 @@ function AppContent() {
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300'>
       {!isGamePage && <Navbar />}
       <main className='container mx-auto'>
-        <Suspense
-          fallback={
-            <div className='flex items-center justify-center min-h-screen'>
-              <div className='text-center'>
-                <div className='w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
-                <p className='text-gray-600 dark:text-gray-300 text-lg'>
-                  Loading...
-                </p>
-              </div>
-            </div>
-          }
-        >
+        <Suspense fallback={<GameLoadingScreen />}>
           <Routes>
             {/* Public routes */}
             <Route path='/' element={<Home />} />

@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext.jsx";
 import { useToast } from "../contexts/ToastContext.jsx";
 import useUsernameValidation from "../hooks/useUsernameValidation.js";
 import { motion } from "framer-motion";
+import { useMobileOptimization } from "../hooks/useMobileOptimization.js";
 import {
   EyeIcon,
   EyeSlashIcon,
@@ -32,6 +33,11 @@ const Register = () => {
 
   // Username validation hook
   const usernameValidation = useUsernameValidation("");
+
+  // Get mobile optimization settings
+  const { isMobile, isLowEndDevice, getOptimizedAnimations } =
+    useMobileOptimization();
+  const animations = getOptimizedAnimations();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -79,63 +85,65 @@ const Register = () => {
 
   return (
     <div className='relative min-h-[calc(100vh-4rem)] bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4'>
-      {/* Animated background elements */}
-      <motion.div
-        className='absolute inset-0 overflow-hidden pointer-events-none'
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-      >
-        {/* Floating particles */}
+      {/* Animated background elements - only on desktop */}
+      {animations.floatingParticles && (
         <motion.div
-          className='absolute top-20 left-20 w-2 h-2 bg-green-400/30 rounded-full'
-          animate={{
-            y: [0, -20, 0],
-            x: [0, 10, 0],
-          }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className='absolute top-40 right-32 w-1 h-1 bg-emerald-400/40 rounded-full'
-          animate={{
-            y: [0, -15, 0],
-            x: [0, -8, 0],
-          }}
-          transition={{
-            duration: 2.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className='absolute bottom-32 left-32 w-1.5 h-1.5 bg-teal-400/35 rounded-full'
-          animate={{
-            y: [0, -25, 0],
-            x: [0, 12, 0],
-          }}
-          transition={{
-            duration: 4,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-        <motion.div
-          className='absolute bottom-20 right-20 w-1 h-1 bg-green-400/25 rounded-full'
-          animate={{
-            y: [0, -18, 0],
-            x: [0, -6, 0],
-          }}
-          transition={{
-            duration: 3.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-      </motion.div>
+          className='absolute inset-0 overflow-hidden pointer-events-none'
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
+        >
+          {/* Floating particles */}
+          <motion.div
+            className='absolute top-20 left-20 w-2 h-2 bg-green-400/30 rounded-full'
+            animate={{
+              y: [0, -20, 0],
+              x: [0, 10, 0],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div
+            className='absolute top-40 right-32 w-1 h-1 bg-emerald-400/40 rounded-full'
+            animate={{
+              y: [0, -15, 0],
+              x: [0, -8, 0],
+            }}
+            transition={{
+              duration: 2.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div
+            className='absolute bottom-32 left-32 w-1.5 h-1.5 bg-teal-400/35 rounded-full'
+            animate={{
+              y: [0, -25, 0],
+              x: [0, 12, 0],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+          <motion.div
+            className='absolute bottom-20 right-20 w-1 h-1 bg-green-400/25 rounded-full'
+            animate={{
+              y: [0, -18, 0],
+              x: [0, -6, 0],
+            }}
+            transition={{
+              duration: 3.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        </motion.div>
+      )}
 
       <motion.div
         className='w-full max-w-md relative z-10'
@@ -145,40 +153,44 @@ const Register = () => {
       >
         {/* Main card with animated border */}
         <div className='relative'>
-          {/* Animated border */}
-          <motion.div
-            className='absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 backdrop-blur-sm'
-            animate={{
-              background: [
-                "linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2))",
-                "linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2), rgba(34, 197, 94, 0.2))",
-                "linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2))",
-              ],
-            }}
-            transition={{
-              duration: 4,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
+          {/* Animated border - only on desktop */}
+          {animations.backgroundAnimations && (
+            <motion.div
+              className='absolute inset-0 rounded-3xl border-2 border-transparent bg-gradient-to-r from-green-500/20 via-emerald-500/20 to-teal-500/20 backdrop-blur-sm'
+              animate={{
+                background: [
+                  "linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2))",
+                  "linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(20, 184, 166, 0.2), rgba(34, 197, 94, 0.2))",
+                  "linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.2))",
+                ],
+              }}
+              transition={{
+                duration: 4,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+            />
+          )}
 
-          {/* Glowing border effect */}
-          <motion.div
-            className='absolute inset-0 rounded-3xl border-2 border-transparent'
-            style={{
-              background:
-                "linear-gradient(45deg, #22C55E, #10B981, #14B8A6, #22C55E)",
-              backgroundSize: "400% 400%",
-            }}
-            animate={{
-              backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
+          {/* Glowing border effect - only on desktop */}
+          {animations.glowEffects && (
+            <motion.div
+              className='absolute inset-0 rounded-3xl border-2 border-transparent'
+              style={{
+                background:
+                  "linear-gradient(45deg, #22C55E, #10B981, #14B8A6, #22C55E)",
+                backgroundSize: "400% 400%",
+              }}
+              animate={{
+                backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+              }}
+              transition={{
+                duration: 3,
+                repeat: Infinity,
+                ease: "linear",
+              }}
+            />
+          )}
 
           <div className='relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-3xl shadow-2xl p-8 border border-white/20 dark:border-gray-700/50'>
             {/* Header */}
@@ -190,20 +202,26 @@ const Register = () => {
             >
               <motion.div
                 className='w-16 h-16 bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl mx-auto mb-4 flex items-center justify-center'
-                whileHover={{ scale: 1.1, rotate: 5 }}
+                whileHover={
+                  animations.hoverEffects ? { scale: 1.1, rotate: 5 } : {}
+                }
                 transition={{ duration: 0.3 }}
               >
                 <SparklesIcon className='w-8 h-8 text-white' />
               </motion.div>
               <motion.h1
                 className='text-3xl font-black text-gray-900 dark:text-white mb-2'
-                animate={{
-                  textShadow: [
-                    "0 0 0px rgba(34, 197, 94, 0)",
-                    "0 0 20px rgba(34, 197, 94, 0.3)",
-                    "0 0 0px rgba(34, 197, 94, 0)",
-                  ],
-                }}
+                animate={
+                  animations.glowEffects
+                    ? {
+                        textShadow: [
+                          "0 0 0px rgba(34, 197, 94, 0)",
+                          "0 0 20px rgba(34, 197, 94, 0.3)",
+                          "0 0 0px rgba(34, 197, 94, 0)",
+                        ],
+                      }
+                    : {}
+                }
                 transition={{
                   duration: 3,
                   repeat: Infinity,
@@ -220,15 +238,15 @@ const Register = () => {
             <motion.form
               onSubmit={handleSubmit}
               className='space-y-6'
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
             >
               {/* Username field */}
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -30 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
+                transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
               >
                 <label
                   htmlFor='username'
@@ -245,74 +263,45 @@ const Register = () => {
                     value={formData.username}
                     onChange={handleChange}
                     required
-                    className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300 ${
-                      usernameValidation.hasError
-                        ? "border-red-500"
-                        : usernameValidation.isValid
-                        ? "border-green-500"
-                        : "border-gray-300 dark:border-gray-600"
-                    }`}
+                    className='w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300'
                     placeholder='Choose a username'
                   />
-                  {/* Username validation icon */}
+                  {/* Username validation indicator */}
                   {formData.username && (
                     <div className='absolute right-3 top-1/2 transform -translate-y-1/2'>
-                      {usernameValidation.isChecking ? (
-                        <motion.div
-                          className='w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full'
-                          animate={{ rotate: 360 }}
-                          transition={{
-                            duration: 1,
-                            repeat: Infinity,
-                            ease: "linear",
-                          }}
-                        />
-                      ) : usernameValidation.isValid ? (
+                      {usernameValidation.isValid ? (
                         <CheckCircleIcon className='w-5 h-5 text-green-500' />
-                      ) : usernameValidation.hasError ? (
+                      ) : (
                         <XCircleIcon className='w-5 h-5 text-red-500' />
-                      ) : null}
+                      )}
                     </div>
                   )}
                 </div>
-                {/* Username validation messages */}
-                {usernameValidation.isChecking && (
-                  <motion.p
-                    className='text-sm text-blue-600 dark:text-blue-400 mt-1'
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    Checking username availability...
-                  </motion.p>
-                )}
-                {usernameValidation.message && (
-                  <motion.p
+                {/* Username validation message */}
+                {formData.username && (
+                  <p
                     className={`text-sm mt-1 ${
                       usernameValidation.isValid
-                        ? "text-green-600 dark:text-green-400"
-                        : usernameValidation.hasError
-                        ? "text-red-600 dark:text-red-400"
-                        : "text-gray-500 dark:text-gray-400"
+                        ? "text-green-600"
+                        : "text-red-600"
                     }`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
                   >
                     {usernameValidation.message}
-                  </motion.p>
+                  </p>
                 )}
               </motion.div>
 
               {/* Email field */}
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -30 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
+                transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
               >
                 <label
                   htmlFor='email'
                   className='block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2'
                 >
-                  Email Address
+                  Email
                 </label>
                 <div className='relative'>
                   <EnvelopeIcon className='absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400' />
@@ -329,11 +318,11 @@ const Register = () => {
                 </div>
               </motion.div>
 
-              {/* Password field with eye icon */}
+              {/* Password field */}
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -30 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.7 }}
+                transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
               >
                 <label
                   htmlFor='password'
@@ -367,11 +356,11 @@ const Register = () => {
                 </div>
               </motion.div>
 
-              {/* Confirm Password field with eye icon */}
+              {/* Confirm Password field */}
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, x: -30 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.8 }}
+                transition={{ duration: 0.6, delay: 0.4, ease: "easeOut" }}
               >
                 <label
                   htmlFor='confirmPassword'
@@ -388,15 +377,7 @@ const Register = () => {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     required
-                    className={`w-full pl-10 pr-12 py-3 border rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300 ${
-                      formData.confirmPassword &&
-                      formData.password !== formData.confirmPassword
-                        ? "border-red-500"
-                        : formData.confirmPassword &&
-                          formData.password === formData.confirmPassword
-                        ? "border-green-500"
-                        : "border-gray-300 dark:border-gray-600"
-                    }`}
+                    className='w-full pl-10 pr-12 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white/50 dark:bg-gray-700/50 text-gray-900 dark:text-white backdrop-blur-sm transition-all duration-300'
                     placeholder='Confirm your password'
                   />
                   <button
@@ -411,36 +392,20 @@ const Register = () => {
                     )}
                   </button>
                 </div>
-                {/* Password match indicator */}
-                {formData.confirmPassword && (
-                  <motion.p
-                    className={`text-sm mt-1 ${
-                      formData.password === formData.confirmPassword
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-red-600 dark:text-red-400"
-                    }`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                  >
-                    {formData.password === formData.confirmPassword
-                      ? "Passwords match ✓"
-                      : "Passwords do not match ✗"}
-                  </motion.p>
-                )}
               </motion.div>
 
-              {/* Create Account button */}
+              {/* Sign Up button */}
               <motion.button
                 type='submit'
-                disabled={loading}
+                disabled={loading || !usernameValidation.isValid}
                 className='w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-green-400 disabled:to-emerald-400 text-white py-3 px-4 rounded-xl font-bold transition-all duration-300 shadow-lg hover:shadow-xl disabled:shadow-md relative overflow-hidden group'
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                initial={{ opacity: 0, y: 20 }}
+                whileHover={animations.hoverEffects ? { scale: 1.02 } : {}}
+                whileTap={animations.buttonAnimations ? { scale: 0.98 } : {}}
+                initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.9 }}
+                transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
               >
-                {/* Animated background glow */}
+                {/* Animated background glow - only on desktop */}
                 <motion.div
                   className='absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20'
                   animate={{

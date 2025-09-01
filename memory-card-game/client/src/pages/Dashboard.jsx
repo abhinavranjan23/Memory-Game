@@ -8,6 +8,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { TextPlugin } from "gsap/TextPlugin";
 import axios from "axios";
+import DashboardShimmer from "../components/DashboardShimmer.jsx";
 import {
   PlayIcon,
   TrophyIcon,

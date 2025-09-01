@@ -4,7 +4,6 @@ export default function handler(req, res) {
   res.setHeader("Cache-Control", "public, max-age=3600");
 
   const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
-<?xml-stylesheet type="text/xsl" href="https://www.google.com/webmasters/sitemaps/docs/sitemap-stylesheet.xsl"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9

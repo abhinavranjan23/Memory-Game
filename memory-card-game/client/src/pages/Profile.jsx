@@ -6,6 +6,7 @@ import useErrorHandler from "../hooks/useErrorHandler.js";
 import useUsernameValidation from "../hooks/useUsernameValidation.js";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import ProfileShimmer from "../components/ProfileShimmer.jsx";
 import {
   UserIcon,
   TrophyIcon,
@@ -18,9 +19,9 @@ import {
   CalendarDaysIcon,
   ArrowPathIcon,
   PencilIcon,
-  PhotoIcon,
-  EyeIcon,
-  EyeSlashIcon,
+  // PhotoIcon,
+  // EyeIcon,
+  // EyeSlashIcon,
   PuzzlePieceIcon,
   ShieldCheckIcon,
   BoltIcon,
@@ -305,11 +306,7 @@ const Profile = () => {
   );
 
   if (loading || !user) {
-    return (
-      <div className='max-w-6xl mx-auto flex items-center justify-center min-h-[60vh]'>
-        <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500'></div>
-      </div>
-    );
+    return <ProfileShimmer />;
   }
 
   return (

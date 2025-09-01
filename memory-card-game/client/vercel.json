@@ -15,7 +15,7 @@
   ],
   "redirects": [
     {
-      "source": "/api/(?!sitemap.xml)(.*)",
+      "source": "/api/((?!sitemap.xml).*)",
       "destination": "https://memory-game-mogf.onrender.com/api/$1"
     }
   ],

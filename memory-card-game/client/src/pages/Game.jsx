@@ -6,7 +6,6 @@ import {
   ClockIcon,
   UserGroupIcon,
   PlayIcon,
-  CrownIcon,
   FireIcon,
   StarIcon,
   TrophyIcon,

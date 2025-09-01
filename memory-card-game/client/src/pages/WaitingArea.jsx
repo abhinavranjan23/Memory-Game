@@ -10,7 +10,6 @@ import {
   ArrowLeftIcon,
   ClockIcon,
   PlayIcon,
-  CrownIcon,
 } from "@heroicons/react/24/outline";
 import GameLoadingScreen from "../components/GameLoadingScreen";
 
@@ -80,7 +79,6 @@ const WaitingArea = () => {
           };
           return newPlayers;
         } else {
-          // Add new player (no toast here - Game.jsx will handle it)
           return [...prevPlayers, data.player];
         }
       });
@@ -98,7 +96,7 @@ const WaitingArea = () => {
 
     const handleError = (error) => {
       console.log("WaitingArea: error event received", error);
-      // Don't show temporary start-game errors to the user
+
       if (
         error?.message?.includes("Failed to start game") ||
         error?.message?.includes("Game not active") ||
@@ -107,7 +105,6 @@ const WaitingArea = () => {
         return;
       }
 
-      // Handle password errors by redirecting to lobby
       if (error?.message?.includes("Invalid room password")) {
         addToast("Invalid room password. Redirecting to lobby...", "error");
         setTimeout(() => {

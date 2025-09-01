@@ -21,6 +21,7 @@ import HomeShimmer from "./components/HomeShimmer.jsx";
 import RegisterShimmer from "./components/RegisterShimmer.jsx";
 import LeaderboardShimmer from "./components/LeaderboardShimmer.jsx";
 import DashboardShimmer from "./components/DashboardShimmer.jsx";
+import LoginShimmer from "./components/LoginShimmer.jsx";
 import "./App.css";
 
 // Lazy load pages for better performance
@@ -40,22 +41,12 @@ const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 function AppContent() {
   const location = useLocation();
   const isGamePage = location.pathname.startsWith("/game/");
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Set a small delay to allow React Router to determine the route
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [location.pathname]);
-
-  // Get the appropriate loading component based on the current route
   const getLoadingComponent = () => {
     const path = location.pathname;
 
     if (path === "/") return <HomeShimmer />;
+    if (path === "/login") return <LoginShimmer />;
     if (path === "/register") return <RegisterShimmer />;
     if (path === "/leaderboard") return <LeaderboardShimmer />;
     if (path === "/dashboard") return <DashboardShimmer />;

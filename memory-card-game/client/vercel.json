@@ -16,6 +16,10 @@
       "source": "/(.*)",
       "headers": [
         {
+          "key": " Last-Modified",
+          "value": "Mon , 01 Sep 2025 00:00:00 GMT"
+        },
+        {
           "key": "X-Content-Type-Options",
           "value": "nosniff"
         },

@@ -7,9 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "generate-sitemap": "node scripts/generate-sitemap.js",
-    "build:analyze": "vite build --mode analyze",
-    "lighthouse": "lighthouse http://localhost:5173 --output=html --output-path=./lighthouse-report.html"
+    "generate-sitemap": "node scripts/generate-sitemap.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",

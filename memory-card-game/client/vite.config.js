@@ -4,28 +4,69 @@ import react from "@vitejs/plugin-react";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  server: {
-    allowedHosts: [
-      "e95fedc38c75.ngrok-free.app", // 👈 your ngrok domain here
-    ],
-    headers: {
-      "Cache-Control": "no-cache, no-store, must-revalidate",
-    },
-  },
-  assetsInclude: ["**/*.wav", "**/*.mp3"],
   build: {
+    // Enable source maps for debugging
+    sourcemap: false, // Disable in production for better performance
+
+    assestsInclude: ["**/*.{png,wav,mp3}"],
+
+    // Optimize chunk splitting
     rollupOptions: {
       output: {
-        assetFileNames: (assetInfo) => {
-          // Let Vite handle audio files with default asset naming
-          // This ensures proper module resolution and caching
-          return `assets/[name]-[hash].[ext]`;
+        manualChunks: {
+          // Vendor chunks
+          "react-vendor": ["react", "react-dom"],
+          "router-vendor": ["react-router-dom"],
+          "animation-vendor": ["framer-motion", "gsap"],
+          "ui-vendor": ["@heroicons/react"],
+          "utils-vendor": ["axios", "socket.io-client"],
         },
+        // Optimize chunk naming
+        chunkFileNames: "assets/js/[name]-[hash].js",
+        entryFileNames: "assets/js/[name]-[hash].js",
+        assetFileNames: "assets/[ext]/[name]-[hash].[ext]",
       },
     },
+
+    // Enable minification
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log in production
+        drop_debugger: true,
+      },
+    },
+
+    // Optimize CSS
+    cssCodeSplit: true,
+
+    // Set chunk size warning limit
+    chunkSizeWarningLimit: 1000,
   },
-  // Ensure public assets are copied correctly
-  publicDir: "public",
-  // Add base URL for production
-  base: "/",
+
+  // Optimize dependencies
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "react-router-dom",
+      "framer-motion",
+      "gsap",
+      "@heroicons/react/24/outline",
+      "axios",
+      "socket.io-client",
+    ],
+  },
+
+  // Server configuration for development
+  server: {
+    port: 5173,
+    host: true,
+  },
+
+  // Preview configuration
+  preview: {
+    port: 4173,
+    host: true,
+  },
 });

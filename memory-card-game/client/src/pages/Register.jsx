@@ -406,30 +406,36 @@ const Register = () => {
                 transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
               >
                 {/* Animated background glow - only on desktop */}
-                <motion.div
-                  className='absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20'
-                  animate={{
-                    x: ["-100%", "100%"],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
-                />
+                {animations.glowEffects && (
+                  <motion.div
+                    className='absolute inset-0 bg-gradient-to-r from-white/20 via-transparent to-white/20'
+                    animate={{
+                      x: ["-100%", "100%"],
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                  />
+                )}
 
                 <span className='relative z-10 flex items-center justify-center gap-2'>
                   {loading ? (
                     <>
-                      <motion.div
-                        className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full'
-                        animate={{ rotate: 360 }}
-                        transition={{
-                          duration: 1,
-                          repeat: Infinity,
-                          ease: "linear",
-                        }}
-                      />
+                      {animations.buttonAnimations ? (
+                        <motion.div
+                          className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full'
+                          animate={{ rotate: 360 }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            ease: "linear",
+                          }}
+                        />
+                      ) : (
+                        <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                      )}
                       Creating Account...
                     </>
                   ) : (

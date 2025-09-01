@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -11,41 +11,44 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
+    console.error("Error caught by boundary:", error, errorInfo);
     this.setState({
       error: error,
-      errorInfo: errorInfo
+      errorInfo: errorInfo,
     });
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="error-boundary">
-          <div className="error-container">
-            <div className="error-icon">🎮</div>
+        <div className='error-boundary'>
+          <div className='error-container'>
+            <div className='error-icon'>🎮</div>
             <h1>Oops! Something Went Wrong</h1>
-            <p>Our memory cards seem to have gotten scrambled! Don't worry, this happens to the best of us.</p>
-            
-            <div className="error-actions">
-              <button 
-                onClick={() => window.location.reload()} 
-                className="retry-button"
+            <p>
+              Our memory cards seem to have gotten scrambled! Don't worry, this
+              happens to the best of us.
+            </p>
+
+            <div className='error-actions'>
+              <button
+                onClick={() => window.location.reload()}
+                className='retry-button'
               >
                 🔄 Try Again
               </button>
-              <button 
-                onClick={() => window.location.href = '/'} 
-                className="home-button"
+              <button
+                onClick={() => (window.location.href = "/")}
+                className='home-button'
               >
-                🏠 Go Home
+                🏠 Go To Lobby
               </button>
             </div>
 
-            {process.env.NODE_ENV === 'development' && this.state.error && (
-              <details className="error-details">
+            {process.env.NODE_ENV === "development" && this.state.error && (
+              <details className='error-details'>
                 <summary>Error Details (Development Mode)</summary>
-                <div className="error-stack">
+                <div className='error-stack'>
                   <h3>Error:</h3>
                   <pre>{this.state.error.toString()}</pre>
                   <h3>Component Stack:</h3>
@@ -54,9 +57,13 @@ class ErrorBoundary extends React.Component {
               </details>
             )}
 
-            <div className="game-tip">
+            <div className='game-tip'>
               <h3>🎮 Game Tip:</h3>
-              <p>Just like flipping the wrong cards in our memory game, sometimes code needs a second chance. Try refreshing or check your internet connection!</p>
+              <p>
+                Just like flipping the wrong cards in our memory game, sometimes
+                code needs a second chance. Try refreshing or check your
+                internet connection!
+              </p>
             </div>
           </div>
 
@@ -88,9 +95,19 @@ class ErrorBoundary extends React.Component {
             }
 
             @keyframes bounce {
-              0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-              40% { transform: translateY(-10px); }
-              60% { transform: translateY(-5px); }
+              0%,
+              20%,
+              50%,
+              80%,
+              100% {
+                transform: translateY(0);
+              }
+              40% {
+                transform: translateY(-10px);
+              }
+              60% {
+                transform: translateY(-5px);
+              }
             }
 
             .error-container h1 {
@@ -112,7 +129,8 @@ class ErrorBoundary extends React.Component {
               margin-bottom: 2rem;
             }
 
-            .retry-button, .home-button {
+            .retry-button,
+            .home-button {
               padding: 0.75rem 1.5rem;
               border: none;
               border-radius: 8px;
@@ -187,7 +205,7 @@ class ErrorBoundary extends React.Component {
                 flex-direction: column;
                 align-items: center;
               }
-              
+
               .error-container {
                 padding: 2rem;
               }

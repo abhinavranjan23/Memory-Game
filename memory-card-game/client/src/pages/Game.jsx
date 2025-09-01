@@ -16,6 +16,9 @@ import {
   UserIcon,
   UsersIcon,
   XCircleIcon,
+  ChatBubbleLeftIcon,
+  PaperAirplaneIcon,
+  HeartIcon,
 } from "@heroicons/react/24/outline";
 import { useAuth } from "../contexts/AuthContext";
 import { useSocket } from "../contexts/SocketContext";

@@ -74,6 +74,11 @@ const Game = () => {
   const [revealMode, setRevealMode] = useState(false);
   const [showPowerUpNotification, setShowPowerUpNotification] = useState(false);
   const [newPowerUp, setNewPowerUp] = useState(null);
+  const [neverShowPowerUpTutorial, setNeverShowPowerUpTutorial] = useState(
+    () => {
+      localStorage.getItem("neverShowPowerUpTutorial") || false;
+    }
+  );
 
   // Floating chat state
   const [showFloatingChat, setShowFloatingChat] = useState(false);
@@ -1732,6 +1737,9 @@ const Game = () => {
   const leaveGame = () => {
     handleLeaveAttempt("/lobby");
   };
+  const handleNeverShowPowerUpTutorial = () => {
+    setNeverShowPowerUpTutorial(true);
+  };
 
   if (loading) {
     return <GameLoadingScreen />;
@@ -2137,19 +2145,21 @@ const Game = () => {
 
             {/* Compact Power-ups Section */}
             {(game?.settings?.powerUpsEnabled || powerUps.length > 0) && (
-              <div className='mb-4'>
+              <div className='mb-2 md:mb-4 '>
                 <div className='flex items-center justify-between mb-2'>
                   <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2'>
                     <span className='text-lg'>⚡</span>
                     Power-ups ({powerUps.length})
                   </h3>
-                  <button
-                    onClick={() => setShowPowerUpTutorial(true)}
-                    className='p-1 text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-all'
-                    title='Power-up Help'
-                  >
-                    <span className='text-sm'>❓</span>
-                  </button>
+                  {!neverShowPowerUpTutorial && (
+                    <button
+                      onClick={() => setShowPowerUpTutorial(true)}
+                      className='p-1 text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-all'
+                      title='Power-up Help'
+                    >
+                      <span className='text-sm'>❓Rules</span>
+                    </button>
+                  )}
                 </div>
 
                 {powerUps.length > 0 ? (
@@ -3285,6 +3295,12 @@ const Game = () => {
                 >
                   Got it!
                 </button>
+                <button
+                  onClick={handleNeverShowPowerUpTutorial}
+                  className='px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-lg transition-colors transform hover:scale-105'
+                >
+                  Never show again
+                </button>
               </div>
             </div>
           </motion.div>
@@ -3292,17 +3308,18 @@ const Game = () => {
       )}
 
       {/* Floating Power-up Manual Button */}
-      {(game?.settings?.powerUpsEnabled || powerUps.length > 0) && (
-        <motion.button
-          initial={{ opacity: 0, x: 100 }}
-          animate={{ opacity: 1, x: 0 }}
-          className='fixed bottom-6 right-6 z-40 bg-gradient-to-r from-purple-500 to-pink-500 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200'
-          onClick={() => setShowPowerUpTutorial(true)}
-          title='Power-up Manual'
-        >
-          <span className='text-2xl'>⚡</span>
-        </motion.button>
-      )}
+      {(game?.settings?.powerUpsEnabled || powerUps.length > 0) &&
+        !neverShowPowerUpTutorial && (
+          <motion.button
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            className='fixed bottom-6 right-6 z-40 bg-gradient-to-r from-purple-500 to-pink-500 text-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-200'
+            onClick={() => setShowPowerUpTutorial(true)}
+            title='Power-up Manual'
+          >
+            <span className='text-2xl'>⚡</span>
+          </motion.button>
+        )}
 
       {/* Power-up Notification */}
       {showPowerUpNotification && newPowerUp && (

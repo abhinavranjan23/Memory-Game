@@ -396,39 +396,26 @@ router.get("/stats/system", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch system statistics" });
   }
 });
+// ... existing imports ...
+const BlockedUser = require("../models/BlockedUserSchema.js");
 
-// Get anti-cheat monitoring report - REQUIRES ADMIN AUTH
 router.get("/anti-cheat/report", async (req, res) => {
   try {
-    const report = antiCheatSystem.getSuspiciousActivityReport();
+    const report = await antiCheatSystem.getSuspiciousActivityReport();
 
-    // Add test data for demonstration (remove this in production)
-    if (process.env.NODE_ENV === "development" && req.query.demo === "true") {
-      // Simulate some suspicious activities for testing
-      antiCheatSystem.flagSuspiciousActivity("test-user-1", "invalid_card_id");
-      antiCheatSystem.flagSuspiciousActivity(
-        "test-user-1",
-        "flipping_card_not_turn"
-      );
-      antiCheatSystem.flagSuspiciousActivity(
-        "test-user-2",
-        "using_nonexistent_powerup"
-      );
-      antiCheatSystem.flagSuspiciousActivity("test-user-3", "too_fast_actions");
-      antiCheatSystem.flagSuspiciousActivity(
-        "test-user-3",
-        "perfect_timing_pattern"
-      );
-      antiCheatSystem.flagSuspiciousActivity(
-        "test-user-3",
-        "impossible_card_flip_speed"
-      );
+    // Get additional database information
+    let activeBlockedUsers = [];
+    let blockingStats = {};
 
-      // Get updated report with test data
-      const updatedReport = antiCheatSystem.getSuspiciousActivityReport();
-      report.totalSuspiciousUsers = updatedReport.totalSuspiciousUsers;
-      report.blockedUsers = updatedReport.blockedUsers;
-      report.details = updatedReport.details;
+    try {
+      // Get active blocked users from database
+      activeBlockedUsers = await BlockedUser.getActiveBlockedUsers();
+
+      // Get blocking statistics
+      blockingStats = await BlockedUser.getBlockingStats();
+    } catch (dbError) {
+      console.warn("⚠️ Database query failed, using cache data only:", dbError);
+      // Continue with cache data if database fails
     }
 
     // Add additional context for admin
@@ -437,10 +424,35 @@ router.get("/anti-cheat/report", async (req, res) => {
       summary: {
         totalSuspiciousUsers: report.totalSuspiciousUsers,
         blockedUsers: report.blockedUsers,
-        activeMonitoring: true, // Anti-cheat system is always active when running
+        activeBlockedUsers: activeBlockedUsers.length,
+        totalBlockedInDatabase: blockingStats.totalBlocked || 0,
+        activeBlockedInDatabase: blockingStats.activeBlocked || 0,
+        totalUnblockedInDatabase: blockingStats.totalUnblocked || 0,
+        activeMonitoring: true,
         lastUpdated: new Date().toISOString(),
+        cacheStatus: {
+          initialized: antiCheatSystem.initialized,
+          lastCacheRefresh: new Date().toISOString(),
+        },
       },
       recommendations: [],
+      activeBlockedUsers: activeBlockedUsers.map((user) => ({
+        userId: user.userId,
+        username: user.username,
+        email: user.email,
+        blockedAt: user.blockedAt,
+        reason: user.reason,
+        suspiciousActivityCount: user.suspiciousActivityCount,
+        suspiciousActivities: user.suspiciousActivities,
+        blockHistory: user.blockHistory,
+        isActive: user.isActive,
+        adminUnblocked: user.adminUnblocked,
+        unblockedAt: user.unblockedAt,
+        unblockedBy: user.unblockedBy,
+        unblockReason: user.unblockReason,
+      })),
+      databaseStats: report.databaseStats || {},
+      cacheStats: report.cacheStats || {},
     };
 
     // Add recommendations based on suspicious activity
@@ -453,6 +465,7 @@ router.get("/anti-cheat/report", async (req, res) => {
           users: highRiskUsers.map((u) => ({
             userId: u.userId,
             count: u.count,
+            reasons: u.reasons?.slice(-3) || [], // Show last 3 reasons
           })),
         });
       }
@@ -469,6 +482,58 @@ router.get("/anti-cheat/report", async (req, res) => {
       }
     }
 
+    // Add recommendations based on database data
+    if (activeBlockedUsers.length > 0) {
+      enhancedReport.recommendations.push({
+        type: "blocked_users_database",
+        message: `${activeBlockedUsers.length} users are currently blocked in database`,
+        count: activeBlockedUsers.length,
+        users: activeBlockedUsers.slice(0, 5).map((u) => ({
+          userId: u.userId,
+          username: u.username,
+          reason: u.reason,
+          blockedAt: u.blockedAt,
+        })),
+      });
+
+      // Check for users blocked for a long time
+      const longBlockedUsers = activeBlockedUsers.filter((user) => {
+        const daysBlocked =
+          (Date.now() - new Date(user.blockedAt).getTime()) /
+          (1000 * 60 * 60 * 24);
+        return daysBlocked > 7; // More than 7 days
+      });
+
+      if (longBlockedUsers.length > 0) {
+        enhancedReport.recommendations.push({
+          type: "long_blocked_users",
+          message: `${longBlockedUsers.length} users have been blocked for more than 7 days`,
+          count: longBlockedUsers.length,
+          users: longBlockedUsers.map((u) => ({
+            userId: u.userId,
+            username: u.username,
+            blockedAt: u.blockedAt,
+            daysBlocked: Math.floor(
+              (Date.now() - new Date(u.blockedAt).getTime()) /
+                (1000 * 60 * 60 * 24)
+            ),
+          })),
+        });
+      }
+    }
+
+    // Add system health recommendations
+    if (report.cacheStats) {
+      if (report.cacheStats.blockedUsersInCache !== activeBlockedUsers.length) {
+        enhancedReport.recommendations.push({
+          type: "cache_mismatch",
+          message:
+            "Cache and database are out of sync. Consider refreshing the cache.",
+          severity: "warning",
+        });
+      }
+    }
+
     res.status(200).json({
       message: "Anti-cheat report retrieved successfully",
       report: enhancedReport,
@@ -479,17 +544,29 @@ router.get("/anti-cheat/report", async (req, res) => {
   }
 });
 
-// Unblock a user - REQUIRES ADMIN AUTH
+// Enhanced unblock user endpoint
 router.post("/anti-cheat/unblock/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
+    const { reason } = req.body;
+    const adminUserId = req.user.id;
 
     // Unblock the user in the anti-cheat system
-    antiCheatSystem.unblockUser(userId);
+    const unblockedUser = await antiCheatSystem.unblockUser(
+      userId,
+      adminUserId,
+      reason || "Admin unblocked"
+    );
+
+    // Refresh the cache to ensure consistency
+    await antiCheatSystem.refreshBlockedUsersCache();
 
     res.status(200).json({
       message: "User unblocked successfully",
       userId: userId,
+      unblockedAt: unblockedUser.unblockedAt,
+      unblockedBy: unblockedUser.unblockedBy,
+      unblockReason: unblockedUser.unblockReason,
     });
   } catch (error) {
     console.error("Unblock user error:", error);
@@ -497,25 +574,74 @@ router.post("/anti-cheat/unblock/:userId", async (req, res) => {
   }
 });
 
-// Clear test data - REQUIRES ADMIN AUTH (development only)
-router.post("/anti-cheat/clear-test-data", async (req, res) => {
+router.get("/anti-cheat/blocked-users", async (req, res) => {
   try {
-    if (process.env.NODE_ENV !== "development") {
-      return res
-        .status(403)
-        .json({ message: "Test data clearing only available in development" });
-    }
-
-    // Clear all suspicious activities and blocked users
-    antiCheatSystem.suspiciousActivities.clear();
-    antiCheatSystem.blockedUsers.clear();
+    const blockedUsers = await BlockedUser.getActiveBlockedUsers();
 
     res.status(200).json({
-      message: "Test data cleared successfully",
+      message: "Blocked users retrieved successfully",
+      blockedUsers: blockedUsers.map((user) => ({
+        userId: user.userId,
+        username: user.username,
+        email: user.email,
+        blockedAt: user.blockedAt,
+        reason: user.reason,
+        suspiciousActivityCount: user.suspiciousActivityCount,
+        suspiciousActivities: user.suspiciousActivities,
+        blockHistory: user.blockHistory,
+        isActive: user.isActive,
+      })),
     });
   } catch (error) {
-    console.error("Clear test data error:", error);
-    res.status(500).json({ message: "Failed to clear test data" });
+    console.error("Get blocked users error:", error);
+    res.status(500).json({ message: "Failed to fetch blocked users" });
+  }
+});
+
+router.get("/anti-cheat/blocked-users/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const blockedUser = await BlockedUser.getBlockedUser(userId);
+
+    if (!blockedUser) {
+      return res.status(404).json({ message: "User not found or not blocked" });
+    }
+
+    res.status(200).json({
+      message: "Blocked user details retrieved successfully",
+      blockedUser: {
+        userId: blockedUser.userId,
+        username: blockedUser.username,
+        email: blockedUser.email,
+        blockedAt: blockedUser.blockedAt,
+        reason: blockedUser.reason,
+        suspiciousActivityCount: blockedUser.suspiciousActivityCount,
+        suspiciousActivities: blockedUser.suspiciousActivities,
+        blockHistory: blockedUser.blockHistory,
+        isActive: blockedUser.isActive,
+        adminUnblocked: blockedUser.adminUnblocked,
+        unblockedAt: blockedUser.unblockedAt,
+        unblockedBy: blockedUser.unblockedBy,
+        unblockReason: blockedUser.unblockReason,
+      },
+    });
+  } catch (error) {
+    console.error("Get blocked user details error:", error);
+    res.status(500).json({ message: "Failed to fetch blocked user details" });
+  }
+});
+
+router.post("/anti-cheat/refresh-cache", async (req, res) => {
+  try {
+    await antiCheatSystem.refreshBlockedUsersCache();
+
+    res.status(200).json({
+      message: "Anti-cheat cache refreshed successfully",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Refresh cache error:", error);
+    res.status(500).json({ message: "Failed to refresh cache" });
   }
 });
 

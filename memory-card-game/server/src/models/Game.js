@@ -42,7 +42,8 @@ const playerSchema = new mongoose.Schema({
   matches: { type: Number, default: 0 },
   flips: { type: Number, default: 0 },
   powerUps: [powerUpSchema],
-  powerUpsUsed: { type: Number, default: 0 }, // Add powerUpsUsed field
+  powerUpsCollected: [String],
+  powerUpsUsed: { type: Number, default: 0 },
   memoryMeter: { type: Number, default: 0 },
   isCurrentTurn: { type: Boolean, default: false },
   lastFlipTime: { type: Date },

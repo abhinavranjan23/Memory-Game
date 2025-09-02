@@ -184,6 +184,19 @@ class GameEngine {
         this.game.settings.gameMode
       );
 
+      let powerUpPool = [];
+      if (this.game.settings.powerUpsEnabled) {
+        // Extract all power-ups from the generated board
+        const cardsWithPowerUps = board.filter((card) => card.powerUp);
+        powerUpPool = cardsWithPowerUps.map((card) => ({
+          ...card.powerUp,
+          cardId: card.id, // Track which card has this power-up
+          collected: false, // Track if power-up has been collected
+        }));
+
+        console.log(`Generated ${powerUpPool.length} power-ups for board`);
+      }
+
       // Set game start time
       this.game.startedAt = new Date();
 
@@ -201,7 +214,7 @@ class GameEngine {
         gameMode: this.game.settings.gameMode,
         round: 1,
         lastActivity: new Date(),
-        powerUpPool: [],
+        powerUpPool: powerUpPool,
       };
 
       // Update main game status to match gameState status
@@ -990,59 +1003,12 @@ class GameEngine {
       await this.initialize();
     }
 
-    // Anti-cheat validation for power-up usage - Only run if board is properly initialized
-    if (
-      this.game?.gameState?.board &&
-      Array.isArray(this.game.gameState.board) &&
-      this.game.gameState.board.length > 0 &&
-      this.game.players &&
-      Array.isArray(this.game.players)
-    ) {
-      try {
-        // Create a complete game state object for anti-cheat validation
-        const completeGameState = {
-          board: this.game.gameState.board,
-          status: this.game.gameState.status,
-          currentPlayerIndex: this.game.gameState.currentPlayerIndex,
-          currentTurn: this.game.gameState.currentTurn,
-          flippedCards: this.game.gameState.flippedCards,
-          matchedPairs: this.game.gameState.matchedPairs,
-          timeLeft: this.game.gameState.timeLeft,
-          gameMode: this.game.gameState.gameMode,
-          round: this.game.gameState.round,
-          lastActivity: this.game.gameState.lastActivity,
-          powerUpPool: this.game.gameState.powerUpPool,
-          players: this.game.players,
-        };
-
-        antiCheatSystem.validatePowerUpUsage(
-          userId,
-          powerUpType,
-          completeGameState
-        );
-        antiCheatSystem.trackAction(
-          userId,
-          { type: "use_powerup", powerUpType, target },
-          completeGameState
-        );
-      } catch (error) {
-        console.warn(
-          `🚨 Anti-cheat violation for user ${userId}: ${error.message}`
-        );
-        throw new Error(`Action blocked: ${error.message}`);
-      }
-    } else {
-      console.log(
-        "⚠️ Skipping power-up anti-cheat validation - board not properly initialized yet"
-      );
-    }
-
     const player = this.game.players.find((p) => p.userId === userId);
     if (!player) {
       throw new Error("Player not found");
     }
 
-    // Check if player has the power-up
+    // Check if player has the power-up FIRST
     console.log(`Checking power-up availability for player ${userId}:`, {
       powerUpType,
       playerPowerUps: player.powerUps,
@@ -1059,6 +1025,80 @@ class GameEngine {
     }
 
     const powerUp = player.powerUps[powerUpIndex];
+
+    // Anti-cheat validation for power-up usage - Only run if board is properly initialized
+    if (
+      this.game?.gameState?.board &&
+      Array.isArray(this.game.gameState.board) &&
+      this.game.gameState.board.length > 0 &&
+      this.game.players &&
+      Array.isArray(this.game.players)
+    ) {
+      try {
+        // Create a complete game state object for anti-cheat validation
+        const livePlayer = this.game.players.find((p) => p.userId === userId);
+
+        if (!livePlayer) {
+          throw new Error("Player not found");
+        }
+
+        const completeGameState = {
+          board: this.game.gameState.board,
+          status: this.game.gameState.status,
+          currentPlayerIndex: this.game.gameState.currentPlayerIndex,
+          currentTurn: this.game.gameState.currentTurn,
+          flippedCards: this.game.gameState.flippedCards,
+          matchedPairs: this.game.gameState.matchedPairs,
+          timeLeft: this.game.gameState.timeLeft,
+          gameMode: this.game.gameState.gameMode,
+          round: this.game.gameState.round,
+          lastActivity: this.game.gameState.lastActivity,
+          powerUpPool: this.game.gameState.powerUpPool,
+          players: this.game.players,
+        };
+
+        // Add debugging to see what's being passed
+        console.log("�� Debug - before Anti-cheat validation data:", {
+          userId,
+          powerUpType,
+          powerUpPool: this.game.gameState.powerUpPool,
+          allPlayers: completeGameState.players.map((p) => ({
+            userId: p.userId,
+            username: p.username,
+            powerUps: p.powerUps?.length || 0,
+            powerUpsDetails: p.powerUps,
+          })),
+        });
+
+        await antiCheatSystem.validatePowerUpUsage(
+          userId,
+          powerUpType,
+          completeGameState
+        );
+
+        console.log("🔍 AFTER anti-cheat validation - Player power-ups:", {
+          userId,
+          powerUpType,
+          playerPowerUps: this.game.players.find((p) => p.userId === userId)
+            ?.powerUps,
+        });
+
+        antiCheatSystem.trackAction(
+          userId,
+          { type: "use_powerup", powerUpType, target },
+          completeGameState
+        );
+      } catch (error) {
+        console.warn(
+          `🚨 Anti-cheat violation for user ${userId}: ${error.message}`
+        );
+        throw new Error(`Action blocked: ${error.message}`);
+      }
+    } else {
+      console.log(
+        "⚠️ Skipping power-up anti-cheat validation - board not properly initialized yet"
+      );
+    }
 
     try {
       switch (powerUpType) {
@@ -1274,10 +1314,36 @@ class GameEngine {
           break;
       }
 
-      // Remove used power-up
-      player.powerUps.splice(powerUpIndex, 1);
-      player.powerUpsUsed = (player.powerUpsUsed || 0) + 1;
+      const player = this.game.players.find((p) => p.userId === userId);
+      if (player && player.powerUps) {
+        const powerUpIndex = player.powerUps.findIndex(
+          (p) => p.type === powerUpType
+        );
 
+        if (powerUpIndex !== -1) {
+          // Increment power-up used count
+          player.powerUpsUsed = (player.powerUpsUsed || 0) + 1;
+
+          //add power up collected name
+          player.powerUpsCollected.push(powerUpType);
+
+          // Remove the used power-up
+
+          player.powerUps.splice(powerUpIndex, 1);
+          console.log(
+            `Power-up ${powerUpType} consumed for player ${player.username}`
+          );
+
+          // Emit power-up update to all players
+          this.io.to(this.roomId).emit("power-up-update", {
+            playerId: userId,
+            powerUps: player.powerUps,
+            consumedPowerUp: powerUpType,
+          });
+        }
+      }
+
+      // Save game state after power-up consumption
       await this.protectedSave();
 
       // Check if player has extra turns before changing turn

@@ -9,6 +9,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { TextPlugin } from "gsap/TextPlugin";
 import axios from "axios";
 import DashboardShimmer from "../components/DashboardShimmer.jsx";
+import { useSocket } from "../contexts/SocketContext.jsx";
 import {
   PlayIcon,
   TrophyIcon,
@@ -36,7 +37,7 @@ const Dashboard = () => {
   const { addToast } = useToast();
   const { handleError, handleApiCall } = useErrorHandler();
   const navigate = useNavigate();
-
+  const { socket, joinRoom } = useSocket();
   // Refs for GSAP animations
   const headerRef = useRef(null);
   const statsRef = useRef(null);
@@ -300,8 +301,70 @@ const Dashboard = () => {
         "Quick play room created!",
         "Failed to create quick play room"
       );
+      if (socket) {
+        const joinData = { roomId: response.data.game.roomId };
+        const success = joinRoom(joinData);
+        if (!success) {
+          addToast("Failed to join room ", "error");
+          navigate("/lobby");
+        }
 
-      navigate(`/game/${response.data.game.roomId}`);
+        let hasNavigated = false;
+
+        const navigateToWaiting = () => {
+          if (!hasNavigated) {
+            hasNavigated = true;
+            navigate(`/waiting/${response.data.game.roomId}`);
+          }
+        };
+
+        socket.once("room-joined", (data) => {
+          addToast("Taking you to the room...", "info");
+          navigateToWaiting();
+        });
+
+        socket.once("join-room-error", (error) => {
+          console.log("Dashboard: join-room-error received:", error);
+
+          if (error.message && error.message.includes("blocked")) {
+            addToast(
+              "Your account has been blocked due to suspicious activity. Please contact an administrator.",
+              "error"
+            );
+            navigate("/lobby");
+          } else {
+            addToast(error.message || "Failed to join room", "error");
+            navigate("/lobby");
+          }
+        });
+
+        socket.once("error", (error) => {
+          console.log("Dashboard: socket error received:", error);
+
+          if (error.message && error.message.includes("blocked")) {
+            addToast(
+              "Your account has been blocked due to suspicious activity. Please contact an administrator.",
+              "error"
+            );
+            navigate("/lobby");
+          } else {
+            addToast(error.message || "Socket error occurred", "error");
+            navigate("/lobby");
+          }
+        });
+
+        const timeoutId = setTimeout(() => {
+          addToast("Taking you to the room...", "info");
+          navigateToWaiting();
+        }, 3000);
+
+        socket.once("room-joined", () => {
+          clearTimeout(timeoutId);
+        });
+      } else {
+        addToast("Failed to join room", "error");
+        navigate("/lobby");
+      }
     } catch (error) {
       // Error already handled
     } finally {

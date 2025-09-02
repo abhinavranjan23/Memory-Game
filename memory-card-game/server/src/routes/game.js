@@ -2,7 +2,7 @@ const express = require("express");
 const { Game } = require("../models/Game.js");
 const { User } = require("../models/User.js");
 const auth = require("../middleware/auth.js");
-
+const antiCheatSystem = require("../utils/antiCheat.js");
 // Global variable to store socket.io instance
 let io;
 
@@ -83,6 +83,16 @@ router.get("/rooms", optionalAuth, async (req, res) => {
 router.post("/create", auth, async (req, res) => {
   try {
     const { isPrivate = false, password = null, settings = {} } = req.body;
+    if (await antiCheatSystem.isUserBlocked(req.user.id)) {
+      console.warn(
+        `�� Blocked user ${req.user.username} (${hostId}) attempted to create room`
+      );
+      return res.status(403).json({
+        message:
+          "Your account has been blocked due to suspicious activity. Please contact an administrator.",
+        error: "USER_BLOCKED",
+      });
+    }
 
     // Validate settings
     const gameSettings = {

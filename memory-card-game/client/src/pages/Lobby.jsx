@@ -193,6 +193,11 @@ const Lobby = () => {
     // Handle specific error cases
     if (error.message && error.message.includes("Invalid room password")) {
       addToast("Invalid room password. Please try again.", "error");
+    } else if (error.message && error.message.includes("blocked")) {
+      addToast(
+        "Your account has been blocked due to suspicious activity. Please contact an administrator.",
+        "error"
+      );
     } else {
       addToast(error.message || "Failed to join room", "error");
     }

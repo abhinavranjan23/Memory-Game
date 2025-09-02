@@ -147,20 +147,29 @@ function initializeSocket(io) {
   // Run initial cleanup
   cleanupOldGames();
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     console.log(`User connected: ${socket.username} (${socket.id})`);
 
-    // Anti-cheat validation: Check if user is blocked
-    if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
-      console.warn(
-        `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to connect`
-      );
-      socket.emit("error", {
-        message: "Your account has been blocked due to suspicious activity",
-      });
-      socket.disconnect(true);
-      return;
-    }
+    // if (socket.id) {
+    //   try {
+    //     const isBlocked = await antiCheatSystem.isUserBlocked(socket.userId);
+    //     if (isBlocked) {
+    //       console.warn(
+    //         `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to connect`
+    //       );
+    //       socket.emit("error", {
+    //         message: "Your account has been blocked due to suspicious activity",
+    //       });
+    //       socket.disconnect(true);
+    //       return;
+    //     }
+    //   } catch (error) {
+    //     console.error(
+    //       `Error checking if user ${socket.userId} is blocked:`,
+    //       error
+    //     );
+    //   }
+    // }
 
     // Initialize cleanup tracking for this socket
     socketCleanup.set(socket.id, new Set());
@@ -206,18 +215,33 @@ function initializeSocket(io) {
         });
         const { roomId, password } = data;
 
-        // Anti-cheat validation: Check if user is blocked
-        if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
-          console.warn(
-            `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to join room`
-          );
-          socket.emit("error", {
-            message: "Your account has been blocked due to suspicious activity",
-          });
-          socket.emit("join-room-error", {
-            message: "Your account has been blocked due to suspicious activity",
-          });
-          return;
+        // Anti-cheat validation: Check if user is blocked - Made async
+        if (socket.userId) {
+          try {
+            const isBlocked = await antiCheatSystem.isUserBlocked(
+              socket.userId
+            );
+            if (isBlocked) {
+              console.warn(
+                `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to join room`
+              );
+              socket.emit("error", {
+                message:
+                  "Your account has been blocked due to suspicious activity",
+              });
+              socket.emit("join-room-error", {
+                message:
+                  "Your account has been blocked due to suspicious activity",
+              });
+              return;
+            }
+          } catch (error) {
+            console.error(
+              `Error checking if user ${socket.userId} is blocked:`,
+              error
+            );
+            // Continue with the request if blocking check fails
+          }
         }
 
         if (!roomId) {
@@ -365,7 +389,7 @@ function initializeSocket(io) {
                 players: {
                   userId: socket.userId,
                   username: socket.username,
-                  avatar: socket.avatar,
+                  avatar: socket.data.avatar,
                   isReady: true,
                   isCurrentTurn: false,
                   score: 0,
@@ -451,7 +475,7 @@ function initializeSocket(io) {
           player: {
             userId: socket.userId,
             username: socket.username,
-            avatar: socket.avatar,
+            avatar: socket.data.avatar,
             isReady: true,
             isReconnecting: false,
           },
@@ -652,15 +676,27 @@ function initializeSocket(io) {
         return;
       }
 
-      // Anti-cheat validation: Check if user is blocked
-      if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
-        console.warn(
-          `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to flip card`
-        );
-        socket.emit("error", {
-          message: "Your account has been blocked due to suspicious activity",
-        });
-        return;
+      // Anti-cheat validation: Check if user is blocked - Made async
+      if (socket.userId) {
+        try {
+          const isBlocked = await antiCheatSystem.isUserBlocked(socket.userId);
+          if (isBlocked) {
+            console.warn(
+              `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to flip card`
+            );
+            socket.emit("error", {
+              message:
+                "Your account has been blocked due to suspicious activity",
+            });
+            return;
+          }
+        } catch (error) {
+          console.error(
+            `Error checking if user ${socket.userId} is blocked:`,
+            error
+          );
+          // Continue with the request if blocking check fails
+        }
       }
 
       const { cardId } = data;
@@ -692,15 +728,27 @@ function initializeSocket(io) {
         return;
       }
 
-      // Anti-cheat validation: Check if user is blocked
-      if (socket.userId && antiCheatSystem.isUserBlocked(socket.userId)) {
-        console.warn(
-          `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to use power-up`
-        );
-        socket.emit("error", {
-          message: "Your account has been blocked due to suspicious activity",
-        });
-        return;
+      // Anti-cheat validation: Check if user is blocked - Made async
+      if (socket.userId) {
+        try {
+          const isBlocked = await antiCheatSystem.isUserBlocked(socket.userId);
+          if (isBlocked) {
+            console.warn(
+              `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to use power-up`
+            );
+            socket.emit("error", {
+              message:
+                "Your account has been blocked due to suspicious activity",
+            });
+            return;
+          }
+        } catch (error) {
+          console.error(
+            `Error checking if user ${socket.userId} is blocked:`,
+            error
+          );
+          // Continue with the request if blocking check fails
+        }
       }
 
       const { powerUpType, target } = data;

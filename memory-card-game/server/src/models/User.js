@@ -1,14 +1,15 @@
-import mongoose from 'mongoose';
+const mongoose = require("mongoose");
 
 const userStatsSchema = new mongoose.Schema({
   gamesPlayed: { type: Number, default: 0 },
   gamesWon: { type: Number, default: 0 },
   winRate: { type: Number, default: 0 },
   totalScore: { type: Number, default: 0 },
+  bestScore: { type: Number, default: 0 },
   averageFlipTime: { type: Number, default: 0 },
   bestMatchStreak: { type: Number, default: 0 },
   perfectGames: { type: Number, default: 0 },
-  powerUpsUsed: { type: Number, default: 0 }
+  powerUpsUsed: { type: Number, default: 0 },
 });
 
 const achievementSchema = new mongoose.Schema({
@@ -16,58 +17,109 @@ const achievementSchema = new mongoose.Schema({
   name: { type: String, required: true },
   description: { type: String, required: true },
   iconUrl: { type: String, required: true },
-  unlockedAt: { type: Date, required: true }
+  unlockedAt: { type: Date, required: true },
 });
 
-const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true, trim: true },
-  email: { type: String, sparse: true, lowercase: true },
-  googleId: { type: String, sparse: true },
-  avatar: { type: String, default: null },
-  isGuest: { type: Boolean, default: false },
-  stats: { type: userStatsSchema, default: () => ({}) },
-  achievements: [achievementSchema],
-  isAdmin: { type: Boolean, default: false },
-  lastActive: { type: Date, default: Date.now }
-}, {
-  timestamps: true
-});
+const userSchema = new mongoose.Schema(
+  {
+    username: { type: String, required: true, unique: true, trim: true },
+    email: { type: String, sparse: true, lowercase: true },
+    password: { type: String, select: false }, // Password field with select: false for security
+    googleId: { type: String, sparse: true },
+    avatar: { type: String, default: null },
+    isGuest: { type: Boolean, default: false },
+    stats: {
+      type: userStatsSchema,
+      default: () => ({
+        gamesPlayed: 0,
+        gamesWon: 0,
+        winRate: 0,
+        totalScore: 0,
+        bestScore: 0,
+        averageFlipTime: 0,
+        bestMatchStreak: 0,
+        perfectGames: 0,
+        powerUpsUsed: 0,
+      }),
+    },
+    achievements: [achievementSchema],
+    privacySettings: {
+      showInLeaderboards: { type: Boolean, default: true },
+      allowFriendRequests: { type: Boolean, default: true },
+      showOnlineStatus: { type: Boolean, default: true },
+    },
+    isAdmin: { type: Boolean, default: false },
+    lastActive: { type: Date, default: Date.now },
+  },
+  {
+    timestamps: true,
+  }
+);
 
 // Update stats after each game
-userSchema.methods.updateStats = function(gameResult) {
+userSchema.methods.updateStats = function (gameResult) {
   this.stats.gamesPlayed += 1;
   if (gameResult.won) {
     this.stats.gamesWon += 1;
   }
-  this.stats.winRate = (this.stats.gamesWon / this.stats.gamesPlayed) * 100;
+
+  // Calculate win rate as percentage
+  this.stats.winRate = Math.round(
+    (this.stats.gamesWon / this.stats.gamesPlayed) * 100
+  );
+
   this.stats.totalScore += gameResult.score;
-  
-  if (gameResult.flipTimes.length > 0) {
-    const avgTime = gameResult.flipTimes.reduce((a, b) => a + b, 0) / gameResult.flipTimes.length;
-    this.stats.averageFlipTime = (this.stats.averageFlipTime + avgTime) / 2;
+
+  // Update best score if current score is higher
+  if (gameResult.score > this.stats.bestScore) {
+    this.stats.bestScore = gameResult.score;
   }
-  
+
+  // Update average flip time
+  if (gameResult.flipTimes && gameResult.flipTimes.length > 0) {
+    const avgTime =
+      gameResult.flipTimes.reduce((a, b) => a + b, 0) /
+      gameResult.flipTimes.length;
+    this.stats.averageFlipTime = Math.round(
+      (this.stats.averageFlipTime + avgTime) / 2
+    );
+  }
+
+  // Update best match streak
   if (gameResult.matchStreak > this.stats.bestMatchStreak) {
     this.stats.bestMatchStreak = gameResult.matchStreak;
   }
-  
+
+  // Update perfect games count
   if (gameResult.isPerfect) {
     this.stats.perfectGames += 1;
   }
-  
-  this.stats.powerUpsUsed += gameResult.powerUpsUsed;
+
+  // Update power-ups used
+  this.stats.powerUpsUsed += gameResult.powerUpsUsed || 0;
+
   this.lastActive = new Date();
 };
 
 // Add achievement
-userSchema.methods.addAchievement = function(achievement) {
-  const exists = this.achievements.find(a => a.id === achievement.id);
+userSchema.methods.addAchievement = function (achievement) {
+  const exists = this.achievements.find((a) => a.id === achievement.id);
   if (!exists) {
     this.achievements.push({
       ...achievement,
-      unlockedAt: new Date()
+      unlockedAt: new Date(),
     });
   }
 };
 
-export const User = mongoose.model('User', userSchema);
+// Add database indexes for better query performance
+userSchema.index({ username: 1 });
+userSchema.index({ email: 1 });
+userSchema.index({ isGuest: 1 });
+userSchema.index({ isAdmin: 1 });
+userSchema.index({ lastActive: -1 });
+userSchema.index({ "stats.gamesPlayed": -1 });
+userSchema.index({ "stats.gamesWon": -1 });
+userSchema.index({ "stats.totalScore": -1 });
+
+module.exports = { User: mongoose.model("User", userSchema) };

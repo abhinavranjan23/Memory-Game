@@ -2,9 +2,124 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Smooth Form Animations - Optimized for all devices */
+.smooth-fade-in {
+  animation: smoothFadeIn 0.8s ease-out forwards;
+}
+
+.smooth-slide-up {
+  animation: smoothSlideUp 0.6s ease-out forwards;
+}
+
+.smooth-slide-left {
+  animation: smoothSlideLeft 0.6s ease-out forwards;
+}
+
+.smooth-scale-in {
+  animation: smoothScaleIn 0.5s ease-out forwards;
+}
+
+@keyframes smoothFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes smoothSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes smoothSlideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes smoothScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Performance optimizations for animations */
+@media (prefers-reduced-motion: reduce) {
+  .smooth-fade-in,
+  .smooth-slide-up,
+  .smooth-slide-left,
+  .smooth-scale-in {
+    animation: none;
+  }
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .smooth-fade-in {
+    animation-duration: 0.6s;
+  }
+
+  .smooth-slide-up {
+    animation-duration: 0.5s;
+  }
+
+  .smooth-slide-left {
+    animation-duration: 0.5s;
+  }
+
+  .smooth-scale-in {
+    animation-duration: 0.4s;
+  }
+}
+
 @layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    background-color: #e6f3ff; /* Light blue background */
+    min-height: 100vh;
+  }
+
   body {
     @apply transition-colors duration-300;
+    background: linear-gradient(
+      135deg,
+      #e6f3ff 0%,
+      #f0f8ff 100%
+    ); /* Light blue gradient */
+  }
+
+  #root {
+    background-color: #e6f3ff; /* Light blue background for root element */
+    min-height: 100vh;
   }
 }
 
@@ -13,7 +128,7 @@
     transform-style: preserve-3d;
     transition: transform 0.6s;
   }
-  
+
   .card-front,
   .card-back {
     backface-visibility: hidden;
@@ -23,36 +138,36 @@
     width: 100%;
     height: 100%;
   }
-  
+
   .card-back {
     transform: rotateY(180deg);
   }
-  
+
   .card-flipped {
     transform: rotateY(180deg);
   }
-  
+
   .game-board {
     perspective: 1000px;
   }
-  
+
   .power-up-glow {
     box-shadow: 0 0 20px rgba(236, 72, 153, 0.6);
     animation: pulse 2s infinite;
   }
-  
+
   .matched-card {
     animation: bounceIn 0.6s ease-out;
   }
-  
+
   .chat-message {
     @apply p-2 rounded-lg mb-2 max-w-xs break-words;
   }
-  
+
   .chat-message.own {
     @apply bg-blue-500 text-white ml-auto;
   }
-  
+
   .chat-message.other {
     @apply bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100;
   }
@@ -69,4 +184,13 @@
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   @apply bg-gray-400 dark:bg-gray-600 rounded-full hover:bg-gray-500 dark:hover:bg-gray-500;
+}
+
+/* Ensure cards stay visible once animated */
+.feature-card,
+.game-mode-card,
+.power-up-item {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
 }

@@ -286,12 +286,19 @@ function generateBoard(
       powerUpCount = Math.floor(pairs * 0.3); // 30% of pairs get power-ups normally
     }
 
-    const powerUpCards = shuffleArray(cardPairs).slice(0, powerUpCount);
+    const pairIndices = shuffleArray(
+      Array.from({ length: pairs }, (_, i) => i)
+    );
+    const shuffledPairIndices = shuffleArray(pairIndices).slice(
+      0,
+      powerUpCount
+    );
 
-    powerUpCards.forEach((card) => {
+    shuffledPairIndices.forEach((pairIndex) => {
+      const cardIndex = pairIndex * 2;
       const randomPowerUp = getRandomPowerUp();
       if (randomPowerUp) {
-        card.powerUp = randomPowerUp;
+        cardPairs[cardIndex].powerUp = randomPowerUp;
       }
     });
   }

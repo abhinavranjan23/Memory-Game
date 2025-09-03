@@ -2169,13 +2169,28 @@ const Game = () => {
                       {powerUps.map((powerUp, index) => (
                         <motion.button
                           key={`${powerUp.type}-${index}`}
-                          onClick={() => handlePowerUpClick(powerUp)}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg ${getPowerUpButtonStyle(
-                            powerUp.type
-                          )}`}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          title={getPowerUpTooltip(powerUp.type)}
+                          onClick={() =>
+                            currentTurn === user?.id
+                              ? handlePowerUpClick(powerUp)
+                              : null
+                          }
+                          disabled={currentTurn !== user?.id}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 shadow-md ${
+                            currentTurn === user?.id
+                              ? "hover:shadow-lg cursor-pointer"
+                              : "opacity-50 cursor-not-allowed"
+                          } ${getPowerUpButtonStyle(powerUp.type)}`}
+                          whileHover={
+                            currentTurn === user?.id ? { scale: 1.05 } : {}
+                          }
+                          whileTap={
+                            currentTurn === user?.id ? { scale: 0.95 } : {}
+                          }
+                          title={
+                            currentTurn === user?.id
+                              ? getPowerUpTooltip(powerUp.type)
+                              : "Not your turn"
+                          }
                         >
                           <span className='text-lg'>{powerUp.icon}</span>
                           <span className='text-sm font-medium'>
@@ -2185,6 +2200,20 @@ const Game = () => {
                       ))}
                     </div>
 
+                    {/* Turn indicator when power-ups are disabled */}
+                    {currentTurn !== user?.id && (
+                      <div className='mt-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600'>
+                        <div className='flex items-center gap-2'>
+                          <span className='text-gray-500 dark:text-gray-400'>
+                            ⏳
+                          </span>
+                          <span className='text-sm font-medium text-gray-600 dark:text-gray-300'>
+                            Power-ups disabled - waiting for your turn
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Compact mode indicators */}
                     {swapMode && (
                       <div className='mt-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700'>
@@ -2193,7 +2222,7 @@ const Game = () => {
                             <span className='text-purple-600 dark:text-purple-400'>
                               🔀
                             </span>
-                            <span className='text-sm font-medium text-purple-800 dark:text-purple-200'>
+                            <span className='text-sm font-medium text-purple-800 dark:text-gray-200'>
                               Swap Mode: Select 2 cards (
                               {selectedCardsForSwap.length}/2)
                             </span>

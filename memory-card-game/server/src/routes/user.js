@@ -13,7 +13,12 @@ router.get("/stats", auth, async (req, res) => {
     }
 
     res.status(200).json({
-      stats: user.stats,
+      stats: {
+        ...user.stats.toObject(),
+        // Ensure memory meter fields are included
+        bestMemoryMeter: user.stats.bestMemoryMeter || 0,
+        averageMemoryMeter: user.stats.averageMemoryMeter || 0,
+      },
       achievements: user.achievements,
     });
   } catch (error) {
@@ -28,7 +33,9 @@ router.get("/:userId/profile", async (req, res) => {
     const { userId } = req.params;
 
     const user = await User.findById(userId)
-      .select("username avatar stats achievements createdAt isGuest privacySettings -_id")
+      .select(
+        "username avatar stats achievements createdAt isGuest privacySettings -_id"
+      )
       .exec();
 
     if (!user) {
@@ -43,10 +50,11 @@ router.get("/:userId/profile", async (req, res) => {
     }
 
     // Check if user has privacy settings that hide their profile
-    if (user.privacySettings && user.privacySettings.showInLeaderboards === false) {
-      return res
-        .status(404)
-        .json({ message: "Profile not available" });
+    if (
+      user.privacySettings &&
+      user.privacySettings.showInLeaderboards === false
+    ) {
+      return res.status(404).json({ message: "Profile not available" });
     }
 
     res.status(200).json({

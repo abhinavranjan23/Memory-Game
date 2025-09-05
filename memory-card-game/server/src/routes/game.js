@@ -299,8 +299,8 @@ router.post("/leave/:roomId", auth, async (req, res) => {
 
     const isHost = game.players[playerIndex].isHost;
 
-    // Remove player
-    game.removePlayer(req.user.id);
+    // Remove player (manual leave = leftEarly)
+    game.removePlayer(req.user.id, true);
 
     // If host left and there are other players, assign new host
     if (isHost && game.players.length > 0) {
@@ -349,8 +349,14 @@ router.get("/:roomId", auth, async (req, res) => {
       });
     }
 
-    // Check if user is a player in this game
-    const player = game.players.find((p) => p.userId === req.user.id);
+    // Check if user is a player in this game (either active or left early)
+    let player = game.players.find((p) => p.userId === req.user.id);
+
+    // If not found in active players, check opponentsForHistory (user left early)
+    if (!player && game.opponentsForHistory) {
+      player = game.opponentsForHistory.find((p) => p.userId === req.user.id);
+    }
+
     if (!player) {
       return res.status(403).json({
         message: "You are not a player in this game",
@@ -364,6 +370,7 @@ router.get("/:roomId", auth, async (req, res) => {
         isPrivate: game.isPrivate,
         settings: game.settings,
         players: game.players,
+        opponentsForHistory: game.opponentsForHistory || [],
         gameState: game.gameState,
         createdAt: game.createdAt,
         startedAt: game.startedAt,
@@ -422,6 +429,8 @@ router.get("/stats/user", auth, async (req, res) => {
       longestMatchStreak: user.stats.bestMatchStreak || 0,
       powerUpsUsed: user.stats.powerUpsUsed || 0,
       perfectGames: user.stats.perfectGames || 0,
+      bestMemoryMeter: user.stats.bestMemoryMeter || 0,
+      averageMemoryMeter: user.stats.averageMemoryMeter || 0,
       // Calculate average score from total score and games played
       averageScore:
         user.stats.gamesPlayed > 0
@@ -718,36 +727,51 @@ router.get("/history/matches", auth, async (req, res) => {
 
     // Build query to find completed games where the user participated (NO TIME LIMITS)
     let query = {
-      "players.userId": req.user.id.toString(),
-      // Ensure players array exists and is not empty
-      players: { $exists: true, $ne: null, $ne: [] },
-      $or: [
-        // Games that have ended (have endedAt timestamp)
-        { endedAt: { $exists: true, $ne: null } },
-        // Games with a winner
-        { "gameState.winner": { $exists: true, $ne: null } },
-        // Games that are finished/completed
+      $and: [
+        // User participated in the game (either as active player or left early)
         {
-          "gameState.status": {
-            $in: ["finished", "completed", "sudden-death"],
-          },
-        },
-        { status: { $in: ["finished", "completed"] } },
-        // Games that have been played (have startedAt) and are not in waiting/starting status
-        {
-          $and: [
-            { startedAt: { $exists: true, $ne: null } },
-            { "gameState.status": { $nin: ["waiting", "starting"] } },
-            { status: { $nin: ["waiting", "starting"] } },
+          $or: [
+            // User is currently in the game (active players)
+            { "players.userId": req.user.id.toString() },
+            // User was in the game but left early (moved to opponentsForHistory)
+            {
+              "opponentsForHistory.userId": req.user.id.toString(),
+            },
           ],
         },
-        // Games that have players with scores > 0 (indicating they were played)
-        { "players.score": { $gt: 0 } },
-        // Include any game where the user participated and it's not currently waiting/starting
+        // Ensure players array exists (but can be empty if all players left)
+        { players: { $exists: true, $ne: null } },
+        // Game status conditions
         {
-          $and: [
-            { "gameState.status": { $nin: ["waiting", "starting"] } },
-            { status: { $nin: ["waiting", "starting"] } },
+          $or: [
+            // Games that have ended (have endedAt timestamp)
+            { endedAt: { $exists: true, $ne: null } },
+            // Games with a winner
+            { "gameState.winner": { $exists: true, $ne: null } },
+            // Games that are finished/completed
+            {
+              "gameState.status": {
+                $in: ["finished", "completed", "sudden-death"],
+              },
+            },
+            { status: { $in: ["finished", "completed"] } },
+            // Games that have been played (have startedAt) and are not in waiting/starting status
+            {
+              $and: [
+                { startedAt: { $exists: true, $ne: null } },
+                { "gameState.status": { $nin: ["waiting", "starting"] } },
+                { status: { $nin: ["waiting", "starting"] } },
+              ],
+            },
+            // Games that have players with scores > 0 (indicating they were played)
+            { "players.score": { $gt: 0 } },
+            // Include any game where the user participated and it's not currently waiting/starting
+            {
+              $and: [
+                { "gameState.status": { $nin: ["waiting", "starting"] } },
+                { status: { $nin: ["waiting", "starting"] } },
+              ],
+            },
           ],
         },
       ],
@@ -772,15 +796,29 @@ router.get("/history/matches", auth, async (req, res) => {
       );
 
       const simpleQuery = {
-        "players.userId": req.user.id.toString(),
-        players: { $exists: true, $ne: null, $ne: [] },
-        $or: [
-          { "gameState.status": { $nin: ["waiting", "starting"] } },
-          { status: { $nin: ["waiting", "starting"] } },
-          { "players.score": { $gt: 0 } },
-          { startedAt: { $exists: true, $ne: null } },
-          { endedAt: { $exists: true, $ne: null } },
-          { "gameState.winner": { $exists: true, $ne: null } },
+        $and: [
+          // User participated in the game (either as active player or left early)
+          {
+            $or: [
+              // User is currently in the game (active players)
+              { "players.userId": req.user.id.toString() },
+              // User was in the game but left early (moved to opponentsForHistory)
+              { "opponentsForHistory.userId": req.user.id.toString() },
+            ],
+          },
+          // Ensure players array exists and is not empty
+          { players: { $exists: true, $ne: null, $ne: [] } },
+          // Game status conditions
+          {
+            $or: [
+              { "gameState.status": { $nin: ["waiting", "starting"] } },
+              { status: { $nin: ["waiting", "starting"] } },
+              { "players.score": { $gt: 0 } },
+              { startedAt: { $exists: true, $ne: null } },
+              { endedAt: { $exists: true, $ne: null } },
+              { "gameState.winner": { $exists: true, $ne: null } },
+            ],
+          },
         ],
       };
 
@@ -850,13 +888,36 @@ router.get("/history/matches", auth, async (req, res) => {
     const matches = games
       .map((game) => {
         try {
-          // Find the current user's player data
-          const userPlayer = game.players.find(
+          // Find the current user's player data (check both active players and opponentsForHistory)
+          let userPlayer = game.players.find(
             (p) => p.userId === req.user.id.toString()
           );
+
+          // If not found in active players, check opponentsForHistory (for users who left early)
+          if (!userPlayer && game.opponentsForHistory) {
+            const userInHistory = game.opponentsForHistory.find(
+              (p) => p.userId === req.user.id.toString()
+            );
+            if (userInHistory) {
+              // Convert opponentsForHistory format to player format
+              userPlayer = {
+                userId: userInHistory.userId,
+                username: userInHistory.username,
+                score: userInHistory.score || 0,
+                matches: userInHistory.matches || 0,
+                flips: 0, // Not stored in opponentsForHistory, use 0
+                leftEarly: userInHistory.leftEarly || false,
+                disconnectedAt: userInHistory.disconnectedAt || null,
+              };
+              console.log(
+                `✅ Found user ${req.user.id} in opponentsForHistory for game ${game.roomId}`
+              );
+            }
+          }
+
           if (!userPlayer) {
             console.log(
-              `❌ User ${req.user.id} not found in game ${game.roomId}`
+              `❌ User ${req.user.id} not found in game ${game.roomId} (checked both players and opponentsForHistory)`
             );
             return null;
           }
@@ -872,40 +933,43 @@ router.get("/history/matches", auth, async (req, res) => {
           );
 
           // Get opponents (all other players)
-          // Use stored opponents information if available, otherwise use current players
+          // Combine both active players and opponentsForHistory for complete opponent list
           let opponents = [];
-          if (
-            game.gameState?.opponentsForHistory &&
-            game.gameState.opponentsForHistory.length > 0
-          ) {
-            // Use stored opponents information (includes players who left)
-            opponents = game.gameState.opponentsForHistory
-              .filter((p) => p.userId !== req.user.id.toString())
-              .map((opponent) => ({
-                username: opponent.username,
-                userId: opponent.userId,
-                score: opponent.score || 0,
-                matches: opponent.matches || 0,
-                leftEarly: opponent.leftEarly || false,
-                disconnectedAt: opponent.disconnectedAt || null,
-              }));
-          } else {
-            // Fallback to current players (for older games)
-            opponents = game.players
-              .filter((p) => p.userId !== req.user.id.toString())
-              .map((opponent) => ({
-                username: opponent.username,
-                userId: opponent.userId,
-                score: opponent.score || 0,
-                matches: opponent.matches || 0,
-                leftEarly:
-                  !game.endedAt ||
-                  game.gameState.completionReason === "opponents_left" ||
-                  game.gameState.completionReason === "last_player_winner" ||
-                  game.gameState.completionReason === "abort",
-                disconnectedAt: null,
-              }));
-          }
+
+          // Add active players (excluding current user)
+          const activeOpponents = game.players
+            .filter((p) => p.userId !== req.user.id.toString())
+            .map((opponent) => ({
+              username: opponent.username,
+              userId: opponent.userId,
+              score: opponent.score || 0,
+              matches: opponent.matches || 0,
+              leftEarly: false, // Active players didn't leave early
+              disconnectedAt: null,
+            }));
+
+          // Add players from opponentsForHistory (excluding current user)
+          const historyOpponents = game.gameState?.opponentsForHistory
+            ? game.gameState.opponentsForHistory
+                .filter((p) => p.userId !== req.user.id.toString())
+                .map((opponent) => ({
+                  username: opponent.username,
+                  userId: opponent.userId,
+                  score: opponent.score || 0,
+                  matches: opponent.matches || 0,
+                  leftEarly: opponent.leftEarly || false,
+                  disconnectedAt: opponent.disconnectedAt || null,
+                }))
+            : [];
+
+          // Combine both lists and remove duplicates (in case a player appears in both)
+          const allOpponents = [...activeOpponents, ...historyOpponents];
+          const uniqueOpponents = allOpponents.filter(
+            (opponent, index, self) =>
+              index === self.findIndex((o) => o.userId === opponent.userId)
+          );
+
+          opponents = uniqueOpponents;
 
           // Determine if user won
           const userWon = determinePlayerWon(game, req.user.id.toString());

@@ -111,12 +111,15 @@ const Lobby = () => {
       addToast("Connecting to room...", "info");
     });
 
-    socket.emit("get-active-players");
     socket.emit("get-rooms");
+
+    // Request active players count with a small delay to ensure socket is ready
+    setTimeout(() => {
+      socket.emit("get-active-players");
+    }, 100);
 
     const refreshInterval = setInterval(() => {
       socket.emit("get-rooms");
-      socket.emit("get-active-players");
     }, 5000);
 
     return () => {

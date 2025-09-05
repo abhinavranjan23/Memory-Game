@@ -182,7 +182,7 @@ gameSchema.methods.addPlayer = function (userId, username, avatar) {
   });
 };
 
-gameSchema.methods.removePlayer = function (userId) {
+gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
   const playerIndex = this.players.findIndex((p) => p.userId === userId);
   if (playerIndex === -1) {
     return false;
@@ -198,6 +198,29 @@ gameSchema.methods.removePlayer = function (userId) {
       `⚠️ Cannot remove player ${userId} from finished game ${this.roomId}`
     );
     return false;
+  }
+
+  // Get the player data before removal
+  const playerToRemove = this.players[playerIndex];
+
+  // If leftEarly is true, move player to opponentsForHistory
+  if (leftEarly) {
+    // Ensure opponentsForHistory is initialized
+    if (!this.opponentsForHistory) {
+      this.opponentsForHistory = [];
+    }
+
+    this.opponentsForHistory.push({
+      userId: playerToRemove.userId,
+      username: playerToRemove.username,
+      score: playerToRemove.score || 0,
+      matches: playerToRemove.matches || 0,
+      leftEarly: true,
+      disconnectedAt: new Date(),
+    });
+    console.log(
+      `Player ${playerToRemove.username} moved to opponentsForHistory with leftEarly: true`
+    );
   }
 
   // ✅ Only remove from active games

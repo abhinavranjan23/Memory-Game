@@ -10,6 +10,8 @@ const userStatsSchema = new mongoose.Schema({
   bestMatchStreak: { type: Number, default: 0 },
   perfectGames: { type: Number, default: 0 },
   powerUpsUsed: { type: Number, default: 0 },
+  bestMemoryMeter: { type: Number, default: 0 },
+  averageMemoryMeter: { type: Number, default: 0 },
 });
 
 const achievementSchema = new mongoose.Schema({
@@ -40,6 +42,8 @@ const userSchema = new mongoose.Schema(
         bestMatchStreak: 0,
         perfectGames: 0,
         powerUpsUsed: 0,
+        bestMemoryMeter: 0,
+        averageMemoryMeter: 0,
       }),
     },
     achievements: [achievementSchema],
@@ -97,6 +101,25 @@ userSchema.methods.updateStats = function (gameResult) {
 
   // Update power-ups used
   this.stats.powerUpsUsed += gameResult.powerUpsUsed || 0;
+
+  // Update memory meter statistics
+  if (gameResult.memoryMeter !== undefined) {
+    // Update best memory meter
+    if (gameResult.memoryMeter > this.stats.bestMemoryMeter) {
+      this.stats.bestMemoryMeter = gameResult.memoryMeter;
+    }
+
+    // Update average memory meter
+    if (this.stats.gamesPlayed === 1) {
+      this.stats.averageMemoryMeter = gameResult.memoryMeter;
+    } else {
+      this.stats.averageMemoryMeter = Math.round(
+        (this.stats.averageMemoryMeter * (this.stats.gamesPlayed - 1) +
+          gameResult.memoryMeter) /
+          this.stats.gamesPlayed
+      );
+    }
+  }
 
   this.lastActive = new Date();
 };

@@ -91,6 +91,15 @@ const AdminDashboard = () => {
     }
   };
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAntiCheatReport();
+      fetchBlockedUsers();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const handleRefreshCache = async () => {
     try {
       await handleApiCall(

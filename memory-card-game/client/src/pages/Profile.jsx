@@ -135,6 +135,10 @@ const Profile = () => {
           userStats?.bestMatchStreak || gameStats.longestMatchStreak,
         averageFlipTime:
           userStats?.averageFlipTime || gameStats.averageFlipTime,
+        bestMemoryMeter:
+          userStats?.bestMemoryMeter || gameStats.bestMemoryMeter || 0,
+        averageMemoryMeter:
+          userStats?.averageMemoryMeter || gameStats.averageMemoryMeter || 0,
         // Calculate average score from total score and games played
         averageScore:
           userStats?.gamesPlayed > 0
@@ -540,6 +544,20 @@ const Profile = () => {
                     subtitle='Response speed'
                     icon={AcademicCapIcon}
                     color='#06B6D4'
+                  />
+                  <StatCard
+                    title='Best Memory Meter'
+                    value={`${stats?.bestMemoryMeter || 0}%`}
+                    subtitle='Peak memory performance'
+                    icon={LightBulbIcon}
+                    color='#8B5CF6'
+                  />
+                  <StatCard
+                    title='Average Memory Meter'
+                    value={`${stats?.averageMemoryMeter || 0}%`}
+                    subtitle='Consistent memory performance'
+                    icon={HeartIcon}
+                    color='#EC4899'
                   />
                 </div>
               </motion.div>

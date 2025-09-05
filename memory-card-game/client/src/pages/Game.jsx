@@ -522,7 +522,7 @@ const Game = () => {
       });
 
       addToastOnce(
-        `${data.username} left the game`,
+        `${data.username || data.playerName || "A player"} left the game`,
         "info",
         `player-left-${data.userId}`
       );
@@ -551,6 +551,33 @@ const Game = () => {
           playerLeftToastShown.current.delete(data.userId);
         }, 5000)
       );
+    };
+
+    const handlePlayerReconnected = (data) => {
+      console.log("Player reconnected:", data);
+
+      // Show reconnection notification
+      const message = data.isLateReconnection
+        ? `${data.playerName} has rejoined the game`
+        : `${data.playerName} has reconnected`;
+
+      addToastOnce(message, "success", `player-reconnected-${data.playerId}`);
+    };
+
+    const handleRedirectToLobby = (data) => {
+      console.log("Redirect to lobby:", data);
+
+      // Show error message
+      addToastOnce(
+        data.message || "You cannot rejoin this game. Redirecting to lobby...",
+        "error",
+        "late-reconnection-blocked"
+      );
+
+      // Redirect to lobby after a short delay
+      setTimeout(() => {
+        navigate("/lobby");
+      }, 2000);
     };
 
     const handleCardFlipped = (data) => {
@@ -1298,6 +1325,8 @@ const Game = () => {
     socket.off("game-started", handleGameStarted);
     socket.off("player-joined", handlePlayerJoined);
     socket.off("player-left", handlePlayerLeft);
+    socket.off("player-reconnected", handlePlayerReconnected);
+    socket.off("redirect-to-lobby", handleRedirectToLobby);
     socket.off("card-flipped", handleCardFlipped);
     socket.off("cards-matched", handleCardsMatched);
     socket.off("cards-flipped-back", handleCardsFlippedBack);
@@ -1358,6 +1387,8 @@ const Game = () => {
     ); // 5 second timeout
     socket.on("player-joined", handlePlayerJoined);
     socket.on("player-left", handlePlayerLeft);
+    socket.on("player-reconnected", handlePlayerReconnected);
+    socket.on("redirect-to-lobby", handleRedirectToLobby);
     socket.on("card-flipped", handleCardFlipped);
     socket.on("cards-matched", handleCardsMatched);
     socket.on("cards-flipped-back", handleCardsFlippedBack);
@@ -1397,6 +1428,8 @@ const Game = () => {
       socket.off("game-started", handleGameStarted);
       socket.off("player-joined", handlePlayerJoined);
       socket.off("player-left", handlePlayerLeft);
+      socket.off("player-reconnected", handlePlayerReconnected);
+      socket.off("redirect-to-lobby", handleRedirectToLobby);
       socket.off("card-flipped", handleCardFlipped);
       socket.off("cards-matched", handleCardsMatched);
       socket.off("cards-flipped-back", handleCardsFlippedBack);

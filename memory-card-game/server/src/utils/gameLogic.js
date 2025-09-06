@@ -563,6 +563,116 @@ function checkAchievements(player, gameResult) {
     });
   }
 
+  // Quick Draw (score 500+ in a game)
+  if (gameResult.score >= 500) {
+    achievements.push({
+      id: "quick_draw",
+      name: "Quick Draw",
+      description: "Score 500+ points in a single game",
+      iconUrl: "🎯",
+    });
+  }
+
+  // Memory Master (high memory meter)
+  if (gameResult.memoryMeter >= 90) {
+    achievements.push({
+      id: "memory_master",
+      name: "Memory Master",
+      description: "Achieve 90%+ memory meter in a game",
+      iconUrl: "🧠",
+    });
+  }
+
+  // Power-up Collector (use 5+ power-ups in one game)
+  if (gameResult.powerUpsUsed >= 5) {
+    achievements.push({
+      id: "powerup_collector",
+      name: "Power-up Collector",
+      description: "Use 5+ power-ups in a single game",
+      iconUrl: "🎁",
+    });
+  }
+
+  // Time Master (win Blitz mode game)
+  if (gameResult.won && gameResult.gameMode === "blitz") {
+    achievements.push({
+      id: "time_master",
+      name: "Time Master",
+      description: "Win a Blitz mode game",
+      iconUrl: "⏰",
+    });
+  }
+
+  // Streak Breaker (perfect games)
+  if (player.stats.perfectGames >= 5) {
+    achievements.push({
+      id: "streak_breaker",
+      name: "Streak Breaker",
+      description: "Complete 5+ perfect games",
+      iconUrl: "💥",
+    });
+  }
+
+  // Social Butterfly (play 50+ games)
+  if (player.stats.gamesPlayed >= 50) {
+    achievements.push({
+      id: "social_butterfly",
+      name: "Social Butterfly",
+      description: "Play 50+ games",
+      iconUrl: "🦋",
+    });
+  }
+
+  // Night Owl (play 25+ games)
+  if (player.stats.gamesPlayed >= 25) {
+    achievements.push({
+      id: "night_owl",
+      name: "Night Owl",
+      description: "Play 25+ games",
+      iconUrl: "🦉",
+    });
+  }
+
+  // Comeback King (win 20+ games)
+  if (player.stats.gamesWon >= 20) {
+    achievements.push({
+      id: "comeback_king",
+      name: "Comeback King",
+      description: "Win 20+ games",
+      iconUrl: "👑",
+    });
+  }
+
+  // Speed Reader (fast average flip time)
+  if (player.stats.averageFlipTime > 0 && player.stats.averageFlipTime < 3000) {
+    achievements.push({
+      id: "speed_reader",
+      name: "Speed Reader",
+      description: "Average flip time under 3 seconds",
+      iconUrl: "📖",
+    });
+  }
+
+  // Lucky Streak (get 10+ match streak)
+  if (player.stats.bestMatchStreak >= 10) {
+    achievements.push({
+      id: "lucky_streak",
+      name: "Lucky Streak",
+      description: "Get a 10+ match streak",
+      iconUrl: "🍀",
+    });
+  }
+
+  // Weekend Warrior (play 75+ games)
+  if (player.stats.gamesPlayed >= 75) {
+    achievements.push({
+      id: "weekend_warrior",
+      name: "Weekend Warrior",
+      description: "Play 75+ games",
+      iconUrl: "⚔️",
+    });
+  }
+
   return achievements;
 }
 

@@ -151,14 +151,153 @@ const Profile = () => {
       setMatches(matchesResponse.data.matches);
 
       // Debug: Log match history data
-      // Use real achievements from backend and add missing fields for UI compatibility
+      // Get real achievements from backend
       const realAchievements = userStatsResponse.data.achievements || [];
 
-      const processedAchievements = realAchievements.map((achievement) => ({
-        ...achievement,
-        unlocked: true, // All achievements in the database are unlocked
-        rarity: getAchievementRarity(achievement.id), // Add rarity based on achievement ID
-      }));
+      // Define all possible achievements
+      const allPossibleAchievements = [
+        {
+          id: "first_win",
+          name: "First Victory",
+          description: "Win your first game",
+          iconUrl: "🥇",
+        },
+        {
+          id: "perfect_memory",
+          name: "Perfect Memory",
+          description: "Complete a game without any wrong matches",
+          iconUrl: "🧠",
+        },
+        {
+          id: "speed_demon",
+          name: "Speed Demon",
+          description: "Win a Blitz mode game",
+          iconUrl: "⚡",
+        },
+        {
+          id: "combo_master",
+          name: "Combo Master",
+          description: "Get a 5+ match streak",
+          iconUrl: "🔥",
+        },
+        {
+          id: "power_player",
+          name: "Power Player",
+          description: "Win a game using 3+ power-ups",
+          iconUrl: "🎮",
+        },
+        {
+          id: "grandmaster",
+          name: "Grandmaster",
+          description: "Win an 8x8 board game",
+          iconUrl: "👑",
+        },
+        {
+          id: "marathon_player",
+          name: "Marathon Player",
+          description: "Play 100 games",
+          iconUrl: "🏃",
+        },
+        {
+          id: "high_scorer",
+          name: "High Scorer",
+          description: "Score 1000+ points in a single game",
+          iconUrl: "💎",
+        },
+        {
+          id: "consistent_winner",
+          name: "Consistent Winner",
+          description: "Maintain 80%+ win rate over 10+ games",
+          iconUrl: "🏆",
+        },
+        {
+          id: "quick_draw",
+          name: "Quick Draw",
+          description: "Score 500+ points in a single game",
+          iconUrl: "🎯",
+        },
+        {
+          id: "memory_master",
+          name: "Memory Master",
+          description: "Achieve 90%+ memory meter in a game",
+          iconUrl: "🧠",
+        },
+        {
+          id: "powerup_collector",
+          name: "Power-up Collector",
+          description: "Use 5+ power-ups in a single game",
+          iconUrl: "🎁",
+        },
+        {
+          id: "time_master",
+          name: "Time Master",
+          description: "Win a Blitz mode game",
+          iconUrl: "⏰",
+        },
+        {
+          id: "streak_breaker",
+          name: "Streak Breaker",
+          description: "Complete 5+ perfect games",
+          iconUrl: "💥",
+        },
+        {
+          id: "social_butterfly",
+          name: "Social Butterfly",
+          description: "Play 50+ games",
+          iconUrl: "🦋",
+        },
+        {
+          id: "night_owl",
+          name: "Night Owl",
+          description: "Play 25+ games",
+          iconUrl: "🦉",
+        },
+        {
+          id: "comeback_king",
+          name: "Comeback King",
+          description: "Win 20+ games",
+          iconUrl: "👑",
+        },
+        {
+          id: "speed_reader",
+          name: "Speed Reader",
+          description: "Average flip time under 3 seconds",
+          iconUrl: "📖",
+        },
+        {
+          id: "lucky_streak",
+          name: "Lucky Streak",
+          description: "Get a 10+ match streak",
+          iconUrl: "🍀",
+        },
+        {
+          id: "weekend_warrior",
+          name: "Weekend Warrior",
+          description: "Play 75+ games",
+          iconUrl: "⚔️",
+        },
+      ];
+
+      // Create a map of unlocked achievements for quick lookup
+      const unlockedAchievementIds = new Set(realAchievements.map((a) => a.id));
+
+      // Process all achievements - mark as unlocked only if they exist in the database
+      const processedAchievements = allPossibleAchievements.map(
+        (achievement) => {
+          const isUnlocked = unlockedAchievementIds.has(achievement.id);
+          const unlockedAchievement = realAchievements.find(
+            (a) => a.id === achievement.id
+          );
+
+          return {
+            ...achievement,
+            unlocked: isUnlocked,
+            unlockedAt: unlockedAchievement?.unlockedAt || null,
+            rarity: getAchievementRarity(achievement.id),
+          };
+        }
+      );
+
       setAchievements(processedAchievements);
     } catch (error) {
       // Errors already handled by handleApiCall
@@ -226,18 +365,54 @@ const Profile = () => {
 
   const getAchievementRarity = (achievementId) => {
     switch (achievementId) {
+      // Common achievements (easy to get)
       case "first_win":
         return "common";
+      case "quick_draw":
+        return "common";
+      case "night_owl":
+        return "common";
+      case "lucky_streak":
+        return "common";
+
+      // Uncommon achievements (moderate difficulty)
       case "speed_demon":
         return "uncommon";
-      case "perfect_memory":
-        return "rare";
       case "combo_master":
         return "uncommon";
+      case "power_player":
+        return "uncommon";
+      case "time_master":
+        return "uncommon";
+      case "streak_breaker":
+        return "uncommon";
       case "social_butterfly":
+        return "uncommon";
+      case "speed_reader":
+        return "uncommon";
+
+      // Rare achievements (difficult)
+      case "perfect_memory":
         return "rare";
+      case "marathon_player":
+        return "rare";
+      case "high_scorer":
+        return "rare";
+      case "memory_master":
+        return "rare";
+      case "powerup_collector":
+        return "rare";
+      case "comeback_king":
+        return "rare";
+      case "weekend_warrior":
+        return "rare";
+
+      // Legendary achievements (very difficult)
       case "grandmaster":
         return "legendary";
+      case "consistent_winner":
+        return "legendary";
+
       default:
         return "common";
     }

@@ -1800,18 +1800,8 @@ const Game = () => {
       return;
     }
 
-    console.log(
-      "Flipping card:",
-      cardId,
-      "Currently flipped:",
-      currentlyFlipped
-    );
-
     // Add card to selected cards
     setSelectedCards((prev) => [...prev, cardId]);
-
-    // Play flip card notification sound
-    playFlipCardNotification();
 
     // Emit flip card event
     socket.emit("flip-card", { cardId });
@@ -2424,7 +2414,7 @@ const Game = () => {
             </div>
 
             {/* Compact Power-ups Section */}
-            {(game?.settings?.powerUpsEnabled || powerUps.length > 0) && (
+            {powerUps.length > 0 && (
               <div className='mb-2 md:mb-4 '>
                 <div className='flex items-center justify-between mb-2'>
                   <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2'>

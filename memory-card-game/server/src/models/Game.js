@@ -185,6 +185,7 @@ gameSchema.methods.addPlayer = function (userId, username, avatar) {
 gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
   const playerIndex = this.players.findIndex((p) => p.userId === userId);
   if (playerIndex === -1) {
+    console.log(`Player ${userId} not found in game ${this.roomId}`);
     return false;
   }
 
@@ -206,11 +207,11 @@ gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
   // If leftEarly is true, move player to opponentsForHistory
   if (leftEarly) {
     // Ensure opponentsForHistory is initialized
-    if (!this.opponentsForHistory) {
-      this.opponentsForHistory = [];
+    if (!this.gameState.opponentsForHistory) {
+      this.gameState.opponentsForHistory = [];
     }
 
-    this.opponentsForHistory.push({
+    this.gameState.opponentsForHistory.push({
       userId: playerToRemove.userId,
       username: playerToRemove.username,
       score: playerToRemove.score || 0,
@@ -225,9 +226,6 @@ gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
 
   // ✅ Only remove from active games
   this.players.splice(playerIndex, 1);
-
-  // 🔧 REMOVED: Don't automatically mark as completed when no players left
-  // Let the calling code decide whether to delete or mark as completed
 
   // If the removed player was the current turn, switch to next player
   if (this.gameState.currentTurn === userId) {

@@ -274,32 +274,46 @@ function initializeSocket(io) {
           console.log(
             `User ${socket.username} reconnecting, cancelling grace period`
           );
-          // Cancel any pending disconnect processing
+
+          // Cancel any pending disconnect processing for this user
+          const cleanupFunction = socketCleanup.get(socket.userId);
+          if (cleanupFunction) {
+            console.log(
+              `Cancelling grace period timeout for user ${socket.userId}`
+            );
+            try {
+              cleanupFunction();
+            } catch (error) {
+              console.error("Error during reconnection cleanup:", error);
+            }
+            socketCleanup.delete(socket.userId);
+          }
+
+          // Disconnect the old socket if it still exists
           const oldSocket = io.sockets.sockets.get(oldSocketId);
           if (oldSocket) {
-            const cleanupFunctions = socketCleanup.get(oldSocketId);
-            if (cleanupFunctions) {
-              cleanupFunctions.forEach((cleanup) => {
-                try {
-                  cleanup();
-                } catch (error) {
-                  console.error("Error during reconnection cleanup:", error);
-                }
-              });
-              socketCleanup.delete(oldSocketId);
-            }
+            oldSocket.disconnect(true);
           }
         }
 
         // Check if this is a late reconnection attempt (user was marked as left early)
+        // IMPORTANT: Game engine adds users to opponentsForHistory immediately on disconnect
+        // But we should only block reconnection if they were actually removed after grace period
+        // So we check: user is in opponentsForHistory AND NOT in active players list
         const existingGame = await Game.findOne({ roomId });
         if (existingGame) {
+          const isStillActivePlayer = existingGame.players.find(
+            (p) => p.userId === socket.userId
+          );
+
           const leftEarlyPlayer =
             existingGame.gameState.opponentsForHistory?.find(
               (opp) => opp.userId === socket.userId && opp.leftEarly
             );
 
-          if (leftEarlyPlayer) {
+          // Only block if user is in opponentsForHistory AND not in active players
+          // This means they were actually removed after grace period expired
+          if (leftEarlyPlayer && !isStillActivePlayer) {
             console.log(
               `User ${socket.username} attempting late reconnection to room ${roomId} - BLOCKED (grace period expired)`
             );
@@ -640,7 +654,12 @@ function initializeSocket(io) {
     // Leave current room
     socket.on("leave-room", async () => {
       if (socket.currentRoom) {
+        console.log(
+          `🔍 SERVER: Processing leave-room request from ${socket.username}`
+        );
         await handleLeaveRoom(socket, socket.currentRoom);
+        // Emit confirmation to the leaving player
+        socket.emit("leave-room-confirmed", { roomId: socket.currentRoom });
       }
     });
 
@@ -1083,6 +1102,19 @@ function initializeSocket(io) {
         socketCleanup.delete(socket.id);
       }
 
+      // Also clean up any grace period timeout stored under userId
+      if (socket.userId) {
+        const userCleanupFunction = socketCleanup.get(socket.userId);
+        if (userCleanupFunction) {
+          try {
+            userCleanupFunction();
+          } catch (error) {
+            console.error("Error during user cleanup:", error);
+          }
+          socketCleanup.delete(socket.userId);
+        }
+      }
+
       if (socket.userId) {
         // Store user info for potential reconnection
         const userInfo = {
@@ -1126,7 +1158,8 @@ function initializeSocket(io) {
           }, 60000); // 60 second grace period (1 minute)
 
           // Store timeout for potential cancellation on reconnection
-          socketCleanup.set(socket.id, () => {
+          // Use userId as key instead of socket.id since socket.id changes on reconnection
+          socketCleanup.set(socket.userId, () => {
             clearTimeout(gracePeriodTimeout);
           });
         } else {
@@ -1185,6 +1218,15 @@ function initializeSocket(io) {
       // Remove player from database
       const game = await Game.findOne({ roomId });
       if (game) {
+        // Check if player is still in the game (might have been removed by manual leave)
+        const playerStillInGame = game.players.find((p) => p.userId === userId);
+        if (!playerStillInGame) {
+          console.log(
+            `Player ${username} already removed from game ${roomId}, skipping grace period processing`
+          );
+          return;
+        }
+
         // Get opponents BEFORE removal (including the leaving player)
         const opponentsBeforeRemoval = game.players.map((opponent) => ({
           userId: opponent.userId,
@@ -1207,219 +1249,17 @@ function initializeSocket(io) {
         });
 
         // Remove player from database with leftEarly flag
-        await game.removePlayer(userId, true); // true = leftEarly
-        console.log(
-          `Player ${username} removed from room ${roomId} after grace period (leftEarly: true)`
-        );
-
-        // 🔧 NEW: Handle game completion when only one player remains after grace period
-        if (game.players.length === 1) {
-          console.log(
-            `Only one player remains in game ${roomId} after grace period - declaring winner`
-          );
-
-          // Get the game engine and end the game with the remaining player as winner
-          const gameEngine = activeGames.get(roomId);
-          if (gameEngine) {
-            try {
-              await gameEngine.endGame("last_player_winner");
-              console.log(
-                `Game ${roomId} ended after grace period - remaining player declared winner`
-              );
-            } catch (error) {
-              console.error(
-                `Error ending game ${roomId} after grace period:`,
-                error
-              );
-            }
-          } else {
-            // If no game engine, manually end the game
-            console.log(
-              `No game engine found for ${roomId} after grace period, manually ending game`
-            );
-            game.gameState.status = "finished";
-            game.status = "completed";
-            game.endedAt = new Date();
-            game.completionReason = "opponents_left";
-            game.winner = game.players[0].username;
-            await game.save();
-
-            // Emit game over event
-            io.to(roomId).emit("game-over", {
-              reason: "last_player_winner",
-              winners: game.players,
-              finalStats: game.players.map((p) => ({
-                userId: p.userId,
-                username: p.username,
-                score: p.score || 0,
-                matches: p.matches || 0,
-                memoryMeter: p.memoryMeter || 0,
-              })),
-            });
-          }
-        } else if (game.players.length === 0) {
-          console.log(
-            `Last player left game ${roomId} after grace period - deleting from database`
-          );
-
-          // Clean up game engine first
-          const gameEngine = activeGames.get(roomId);
-          if (gameEngine) {
-            gameEngine.cleanup();
-            activeGames.delete(roomId);
-            console.log(
-              `Cleaned up game engine for deleted game ${roomId} after grace period`
-            );
-          }
-
-          // Delete the game from database
-          try {
-            await Game.findByIdAndDelete(game._id);
-            console.log(
-              `Successfully deleted game ${roomId} from database after grace period`
-            );
-
-            // Broadcast room deletion to all clients
-            io.emit("room-deleted", roomId);
-          } catch (error) {
-            console.error(
-              `Error deleting game ${roomId} from database after grace period:`,
-              error
-            );
-          }
-        }
-      }
-    } catch (error) {
-      console.error(
-        `Error handling delayed disconnect for user ${username}:`,
-        error
-      );
-    }
-  }
-
-  // Helper function to handle leaving room
-  async function handleLeaveRoom(socket, roomId) {
-    const releaseLock = await acquireOperationLock(roomId, "leave-room");
-
-    try {
-      // Set user's room to null instead of deleting from userRooms
-      // This prevents them from being treated as a disconnected lobby user
-      userRooms.set(socket.userId, null);
-
-      // Get current game state before removing player
-      const gameBeforeUpdate = await Game.findOne({ roomId });
-      if (!gameBeforeUpdate) {
-        console.log(`Game ${roomId} not found during leave room`);
-        return;
-      }
-
-      // If active game engine exists, notify it about disconnect BEFORE removing player from database
-      const gameEngine = activeGames.get(roomId);
-
-      if (gameEngine) {
-        try {
-          await gameEngine.handlePlayerDisconnect(socket.userId);
-        } catch (e) {
-          console.error("Game engine disconnect handling error:", e);
-        }
-      }
-
-      // 🔧 FIX: Use the game model's removePlayer method instead of $pull
-      const game = await Game.findOne({ roomId });
-      if (game) {
-        // 🔧 BUG FIX: Emit player-left event BEFORE removing player from database
-        // This ensures the event is sent while the player is still in the room
-
-        // Get opponents BEFORE removal (including the leaving player)
-        const opponentsBeforeRemoval = game.players.map((opponent) => ({
-          userId: opponent.userId,
-          username: opponent.username,
-          avatar: opponent.avatar,
-          score: opponent.score || 0,
-          matches: opponent.matches || 0,
-        }));
-
-        console.log(
-          `🔍 DEBUG: About to emit player-left event for room ${roomId}`
-        );
-        console.log(
-          `🔍 DEBUG: Player leaving: ${socket.username} (${socket.userId})`
-        );
-        console.log(`🔍 DEBUG: Players before removal: ${game.players.length}`);
-        console.log(
-          `🔍 DEBUG: Players before removal:`,
-          game.players.map((p) => p.username)
-        );
-
-        // Check if the socket is still in the room
-        const roomClients = io.sockets.adapter.rooms.get(roomId);
-        if (roomClients) {
-          console.log(
-            `🔍 DEBUG: Room ${roomId} has ${roomClients.size} connected clients`
-          );
-          console.log(`🔍 DEBUG: Connected clients:`, Array.from(roomClients));
-        } else {
-          console.log(`🔍 DEBUG: Room ${roomId} has no connected clients!`);
-        }
-
-        // Emit player left event BEFORE removing player from database
-        const playerLeftData = {
-          userId: socket.userId,
-          username: socket.username,
-          remainingPlayers: game.players.length - 1, // Will be remaining after removal
-          opponents: opponentsBeforeRemoval.filter(
-            (p) => p.userId !== socket.userId
-          ), // Exclude leaving player
-          gameStatus: game.gameState?.status || game.status,
-        };
-
-        // Primary emission to room
-        io.to(roomId).emit("player-left", playerLeftData);
-
-        // 🔧 BUG FIX: Also emit to individual players as fallback
-        // This ensures all remaining players receive the event even if room emission fails
-        const remainingPlayerIds = game.players
-          .filter((p) => p.userId !== socket.userId)
-          .map((p) => p.userId);
-
-        console.log(
-          `🔍 DEBUG: Emitting to individual players as fallback:`,
-          remainingPlayerIds
-        );
-
-        remainingPlayerIds.forEach((playerId) => {
-          const playerSocketId = userSockets.get(playerId);
-          if (playerSocketId) {
-            const playerSocket = io.sockets.sockets.get(playerSocketId);
-            if (playerSocket) {
-              console.log(
-                `🔍 DEBUG: Emitting player-left to individual player ${playerId}`
-              );
-              playerSocket.emit("player-left", playerLeftData);
-            } else {
-              console.log(
-                `🔍 DEBUG: Socket object not found for player ${playerId} with socket ID ${playerSocketId}`
-              );
-            }
-          } else {
-            console.log(`🔍 DEBUG: No socket ID found for player ${playerId}`);
-          }
-        });
-
-        console.log(
-          `🔍 DEBUG: Player-left event emitted to room ${roomId} and individual players`
-        );
-
-        // Now remove the player from database (manual leave = leftEarly)
-        const playerRemoved = game.removePlayer(socket.userId, true);
-
+        const playerRemoved = await game.removePlayer(userId, true); // true = leftEarly
         if (playerRemoved) {
           await game.save();
+          console.log(
+            `Player ${username} removed from room ${roomId} after grace period (leftEarly: true)`
+          );
 
-          // 🔧 NEW: Handle game completion when only one player remains
+          // Handle game completion when only one player remains after grace period
           if (game.players.length === 1) {
             console.log(
-              `Only one player remains in game ${roomId} - declaring winner`
+              `Only one player remains in game ${roomId} after grace period - declaring winner`
             );
 
             // Get the game engine and end the game with the remaining player as winner
@@ -1428,15 +1268,18 @@ function initializeSocket(io) {
               try {
                 await gameEngine.endGame("last_player_winner");
                 console.log(
-                  `Game ${roomId} ended - remaining player declared winner`
+                  `Game ${roomId} ended after grace period - remaining player declared winner`
                 );
               } catch (error) {
-                console.error(`Error ending game ${roomId}:`, error);
+                console.error(
+                  `Error ending game ${roomId} after grace period:`,
+                  error
+                );
               }
             } else {
               // If no game engine, manually end the game
               console.log(
-                `No game engine found for ${roomId}, manually ending game`
+                `No game engine found for ${roomId} after grace period, manually ending game`
               );
               game.gameState.status = "finished";
               game.status = "completed";
@@ -1460,7 +1303,7 @@ function initializeSocket(io) {
             }
           } else if (game.players.length === 0) {
             console.log(
-              `Last player left game ${roomId} - deleting from database`
+              `Last player left game ${roomId} after grace period - deleting from database`
             );
 
             // Clean up game engine first
@@ -1468,22 +1311,191 @@ function initializeSocket(io) {
             if (gameEngine) {
               gameEngine.cleanup();
               activeGames.delete(roomId);
-              console.log(`Cleaned up game engine for deleted game ${roomId}`);
+              console.log(
+                `Cleaned up game engine for deleted game ${roomId} after grace period`
+              );
             }
 
             // Delete the game from database
             try {
               await Game.findByIdAndDelete(game._id);
-              console.log(`Successfully deleted game ${roomId} from database`);
+              console.log(
+                `Successfully deleted game ${roomId} from database after grace period`
+              );
 
               // Broadcast room deletion to all clients
               io.emit("room-deleted", roomId);
             } catch (error) {
               console.error(
-                `Error deleting game ${roomId} from database:`,
+                `Error deleting game ${roomId} from database after grace period:`,
                 error
               );
             }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(
+        `Error handling delayed disconnect for user ${username}:`,
+        error
+      );
+    }
+  }
+
+  // Helper function to handle leaving room
+  async function handleLeaveRoom(socket, roomId) {
+    const releaseLock = await acquireOperationLock(roomId, "leave-room");
+
+    try {
+      // Set user's room to null instead of deleting from userRooms
+      // This prevents them from being treated as a disconnected lobby user
+      userRooms.set(socket.userId, null);
+
+      // Get current game state before removing player
+      const game = await Game.findOne({ roomId });
+      if (!game) {
+        console.log(`Game ${roomId} not found during leave room`);
+        return;
+      }
+
+      // Check if player is still in the game
+      const playerStillInGame = game.players.find(
+        (p) => p.userId === socket.userId
+      );
+      if (!playerStillInGame) {
+        console.log(
+          `Player ${socket.username} already removed from game ${roomId}, skipping manual leave processing`
+        );
+        return;
+      }
+
+      // If active game engine exists, notify it about disconnect BEFORE removing player from database
+      const gameEngine = activeGames.get(roomId);
+      if (gameEngine) {
+        try {
+          await gameEngine.handlePlayerDisconnect(socket.userId);
+        } catch (e) {
+          console.error("Game engine disconnect handling error:", e);
+        }
+      }
+
+      // Get opponents BEFORE removal (including the leaving player)
+      const opponentsBeforeRemoval = game.players.map((opponent) => ({
+        userId: opponent.userId,
+        username: opponent.username,
+        avatar: opponent.avatar,
+        score: opponent.score || 0,
+        matches: opponent.matches || 0,
+      }));
+
+      console.log(
+        `🔍 DEBUG: Manual leave - Player ${socket.username} (${socket.userId}) leaving room ${roomId}`
+      );
+
+      // Emit player left event BEFORE removing player from database
+      const playerLeftData = {
+        userId: socket.userId,
+        username: socket.username,
+        remainingPlayers: game.players.length - 1, // Will be remaining after removal
+        opponents: opponentsBeforeRemoval.filter(
+          (p) => p.userId !== socket.userId
+        ), // Exclude leaving player
+        gameStatus: game.gameState?.status || game.status,
+        reason: "manual_leave",
+      };
+
+      // Primary emission to room
+      io.to(roomId).emit("player-left", playerLeftData);
+
+      // Also emit to individual players as fallback
+      const remainingPlayerIds = game.players
+        .filter((p) => p.userId !== socket.userId)
+        .map((p) => p.userId);
+
+      remainingPlayerIds.forEach((playerId) => {
+        const playerSocketId = userSockets.get(playerId);
+        if (playerSocketId) {
+          const playerSocket = io.sockets.sockets.get(playerSocketId);
+          if (playerSocket) {
+            playerSocket.emit("player-left", playerLeftData);
+          }
+        }
+      });
+
+      // Now remove the player from database (manual leave = leftEarly)
+      const playerRemoved = game.removePlayer(socket.userId, true);
+
+      if (playerRemoved) {
+        await game.save();
+        console.log(`Player ${socket.username} manually left room ${roomId}`);
+
+        // Handle game completion when only one player remains
+        if (game.players.length === 1) {
+          console.log(
+            `Only one player remains in game ${roomId} - declaring winner`
+          );
+
+          // Get the game engine and end the game with the remaining player as winner
+          const gameEngine = activeGames.get(roomId);
+          if (gameEngine) {
+            try {
+              await gameEngine.endGame("last_player_winner");
+              console.log(
+                `Game ${roomId} ended - remaining player declared winner`
+              );
+            } catch (error) {
+              console.error(`Error ending game ${roomId}:`, error);
+            }
+          } else {
+            // If no game engine, manually end the game
+            console.log(
+              `No game engine found for ${roomId}, manually ending game`
+            );
+            game.gameState.status = "finished";
+            game.status = "completed";
+            game.endedAt = new Date();
+            game.completionReason = "opponents_left";
+            game.winner = game.players[0].username;
+            await game.save();
+
+            // Emit game over event
+            io.to(roomId).emit("game-over", {
+              reason: "last_player_winner",
+              winners: game.players,
+              finalStats: game.players.map((p) => ({
+                userId: p.userId,
+                username: p.username,
+                score: p.score || 0,
+                matches: p.matches || 0,
+                memoryMeter: p.memoryMeter || 0,
+              })),
+            });
+          }
+        } else if (game.players.length === 0) {
+          console.log(
+            `Last player left game ${roomId} - deleting from database`
+          );
+
+          // Clean up game engine first
+          const gameEngine = activeGames.get(roomId);
+          if (gameEngine) {
+            gameEngine.cleanup();
+            activeGames.delete(roomId);
+            console.log(`Cleaned up game engine for deleted game ${roomId}`);
+          }
+
+          // Delete the game from database
+          try {
+            await Game.findByIdAndDelete(game._id);
+            console.log(`Successfully deleted game ${roomId} from database`);
+
+            // Broadcast room deletion to all clients
+            io.emit("room-deleted", roomId);
+          } catch (error) {
+            console.error(
+              `Error deleting game ${roomId} from database:`,
+              error
+            );
           }
         }
       }

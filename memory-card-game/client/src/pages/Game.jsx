@@ -227,29 +227,29 @@ const Game = () => {
       }
     }
 
-    // Check if we have enough players to continue
-    if (
-      gameStatus === "playing" &&
-      players.length < 2 &&
-      !gamePausedForCurrentState.current
-    ) {
-      console.log("Not enough players to continue game - showing pause toast");
-      // Don't override game status if game is already completed or in sudden death
-      if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
-        setGameStatus("waiting");
-      }
+    // // Check if we have enough players to continue
+    // if (
+    //   gameStatus === "playing" &&
+    //   players.length < 2 &&
+    //   !gamePausedForCurrentState.current
+    // ) {
+    //   console.log("Not enough players to continue game - showing pause toast");
+    //   // Don't override game status if game is already completed or in sudden death
+    //   if (gameStatus !== "completed" && gameStatus !== "sudden-death") {
+    //     setGameStatus("waiting");
+    //   }
 
-      gamePausedForCurrentState.current = true;
-      gamePausedToastShown.current = true;
+    //   gamePausedForCurrentState.current = true;
+    //   gamePausedToastShown.current = true;
 
-      // Reset the flags after a delay
-      addTimer(
-        setTimeout(() => {
-          gamePausedToastShown.current = false;
-          gamePausedForCurrentState.current = false;
-        }, 5000)
-      );
-    }
+    //   // Reset the flags after a delay
+    //   addTimer(
+    //     setTimeout(() => {
+    //       gamePausedToastShown.current = false;
+    //       gamePausedForCurrentState.current = false;
+    //     }, 5000)
+    //   );
+    // }
   }, [currentTurn, players, gameStatus]);
 
   useEffect(() => {
@@ -467,9 +467,9 @@ const Game = () => {
     };
 
     const handlePlayerLeft = (data) => {
-      // Prevent duplicate toasts for the same player leaving
-      const playerLeftKey = `${data.userId}-${Date.now()}`;
+      console.log("🔍 CLIENT: Player left event received:", data);
 
+      // Prevent duplicate toasts for the same player leaving
       if (playerLeftToastShown.current.has(data.userId)) {
         console.log(
           `🔍 CLIENT DEBUG: Duplicate player-left event detected for ${data.userId}, ignoring`
@@ -483,6 +483,10 @@ const Game = () => {
       setPlayers((prevPlayers) => {
         const updatedPlayers = prevPlayers.filter(
           (p) => p.userId !== data.userId
+        );
+
+        console.log(
+          `🔍 CLIENT: Players after removal: ${updatedPlayers.length}`
         );
 
         // If less than 2 players remain, let the server handle game completion
@@ -521,11 +525,21 @@ const Game = () => {
         return updatedPlayers;
       });
 
-      addToastOnce(
-        `${data.username || data.playerName || "A player"} left the game`,
-        "info",
-        `player-left-${data.userId}`
-      );
+      // Show appropriate message based on reason
+      let message = `${
+        data.username || data.playerName || "A player"
+      } left the game`;
+      if (data.reason === "disconnected_after_grace_period") {
+        message = `${
+          data.username || data.playerName || "A player"
+        } disconnected`;
+      } else if (data.reason === "manual_leave") {
+        message = `${
+          data.username || data.playerName || "A player"
+        } left the game`;
+      }
+
+      addToastOnce(message, "info", `player-left-${data.userId}`);
 
       // If the current turn player left, handle turn change
       if (currentTurn === data.userId) {
@@ -554,7 +568,7 @@ const Game = () => {
     };
 
     const handlePlayerReconnected = (data) => {
-      console.log("Player reconnected:", data);
+      console.log("🔍 CLIENT: Player reconnected event received:", data);
 
       // Show reconnection notification
       const message = data.isLateReconnection
@@ -562,6 +576,21 @@ const Game = () => {
         : `${data.playerName} has reconnected`;
 
       addToastOnce(message, "success", `player-reconnected-${data.playerId}`);
+
+      // Update players list to reflect reconnection
+      setPlayers((prevPlayers) => {
+        const updatedPlayers = prevPlayers.map((player) => {
+          if (player.userId === data.playerId) {
+            return {
+              ...player,
+              isReconnecting: false,
+              disconnected: false,
+            };
+          }
+          return player;
+        });
+        return updatedPlayers;
+      });
     };
 
     const handleRedirectToLobby = (data) => {
@@ -892,7 +921,22 @@ const Game = () => {
       console.error("Socket error:", error);
 
       // Handle specific error cases
-      if (error.message?.includes("room") || error.message?.includes("game")) {
+      if (error.code === "LATE_RECONNECTION_BLOCKED") {
+        // Show the specific late reconnection message
+        addToast(
+          error.message ||
+            "You cannot rejoin this game. Redirecting to lobby...",
+          "error"
+        );
+        addTimer(
+          setTimeout(() => {
+            navigate("/lobby");
+          }, 2000)
+        );
+      } else if (
+        error.message?.includes("room") ||
+        error.message?.includes("game")
+      ) {
         addToast("Game room error. Redirecting to lobby...", "error");
         addTimer(
           setTimeout(() => {
@@ -1389,6 +1433,13 @@ const Game = () => {
     socket.on("player-left", handlePlayerLeft);
     socket.on("player-reconnected", handlePlayerReconnected);
     socket.on("redirect-to-lobby", handleRedirectToLobby);
+
+    // Handle leave room confirmation
+    socket.on("leave-room-confirmed", (data) => {
+      console.log("🔍 CLIENT: Leave room confirmed:", data);
+      // The server has processed the leave request
+      // Navigation will happen in confirmLeave after the timeout
+    });
     socket.on("card-flipped", handleCardFlipped);
     socket.on("cards-matched", handleCardsMatched);
     socket.on("cards-flipped-back", handleCardsFlippedBack);
@@ -1430,6 +1481,7 @@ const Game = () => {
       socket.off("player-left", handlePlayerLeft);
       socket.off("player-reconnected", handlePlayerReconnected);
       socket.off("redirect-to-lobby", handleRedirectToLobby);
+      socket.off("leave-room-confirmed");
       socket.off("card-flipped", handleCardFlipped);
       socket.off("cards-matched", handleCardsMatched);
       socket.off("cards-flipped-back", handleCardsFlippedBack);
@@ -1754,11 +1806,21 @@ const Game = () => {
   const confirmLeave = () => {
     setShowLeaveWarning(false);
     if (pendingNavigation) {
-      // Call the original leaveGame function
+      // Emit leave-room event and wait for confirmation
       if (socket) {
+        console.log("🔍 CLIENT: Emitting leave-room event");
         socket.emit("leave-room");
+
+        // Add a small delay to ensure the leave-room event is processed
+        // The server will handle the actual removal and emit player-left event
+        setTimeout(() => {
+          console.log("🔍 CLIENT: Navigating after leave-room event");
+          navigate(pendingNavigation);
+        }, 100);
+      } else {
+        // If no socket, navigate immediately
+        navigate(pendingNavigation);
       }
-      navigate(pendingNavigation);
     }
   };
 

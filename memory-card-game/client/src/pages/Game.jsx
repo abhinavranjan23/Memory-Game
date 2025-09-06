@@ -160,8 +160,18 @@ const Game = () => {
   useEffect(() => {
     // Game component should not join the room - it should only listen for game events
     // The user should already be in the room when they navigate to the game
+    // However, if they reconnected by pasting the URL, they need to rejoin the room
 
     hasJoinedRef.current = true;
+
+    // If user reconnected by pasting URL, they need to rejoin the room
+    if (socket && roomId) {
+      console.log("Game component: Attempting to rejoin room", roomId);
+      const success = joinRoom({ roomId });
+      if (!success) {
+        console.log("Failed to rejoin room - socket not connected");
+      }
+    }
 
     // Fallback: If we don't receive game state within 3 seconds, try to fetch it
     const fallbackTimer = addTimer(
@@ -593,6 +603,30 @@ const Game = () => {
       });
     };
 
+    const handleRoomJoined = (data) => {
+      console.log("🔍 CLIENT: Room joined event received:", data);
+      setLoading(false);
+
+      if (data.game) {
+        setGame(data.game);
+        setPlayers(data.game.players || []);
+        setGameStatus(data.game.gameState?.status || "waiting");
+        setChatMessages(data.game.chat || []);
+
+        // If game is already started, update the game state
+        if (data.game.gameState?.status === "playing") {
+          setCards(data.game.gameState.board || []);
+          setCurrentTurn(data.game.gameState.currentTurn);
+        }
+
+        console.log("🔍 CLIENT: Game state updated from room-joined:", {
+          status: data.game.gameState?.status,
+          playerCount: data.game.players?.length,
+          message: data.message,
+        });
+      }
+    };
+
     const handleRedirectToLobby = (data) => {
       console.log("Redirect to lobby:", data);
 
@@ -919,6 +953,12 @@ const Game = () => {
 
     const handleError = (error) => {
       console.error("Socket error:", error);
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        type: typeof error,
+        keys: Object.keys(error),
+      });
 
       // Handle specific error cases
       if (error.code === "LATE_RECONNECTION_BLOCKED") {
@@ -933,15 +973,30 @@ const Game = () => {
             navigate("/lobby");
           }, 2000)
         );
-      } else if (
-        error.message?.includes("room") ||
-        error.message?.includes("game")
-      ) {
-        addToast("Game room error. Redirecting to lobby...", "error");
+      } else if (error.code === "GAME_ENDED") {
+        // Show the specific game ended message
+        addToast(
+          error.message || "This game has ended. Redirecting to lobby...",
+          "error"
+        );
         addTimer(
           setTimeout(() => {
             navigate("/lobby");
           }, 2000)
+        );
+      } else if (
+        error.message?.includes("room") ||
+        error.message?.includes("game")
+      ) {
+        // Temporarily disable generic room error handling to debug the issue
+        console.log(
+          "Room/Game error detected but not handling to debug:",
+          error.message
+        );
+        addToast(
+          error.message ||
+            "Room/Game issue detected. Please check console for details.",
+          "error"
         );
       } else if (error.message?.includes("connection")) {
         addToast("Connection lost. Attempting to reconnect...", "error");
@@ -1367,6 +1422,7 @@ const Game = () => {
     // Clear any existing listeners first to prevent duplicates
     socket.off("game-state", handleGameState);
     socket.off("game-started", handleGameStarted);
+    socket.off("room-joined", handleRoomJoined);
     socket.off("player-joined", handlePlayerJoined);
     socket.off("player-left", handlePlayerLeft);
     socket.off("player-reconnected", handlePlayerReconnected);
@@ -1429,6 +1485,7 @@ const Game = () => {
         }
       }, 5000)
     ); // 5 second timeout
+    socket.on("room-joined", handleRoomJoined);
     socket.on("player-joined", handlePlayerJoined);
     socket.on("player-left", handlePlayerLeft);
     socket.on("player-reconnected", handlePlayerReconnected);
@@ -1477,6 +1534,7 @@ const Game = () => {
 
       socket.off("game-state", handleGameState);
       socket.off("game-started", handleGameStarted);
+      socket.off("room-joined", handleRoomJoined);
       socket.off("player-joined", handlePlayerJoined);
       socket.off("player-left", handlePlayerLeft);
       socket.off("player-reconnected", handlePlayerReconnected);

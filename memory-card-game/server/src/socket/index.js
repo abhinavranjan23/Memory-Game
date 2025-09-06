@@ -12,6 +12,7 @@ const activePlayers = new Set();
 const userRooms = new Map();
 const socketCleanup = new Map();
 const operationLocks = new Map();
+const disconnectedUsers = new Map(); // Track disconnected users for reconnection detection
 
 function initializeSocket(io) {
   // Authentication middleware
@@ -269,75 +270,194 @@ function initializeSocket(io) {
         }
 
         // Check if this is a reconnection (user was in grace period)
-        const oldSocketId = userSockets.get(socket.userId);
-        if (oldSocketId && oldSocketId !== socket.id) {
+        const disconnectedUser = disconnectedUsers.get(socket.userId);
+        console.log(`Reconnection check for user ${socket.userId}:`, {
+          hasDisconnectedUser: !!disconnectedUser,
+          disconnectedSocketId: disconnectedUser?.socketId,
+          currentSocketId: socket.id,
+          isReconnection:
+            disconnectedUser && disconnectedUser.socketId !== socket.id,
+          disconnectedUsersKeys: Array.from(disconnectedUsers.keys()),
+        });
+
+        if (disconnectedUser && disconnectedUser.socketId !== socket.id) {
           console.log(
             `User ${socket.username} reconnecting, cancelling grace period`
           );
 
           // Cancel any pending disconnect processing for this user
           const cleanupFunction = socketCleanup.get(socket.userId);
+          console.log(`Reconnection cleanup check for user ${socket.userId}:`, {
+            hasCleanupFunction: !!cleanupFunction,
+            cleanupFunctionType: typeof cleanupFunction,
+            socketCleanupKeys: Array.from(socketCleanup.keys()),
+          });
+
           if (cleanupFunction) {
             console.log(
               `Cancelling grace period timeout for user ${socket.userId}`
             );
             try {
               cleanupFunction();
+              console.log(
+                `Successfully cancelled grace period timeout for user ${socket.userId}`
+              );
             } catch (error) {
               console.error("Error during reconnection cleanup:", error);
             }
             socketCleanup.delete(socket.userId);
+          } else {
+            console.log(
+              `No cleanup function found for user ${socket.userId} - grace period may still be running`
+            );
           }
 
           // Disconnect the old socket if it still exists
-          const oldSocket = io.sockets.sockets.get(oldSocketId);
+          const oldSocket = io.sockets.sockets.get(disconnectedUser.socketId);
           if (oldSocket) {
             oldSocket.disconnect(true);
           }
+
+          // Update userRooms to reflect the current room they're trying to join
+          // This prevents the "leave current room" logic from being triggered
+          userRooms.set(socket.userId, roomId);
+
+          // Mark this as a reconnection to skip normal join logic
+          socket.isReconnecting = true;
+
+          // Clean up disconnected user info
+          disconnectedUsers.delete(socket.userId);
         }
 
-        // Check if this is a late reconnection attempt (user was marked as left early)
-        // IMPORTANT: Game engine adds users to opponentsForHistory immediately on disconnect
-        // But we should only block reconnection if they were actually removed after grace period
-        // So we check: user is in opponentsForHistory AND NOT in active players list
+        // Check if this is a reconnection attempt
+        // IMPORTANT: We should only block reconnection if the game has ended
+        // During grace period, users should be able to reconnect freely
         const existingGame = await Game.findOne({ roomId });
         if (existingGame) {
           const isStillActivePlayer = existingGame.players.find(
             (p) => p.userId === socket.userId
           );
 
-          const leftEarlyPlayer =
-            existingGame.gameState.opponentsForHistory?.find(
-              (opp) => opp.userId === socket.userId && opp.leftEarly
-            );
-
-          // Only block if user is in opponentsForHistory AND not in active players
-          // This means they were actually removed after grace period expired
-          if (leftEarlyPlayer && !isStillActivePlayer) {
+          // Check if the game has ended - if so, block reconnection
+          if (
+            existingGame.gameState.status === "finished" ||
+            existingGame.gameState.status === "completed"
+          ) {
             console.log(
-              `User ${socket.username} attempting late reconnection to room ${roomId} - BLOCKED (grace period expired)`
+              `User ${socket.username} attempting to rejoin finished game ${roomId} - BLOCKED`
             );
 
-            // Block late reconnection - redirect to lobby
             socket.emit("error", {
-              message:
-                "You left the game and cannot rejoin. Redirecting to lobby...",
-              code: "LATE_RECONNECTION_BLOCKED",
+              message: "This game has ended. Redirecting to lobby...",
+              code: "GAME_ENDED",
               redirectToLobby: true,
             });
 
-            // Emit redirect event to client
             socket.emit("redirect-to-lobby", {
-              reason: "late_reconnection_blocked",
-              message:
-                "You cannot rejoin a game after leaving. Please find a new game.",
+              reason: "game_ended",
+              message: "This game has ended. Please find a new game.",
             });
 
             return; // Exit early, don't process normal join logic
           }
+
+          // If user is not in active players but game is still active, allow reconnection
+          // This handles both grace period reconnection and late reconnection cases
+          if (
+            !isStillActivePlayer &&
+            (existingGame.gameState.status === "waiting" ||
+              existingGame.gameState.status === "starting" ||
+              existingGame.gameState.status === "playing")
+          ) {
+            console.log(
+              `User ${socket.username} rejoining active game ${roomId} - ALLOWED (game status: ${existingGame.gameState.status})`
+            );
+            // Continue with normal join logic - this will re-add the user to the game
+          }
         }
 
-        // Check if user is already in this room
+        // For reconnections, check if user is already in the game database FIRST
+        if (socket.isReconnecting) {
+          console.log(
+            `Processing reconnection for user ${socket.username} to room ${roomId}`
+          );
+          try {
+            const existingGame = await Game.findOne({ roomId });
+            console.log(`Found existing game for reconnection:`, {
+              roomId,
+              gameExists: !!existingGame,
+              playerCount: existingGame?.players?.length || 0,
+              gameState: existingGame?.gameState?.status,
+            });
+
+            if (existingGame) {
+              const playerInGame = existingGame.players.find(
+                (p) => p.userId === socket.userId
+              );
+              console.log(`Player in game check for reconnection:`, {
+                userId: socket.userId,
+                playerInGame: !!playerInGame,
+                playerUsername: playerInGame?.username,
+              });
+
+              if (playerInGame) {
+                console.log(
+                  `User ${socket.username} reconnecting to existing game ${roomId}`
+                );
+                // Join the socket room and emit room state
+                socket.join(roomId);
+                socket.currentRoom = roomId;
+                userRooms.set(socket.userId, roomId);
+
+                const roomJoinedData = {
+                  roomId,
+                  game: {
+                    roomId: existingGame.roomId,
+                    players: existingGame.players,
+                    gameState: existingGame.gameState,
+                    settings: existingGame.settings,
+                    chat: existingGame.chat.slice(-50),
+                  },
+                  message: "Reconnected to existing game",
+                };
+
+                console.log(
+                  `Emitting room-joined event to reconnecting user ${socket.username}:`,
+                  {
+                    roomId,
+                    playerCount: existingGame.players.length,
+                    gameState: existingGame.gameState.status,
+                    socketId: socket.id,
+                  }
+                );
+
+                socket.emit("room-joined", roomJoinedData);
+
+                // Notify other players about reconnection
+                socket.to(roomId).emit("player-reconnected", {
+                  playerId: socket.userId,
+                  playerName: socket.username,
+                  message: `${socket.username} has reconnected`,
+                });
+
+                return;
+              } else {
+                console.log(
+                  `Player ${socket.username} not found in game ${roomId} during reconnection`
+                );
+              }
+            } else {
+              console.log(`Game ${roomId} not found during reconnection`);
+            }
+          } catch (error) {
+            console.error(
+              `Error during reconnection processing for user ${socket.username}:`,
+              error
+            );
+          }
+        }
+
+        // Check if user is already in this room (for non-reconnections)
         if (currentRoom === roomId) {
           console.log(`User ${socket.username} is already in room ${roomId}`);
           // Just emit the current room state
@@ -547,7 +667,7 @@ function initializeSocket(io) {
         });
 
         // Check if this was a reconnection and notify other players
-        if (oldSocketId && oldSocketId !== socket.id) {
+        if (socket.isReconnecting) {
           console.log(`User ${socket.username} reconnected to room ${roomId}`);
           // Notify other players about reconnection
           socket.to(roomId).emit("player-reconnected", {
@@ -1102,30 +1222,43 @@ function initializeSocket(io) {
         socketCleanup.delete(socket.id);
       }
 
-      // Also clean up any grace period timeout stored under userId
-      if (socket.userId) {
-        const userCleanupFunction = socketCleanup.get(socket.userId);
-        if (userCleanupFunction) {
-          try {
-            userCleanupFunction();
-          } catch (error) {
-            console.error("Error during user cleanup:", error);
-          }
-          socketCleanup.delete(socket.userId);
-        }
-      }
+      // Don't clean up grace period timeout here - let it run naturally
+      // The grace period timeout will be cancelled only when user reconnects
 
       if (socket.userId) {
+        // Store disconnected user info for reconnection detection
+        const disconnectedUserInfo = {
+          socketId: socket.id,
+          username: socket.username,
+          roomId: socket.currentRoom || userRooms.get(socket.userId),
+          disconnectedAt: new Date(),
+        };
+        disconnectedUsers.set(socket.userId, disconnectedUserInfo);
+        console.log(`Stored disconnected user info for ${socket.username}:`, {
+          userId: socket.userId,
+          socketId: socket.id,
+          roomId: disconnectedUserInfo.roomId,
+          disconnectedUsersSize: disconnectedUsers.size,
+        });
+
         // Store user info for potential reconnection
+        // Use socket.currentRoom as the primary source since it's more reliable
         const userInfo = {
           userId: socket.userId,
           username: socket.username,
-          roomId: userRooms.get(socket.userId) || socket.currentRoom,
+          roomId: socket.currentRoom || userRooms.get(socket.userId),
           disconnectedAt: new Date(),
           socketId: socket.id,
         };
 
         // Only apply grace period if user is in a game room
+        console.log(
+          `User ${socket.username} disconnect - roomId: ${
+            userInfo.roomId
+          }, userRooms.get: ${userRooms.get(
+            socket.userId
+          )}, socket.currentRoom: ${socket.currentRoom}`
+        );
         if (userInfo.roomId) {
           console.log(
             `User ${socket.username} disconnected from game room ${userInfo.roomId} - applying 60 second grace period`
@@ -1142,6 +1275,7 @@ function initializeSocket(io) {
             socketUsers.delete(socket.id);
             activePlayers.delete(socket.userId);
             userRooms.delete(socket.userId);
+            disconnectedUsers.delete(socket.userId);
 
             // Update metrics
             updateMetrics.decrementSocketConnections();
@@ -1159,9 +1293,23 @@ function initializeSocket(io) {
 
           // Store timeout for potential cancellation on reconnection
           // Use userId as key instead of socket.id since socket.id changes on reconnection
-          socketCleanup.set(socket.userId, () => {
+          const cleanupFunction = () => {
+            console.log(
+              `Clearing grace period timeout for user ${socket.userId}`
+            );
             clearTimeout(gracePeriodTimeout);
-          });
+          };
+          socketCleanup.set(socket.userId, cleanupFunction);
+          console.log(
+            `Stored grace period cleanup function for user ${socket.userId}:`,
+            {
+              userId: socket.userId,
+              socketId: socket.id,
+              roomId: userInfo.roomId,
+              cleanupFunctionType: typeof cleanupFunction,
+              socketCleanupSize: socketCleanup.size,
+            }
+          );
         } else {
           // User is in lobby - remove immediately (no grace period)
           console.log(
@@ -1173,6 +1321,7 @@ function initializeSocket(io) {
           socketUsers.delete(socket.id);
           activePlayers.delete(socket.userId);
           userRooms.delete(socket.userId);
+          disconnectedUsers.delete(socket.userId);
 
           // Update metrics
           updateMetrics.decrementSocketConnections();
@@ -1205,6 +1354,38 @@ function initializeSocket(io) {
         return;
       }
 
+      // Double-check: get fresh game state to ensure user hasn't reconnected
+      const game = await Game.findOne({ roomId });
+      if (!game) {
+        console.log(`Game ${roomId} not found during grace period processing`);
+        return;
+      }
+
+      // Check if user is still in the game (they might have reconnected and rejoined)
+      const playerStillInGame = game.players.find((p) => p.userId === userId);
+      console.log(`Grace period processing for user ${username}:`, {
+        playerStillInGame: !!playerStillInGame,
+        hasActiveSocket: userSockets.has(userId),
+        userSocketsKeys: Array.from(userSockets.keys()),
+      });
+
+      if (playerStillInGame) {
+        // User is still in the game database, but we need to check if they have an active socket
+        // If they don't have an active socket, they should be removed from the game
+        const hasActiveSocket = userSockets.has(userId);
+        if (hasActiveSocket) {
+          console.log(
+            `User ${username} is still in game ${roomId} and has active socket, skipping grace period processing`
+          );
+          return;
+        } else {
+          console.log(
+            `User ${username} is still in game ${roomId} but has no active socket, processing disconnect`
+          );
+          // Continue with disconnect processing
+        }
+      }
+
       // Get the game engine and handle disconnect
       const gameEngine = activeGames.get(roomId);
       if (gameEngine) {
@@ -1215,8 +1396,7 @@ function initializeSocket(io) {
         }
       }
 
-      // Remove player from database
-      const game = await Game.findOne({ roomId });
+      // Remove player from database (reuse the game object from above)
       if (game) {
         // Check if player is still in the game (might have been removed by manual leave)
         const playerStillInGame = game.players.find((p) => p.userId === userId);
@@ -1251,10 +1431,22 @@ function initializeSocket(io) {
         // Remove player from database with leftEarly flag
         const playerRemoved = await game.removePlayer(userId, true); // true = leftEarly
         if (playerRemoved) {
-          await game.save();
-          console.log(
-            `Player ${username} removed from room ${roomId} after grace period (leftEarly: true)`
-          );
+          try {
+            await game.save();
+            console.log(
+              `Player ${username} removed from room ${roomId} after grace period (leftEarly: true)`
+            );
+          } catch (saveError) {
+            if (saveError.name === "VersionError") {
+              console.log(
+                `VersionError during grace period processing for user ${username} - game may have been modified by another operation (game engine)`
+              );
+              // The game may have been ended by the game engine, which is fine
+              return;
+            } else {
+              throw saveError; // Re-throw if it's not a VersionError
+            }
+          }
 
           // Handle game completion when only one player remains after grace period
           if (game.players.length === 1) {
@@ -1286,7 +1478,18 @@ function initializeSocket(io) {
               game.endedAt = new Date();
               game.completionReason = "opponents_left";
               game.winner = game.players[0].username;
-              await game.save();
+              try {
+                await game.save();
+              } catch (saveError) {
+                if (saveError.name === "VersionError") {
+                  console.log(
+                    `VersionError during manual game ending for ${roomId} - game may have been ended by game engine`
+                  );
+                  return;
+                } else {
+                  throw saveError;
+                }
+              }
 
               // Emit game over event
               io.to(roomId).emit("game-over", {
@@ -1347,6 +1550,15 @@ function initializeSocket(io) {
     const releaseLock = await acquireOperationLock(roomId, "leave-room");
 
     try {
+      // Check if user has reconnected (new socket exists) - if so, don't process leave
+      const currentSocketId = userSockets.get(socket.userId);
+      if (currentSocketId && currentSocketId !== socket.id) {
+        console.log(
+          `User ${socket.username} has reconnected with new socket, skipping leave room processing`
+        );
+        return;
+      }
+
       // Set user's room to null instead of deleting from userRooms
       // This prevents them from being treated as a disconnected lobby user
       userRooms.set(socket.userId, null);

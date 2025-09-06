@@ -93,6 +93,10 @@ const Game = () => {
 
   const [showLeaveWarning, setShowLeaveWarning] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const reconnectionToastShown = useRef(false);
+  const reconnectionAttemptTime = useRef(0);
+  const isActualReconnection = useRef(false);
 
   // Audio hook for notification sounds
   const {
@@ -164,12 +168,52 @@ const Game = () => {
 
     hasJoinedRef.current = true;
 
-    // If user reconnected by pasting URL, they need to rejoin the room
+    // Check if this is an actual reconnection (user pasted URL or reconnected after disconnect)
+    // Only show reconnection messages for actual reconnections, not normal navigation
     if (socket && roomId) {
-      console.log("Game component: Attempting to rejoin room", roomId);
+      // Check if this is a reconnection by looking at navigation state or socket connection
+      const isReconnection =
+        !socket.connected || // Socket was disconnected
+        window.performance.navigation.type === 1 || // Page was refreshed
+        document.referrer === "" || // Direct URL access (no referrer)
+        (window.location.href.includes("game/") &&
+          !document.referrer.includes("lobby")); // Direct game URL access
+
+      console.log("Game component: Navigation type check:", {
+        socketConnected: socket.connected,
+        navigationType: window.performance.navigation.type,
+        hasReferrer: !!document.referrer,
+        referrer: document.referrer,
+        isReconnection,
+      });
+
+      if (isReconnection) {
+        console.log(
+          "Game component: This is an actual reconnection, showing reconnection message"
+        );
+        setIsReconnecting(true);
+        isActualReconnection.current = true;
+        reconnectionToastShown.current = false;
+        reconnectionAttemptTime.current = Date.now();
+
+        // Don't show reconnection message - just handle reconnection silently
+        // if (!reconnectionToastShown.current) {
+        //   addToast("Reconnecting to game...", "info");
+        //   reconnectionToastShown.current = true;
+        // }
+      } else {
+        console.log(
+          "Game component: This is normal navigation, not showing reconnection message"
+        );
+        isActualReconnection.current = false;
+      }
+
       const success = joinRoom({ roomId });
       if (!success) {
-        console.log("Failed to rejoin room - socket not connected");
+        console.log("Failed to join room - socket not connected");
+        if (isReconnection) {
+          setIsReconnecting(false);
+        }
       }
     }
 
@@ -192,11 +236,20 @@ const Game = () => {
           );
           setLoading(false);
         }
+        // Also clear reconnection state after timeout
+        if (isReconnecting) {
+          console.log("Emergency fallback: Clearing reconnection state");
+          setIsReconnecting(false);
+        }
       }, 10000)
     );
 
     return () => {
       clearAllTimers();
+      // Clear reconnection state on cleanup
+      setIsReconnecting(false);
+      reconnectionAttemptTime.current = 0;
+      isActualReconnection.current = false;
     };
   }, [roomId, loading, socket]);
 
@@ -520,16 +573,8 @@ const Game = () => {
             setTimeout(() => {
               gamePausedToastShown.current = false;
               gamePausedForCurrentState.current = false;
-            }, 5000)
+            }, 3000)
           );
-
-          // Show temporary message while server processes game completion
-          if (
-            updatedPlayers.length === 1 &&
-            updatedPlayers[0].userId === user?.id
-          ) {
-            addToast("Processing game completion...", "info");
-          }
         }
 
         return updatedPlayers;
@@ -604,8 +649,10 @@ const Game = () => {
     };
 
     const handleRoomJoined = (data) => {
-      console.log("🔍 CLIENT: Room joined event received:", data);
       setLoading(false);
+      setIsReconnecting(false); // Clear reconnection state
+      reconnectionAttemptTime.current = 0; // Reset reconnection attempt time
+      isActualReconnection.current = false; // Clear actual reconnection flag
 
       if (data.game) {
         setGame(data.game);
@@ -618,12 +665,6 @@ const Game = () => {
           setCards(data.game.gameState.board || []);
           setCurrentTurn(data.game.gameState.currentTurn);
         }
-
-        console.log("🔍 CLIENT: Game state updated from room-joined:", {
-          status: data.game.gameState?.status,
-          playerCount: data.game.players?.length,
-          message: data.message,
-        });
       }
     };
 
@@ -645,6 +686,10 @@ const Game = () => {
 
     const handleCardFlipped = (data) => {
       console.log("Card flipped:", data);
+
+      // Play flip card sound for opponent card flips
+      playFlipCardNotification();
+
       setCards((prevCards) => {
         const newCards = [...prevCards];
         const cardIndex = newCards.findIndex((c) => c.id === data.cardId);
@@ -958,6 +1003,7 @@ const Game = () => {
         code: error.code,
         type: typeof error,
         keys: Object.keys(error),
+        isReconnecting,
       });
 
       // Handle specific error cases
@@ -984,15 +1030,63 @@ const Game = () => {
             navigate("/lobby");
           }, 2000)
         );
+      } else if (error.message === "Not in a room") {
+        // Handle "Not in a room" error during reconnection
+        const timeSinceReconnection =
+          Date.now() - reconnectionAttemptTime.current;
+        const isRecentReconnection = timeSinceReconnection < 10000; // 10 seconds grace period
+
+        if (
+          isReconnecting ||
+          isRecentReconnection ||
+          isActualReconnection.current
+        ) {
+          console.log("Not in a room error during reconnection - ignoring", {
+            isReconnecting,
+            timeSinceReconnection,
+            isRecentReconnection,
+            isActualReconnection: isActualReconnection.current,
+          });
+          // Don't show error toast during reconnection, just log it
+          return;
+        } else {
+          // Show error only if not reconnecting and not a recent reconnection attempt
+          console.log(
+            "Not in a room error - not during reconnection, showing error"
+          );
+          addToast("You are not in a room. Redirecting to lobby...", "error");
+          addTimer(
+            setTimeout(() => {
+              navigate("/lobby");
+            }, 2000)
+          );
+        }
       } else if (
         error.message?.includes("room") ||
         error.message?.includes("game")
       ) {
-        // Temporarily disable generic room error handling to debug the issue
-        console.log(
-          "Room/Game error detected but not handling to debug:",
-          error.message
-        );
+        // Handle other room/game errors
+        const timeSinceReconnection =
+          Date.now() - reconnectionAttemptTime.current;
+        const isRecentReconnection = timeSinceReconnection < 10000; // 10 seconds grace period
+
+        if (
+          isReconnecting ||
+          isRecentReconnection ||
+          isActualReconnection.current
+        ) {
+          console.log(
+            "Room/Game error during reconnection - ignoring:",
+            error.message,
+            {
+              isReconnecting,
+              timeSinceReconnection,
+              isRecentReconnection,
+              isActualReconnection: isActualReconnection.current,
+            }
+          );
+          return;
+        }
         addToast(
           error.message ||
             "Room/Game issue detected. Please check console for details.",
@@ -1002,6 +1096,24 @@ const Game = () => {
         addToast("Connection lost. Attempting to reconnect...", "error");
         // The socket will automatically attempt to reconnect
       } else {
+        // Handle other errors
+        const timeSinceReconnection =
+          Date.now() - reconnectionAttemptTime.current;
+        const isRecentReconnection = timeSinceReconnection < 10000; // 10 seconds grace period
+
+        if (
+          isReconnecting ||
+          isRecentReconnection ||
+          isActualReconnection.current
+        ) {
+          console.log("Error during reconnection - ignoring:", error.message, {
+            isReconnecting,
+            timeSinceReconnection,
+            isRecentReconnection,
+            isActualReconnection: isActualReconnection.current,
+          });
+          return;
+        }
         addToast(error.message || "An error occurred", "error");
       }
     };
@@ -1463,10 +1575,6 @@ const Game = () => {
         console.log("Current players:", players);
 
         if (gameStatus === "waiting" && players.length >= 2) {
-          console.log(
-            "WARNING: Game should have started but game-started event not received"
-          );
-          console.log("Attempting to manually set currentTurn to first player");
           if (players.length > 0) {
             setCurrentTurn(players[0].userId);
             // Don't override game status if game is already completed or in sudden death
@@ -1636,6 +1744,12 @@ const Game = () => {
   const flipCard = (cardId) => {
     if (!socket || !user) return;
 
+    // Prevent actions during reconnection
+    if (isReconnecting) {
+      console.log("Cannot flip card during reconnection");
+      return;
+    }
+
     // If in swap mode, handle card selection for swap
     if (swapMode) {
       handleCardSelectionForSwap(cardId);
@@ -1707,12 +1821,24 @@ const Game = () => {
     e.preventDefault();
     if (!chatInput.trim() || !socket) return;
 
+    // Prevent actions during reconnection
+    if (isReconnecting) {
+      console.log("Cannot send chat message during reconnection");
+      return;
+    }
+
     socket.emit("send-chat", { message: chatInput.trim() });
     setChatInput("");
   };
 
   const usePowerUp = (powerUpType, target = null) => {
     if (!socket || !user) return;
+
+    // Prevent actions during reconnection
+    if (isReconnecting) {
+      console.log("Cannot use power-up during reconnection");
+      return;
+    }
 
     console.log("Sending power-up event:", { powerUpType, target });
     console.log("Socket connected:", socket.connected);
@@ -1892,6 +2018,7 @@ const Game = () => {
   };
   const handleNeverShowPowerUpTutorial = () => {
     setNeverShowPowerUpTutorial(true);
+    setShowPowerUpTutorial(false);
   };
 
   if (loading) {

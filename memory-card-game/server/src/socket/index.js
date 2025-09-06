@@ -440,6 +440,9 @@ function initializeSocket(io) {
                   message: `${socket.username} has reconnected`,
                 });
 
+                // Clear the reconnection flag after processing
+                socket.isReconnecting = false;
+
                 return;
               } else {
                 console.log(
@@ -675,6 +678,8 @@ function initializeSocket(io) {
             playerName: socket.username,
             message: `${socket.username} has reconnected`,
           });
+          // Clear the reconnection flag after processing
+          socket.isReconnecting = false;
         }
 
         // Notify other players
@@ -1221,6 +1226,9 @@ function initializeSocket(io) {
         });
         socketCleanup.delete(socket.id);
       }
+
+      // Clear reconnection flag on disconnect
+      socket.isReconnecting = false;
 
       // Don't clean up grace period timeout here - let it run naturally
       // The grace period timeout will be cancelled only when user reconnects

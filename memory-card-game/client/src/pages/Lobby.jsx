@@ -276,22 +276,14 @@ const Lobby = () => {
       setJoinLoading(room.roomId);
       if (socket) {
         try {
-          // Use the joinRoom function from SocketContext
           const success = joinRoom({ roomId: room.roomId });
           if (!success) {
             setJoinLoading(null);
-            addToast("Failed to join room - Socket not connected", "error");
+            addToast("Failed to join room ", "error");
           } else {
-            // Add timeout for join room response
-            const timeoutId = setTimeout(() => {
-              console.log("Join room timeout - navigating anyway");
-              setJoinLoading(null);
-              addToast("Taking you to the room...", "info");
-              navigate(`/waiting/${room.roomId}`);
-            }, 3000);
-            socket.once("room-joined", () => {
-              clearTimeout(timeoutId);
-            });
+            setJoinLoading(null);
+            addToast("Taking you to the room...", "info");
+            navigate(`/waiting/${room.roomId}`);
           }
         } catch (error) {
           setJoinLoading(null);

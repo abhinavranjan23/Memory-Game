@@ -1,9 +1,37 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { copyFileSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: "copy-static-files",
+      writeBundle() {
+        const staticFiles = [
+          "sitemap.xml",
+          "robots.txt",
+          "favicon.ico",
+          "cardGames.png",
+          "site.webmanifest",
+        ];
+
+        staticFiles.forEach((file) => {
+          const srcPath = join(process.cwd(), "public", file);
+          const destPath = join(process.cwd(), "dist", file);
+
+          if (existsSync(srcPath)) {
+            copyFileSync(srcPath, destPath);
+            console.log(`✅ Copied ${file} to dist folder`);
+          } else {
+            console.warn(`⚠️  ${file} not found in public folder`);
+          }
+        });
+      },
+    },
+  ],
   publicDir: "public",
   build: {
     sourcemap: false,

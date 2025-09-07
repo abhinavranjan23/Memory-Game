@@ -10,12 +10,10 @@ const auth = require("../middleware/auth.js");
 
 const router = express.Router();
 
-// Guest login - NO AUTH REQUIRED
 router.post("/guest", async (req, res) => {
   try {
     let { username } = req.body;
 
-    // Generate random username if not provided
     if (!username || username.trim().length < 2) {
       const randomId = Math.random().toString(36).substr(2, 6);
       username = `Guest${randomId}`;
@@ -23,7 +21,6 @@ router.post("/guest", async (req, res) => {
       username = username.trim();
     }
 
-    // Check if username already exists
     const existingUser = await User.findOne({
       username: username,
       isGuest: false,
@@ -35,7 +32,6 @@ router.post("/guest", async (req, res) => {
       });
     }
 
-    // Create guest user (temporary, not saved to DB in most cases)
     const guestUser = {
       id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       username: username,
@@ -60,7 +56,6 @@ router.post("/guest", async (req, res) => {
       lastActive: new Date(),
     };
 
-    // Generate tokens for guest session
     const accessToken = generateAccessToken(guestUser.id, true);
     const refreshToken = generateRefreshToken(guestUser.id, true);
 
@@ -78,7 +73,6 @@ router.post("/guest", async (req, res) => {
   }
 });
 
-// Register new user - NO AUTH REQUIRED
 router.post("/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -96,7 +90,6 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Check for valid characters (letters, numbers, hyphens, underscores only)
     const validUsernameRegex = /^[a-zA-Z0-9_-]+$/;
     if (!validUsernameRegex.test(username)) {
       return res.status(400).json({
@@ -214,7 +207,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Login existing user - NO AUTH REQUIRED
+// Login existing user
 router.post("/login", async (req, res) => {
   try {
     const { emailOrUsername, password } = req.body;
@@ -225,14 +218,12 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Basic password validation for login
     if (password.length < 6) {
       return res.status(400).json({
         message: "Invalid email or password",
       });
     }
 
-    // Find user by email or username
     const user = await User.findOne({
       $or: [
         { email: emailOrUsername.toLowerCase() },
@@ -297,7 +288,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Refresh access token - NO AUTH REQUIRED (uses refresh token)
 router.post("/refresh", async (req, res) => {
   try {
     const { refreshToken } = req.body;
@@ -308,7 +298,6 @@ router.post("/refresh", async (req, res) => {
       });
     }
 
-    // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken);
     if (!decoded) {
       return res.status(401).json({
@@ -316,7 +305,6 @@ router.post("/refresh", async (req, res) => {
       });
     }
 
-    // For guest users, generate new tokens
     if (decoded.isGuest) {
       const newAccessToken = generateAccessToken(decoded.userId, true);
       const newRefreshToken = generateRefreshToken(decoded.userId, true);
@@ -330,7 +318,6 @@ router.post("/refresh", async (req, res) => {
       });
     }
 
-    // For registered users, check if user still exists
     const user = await User.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({
@@ -338,7 +325,6 @@ router.post("/refresh", async (req, res) => {
       });
     }
 
-    // Generate new tokens
     const newAccessToken = generateAccessToken(user._id, false);
     const newRefreshToken = generateRefreshToken(user._id, false);
 
@@ -357,10 +343,8 @@ router.post("/refresh", async (req, res) => {
   }
 });
 
-// Logout user - REQUIRES AUTH
 router.post("/logout", auth, async (req, res) => {
   try {
-    // For registered users, update last active time
     if (!req.user.isGuest) {
       await User.findByIdAndUpdate(req.user.id, {
         lastActive: new Date(),
@@ -378,11 +362,9 @@ router.post("/logout", auth, async (req, res) => {
   }
 });
 
-// Get current user info - REQUIRES AUTH
 router.get("/me", auth, async (req, res) => {
   try {
     if (req.user.isGuest) {
-      // For guest users, return the basic info
       return res.status(200).json({
         user: {
           id: req.user.id,
@@ -399,7 +381,6 @@ router.get("/me", auth, async (req, res) => {
       });
     }
 
-    // For registered users, get from database
     const user = await User.findById(req.user.id);
     if (!user) {
       return res.status(404).json({
@@ -432,7 +413,6 @@ router.get("/me", auth, async (req, res) => {
   }
 });
 
-// Check username availability - NO AUTH REQUIRED
 router.get("/check-username/:username", async (req, res) => {
   try {
     const { username } = req.params;
@@ -486,7 +466,6 @@ router.patch("/profile", auth, async (req, res) => {
     const { username, avatar, privacySettings } = req.body;
     const updateData = {};
 
-    // Validate and update username
     if (username !== undefined) {
       if (typeof username !== "string" || username.trim().length < 4) {
         return res.status(400).json({
@@ -528,7 +507,6 @@ router.patch("/profile", auth, async (req, res) => {
       updateData.avatar = avatar;
     }
 
-    // Validate and update privacy settings
     if (privacySettings !== undefined) {
       if (typeof privacySettings !== "object") {
         return res.status(400).json({
@@ -573,7 +551,6 @@ router.patch("/profile", auth, async (req, res) => {
       }
     }
 
-    // Update user
     const updatedUser = await User.findByIdAndUpdate(
       req.user.id,
       { $set: updateData },

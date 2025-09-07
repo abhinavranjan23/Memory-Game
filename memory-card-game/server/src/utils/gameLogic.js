@@ -1,4 +1,3 @@
-// Game themes with their card values
 const THEMES = {
   emojis: [
     "🎮",
@@ -225,20 +224,16 @@ const POWER_UPS = [
   },
 ];
 
-// Generate game board
 function generateBoard(
   boardSize,
   theme = "emojis",
   powerUpsEnabled = true,
   gameMode = "classic"
 ) {
-  // Convert string boardSize (e.g., "4x4") to number if needed
   let size;
   if (typeof boardSize === "string") {
-    // Extract the first number from formats like "4x4"
     size = parseInt(boardSize.split("x")[0], 10);
     if (isNaN(size)) {
-      // Default to 4 if parsing fails
       size = 4;
     }
   } else {
@@ -259,7 +254,6 @@ function generateBoard(
     );
   }
 
-  // Select random cards for this game
   const selectedCards = shuffleArray(themeCards).slice(0, pairs);
 
   // Create pairs
@@ -277,7 +271,6 @@ function generateBoard(
     );
   });
 
-  // Add power-ups to random cards
   if (powerUpsEnabled) {
     let powerUpCount;
     if (gameMode === "powerup-frenzy") {
@@ -307,7 +300,6 @@ function generateBoard(
   return shuffleArray(cardPairs);
 }
 
-// Get random power-up based on rarity
 function getRandomPowerUp() {
   const roll = Math.random();
   let cumulativeRarity = 0;
@@ -327,7 +319,6 @@ function cardsMatch(card1, card2) {
   return card1.value === card2.value && card1.theme === card2.theme;
 }
 
-// Calculate score based on game mode and performance
 function calculateScore(gameMode, matchStreak, lastFlipTime) {
   let baseScore = 100;
 
@@ -336,19 +327,15 @@ function calculateScore(gameMode, matchStreak, lastFlipTime) {
     baseScore += (matchStreak - 1) * 25;
   }
 
-  // Speed bonus (if flip was quick)
   if (lastFlipTime) {
     const timeDiff = Date.now() - lastFlipTime.getTime();
     if (timeDiff < 2000) {
-      // Less than 2 seconds
       baseScore += 50;
     } else if (timeDiff < 5000) {
-      // Less than 5 seconds
       baseScore += 25;
     }
   }
 
-  // Game mode multiplier
   switch (gameMode) {
     case "blitz":
       baseScore *= 1.5;
@@ -366,7 +353,6 @@ function calculateScore(gameMode, matchStreak, lastFlipTime) {
   return Math.floor(baseScore);
 }
 
-// Get time limit based on game mode
 function getTimeLimit(gameMode, customTimeLimit) {
   switch (gameMode) {
     case "blitz":
@@ -380,7 +366,6 @@ function getTimeLimit(gameMode, customTimeLimit) {
   }
 }
 
-// Calculate memory meter (0-100)
 function calculateMemoryMeter(matches, flips, matchStreak) {
   if (flips === 0) return 0;
 
@@ -391,7 +376,6 @@ function calculateMemoryMeter(matches, flips, matchStreak) {
   return Math.min(Math.floor(meter), 100);
 }
 
-// Check if sudden death should trigger
 function shouldTriggerSuddenDeath(players, timeLeft) {
   if (timeLeft > 0) return false;
 
@@ -400,7 +384,6 @@ function shouldTriggerSuddenDeath(players, timeLeft) {
   return scores.length >= 2 && scores[0] === scores[1];
 }
 
-// Generate sudden death board (single pair)
 function generateSuddenDeathCards(theme = "emojis") {
   const themeCards = THEMES[theme] || THEMES.emojis;
   const randomCard = themeCards[Math.floor(Math.random() * themeCards.length)];
@@ -411,7 +394,6 @@ function generateSuddenDeathCards(theme = "emojis") {
   ];
 }
 
-// Shuffle array utility
 function shuffleArray(array) {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -421,7 +403,6 @@ function shuffleArray(array) {
   return shuffled;
 }
 
-// Validate board size
 function isValidBoardSize(size) {
   // Handle string board sizes like "4x4"
   let numericSize;
@@ -441,7 +422,6 @@ function isValidBoardSize(size) {
 
 // Get difficulty level based on board size
 function getDifficultyLevel(boardSize) {
-  // Handle string board sizes like "4x4"
   let size;
   if (typeof boardSize === "string") {
     size = parseInt(boardSize.split("x")[0], 10);

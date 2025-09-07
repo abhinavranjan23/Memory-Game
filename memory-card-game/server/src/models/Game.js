@@ -189,24 +189,20 @@ gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
     return false;
   }
 
-  // ❌ DON'T REMOVE if game is already finished/completed
   if (
     this.gameState.status === "finished" ||
     this.status === "completed" ||
     this.endedAt
   ) {
     console.log(
-      `⚠️ Cannot remove player ${userId} from finished game ${this.roomId}`
+      ` Cannot remove player ${userId} from finished game ${this.roomId}`
     );
     return false;
   }
 
-  // Get the player data before removal
   const playerToRemove = this.players[playerIndex];
 
-  // If leftEarly is true, move player to opponentsForHistory
   if (leftEarly) {
-    // Ensure opponentsForHistory is initialized
     if (!this.gameState.opponentsForHistory) {
       this.gameState.opponentsForHistory = [];
     }
@@ -219,15 +215,10 @@ gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
       leftEarly: true,
       disconnectedAt: new Date(),
     });
-    console.log(
-      `Player ${playerToRemove.username} moved to opponentsForHistory with leftEarly: true`
-    );
   }
 
-  // ✅ Only remove from active games
   this.players.splice(playerIndex, 1);
 
-  // If the removed player was the current turn, switch to next player
   if (this.gameState.currentTurn === userId) {
     if (this.players.length > 0) {
       // Set turn to the first remaining player
@@ -239,12 +230,10 @@ gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
         player.isCurrentTurn = index === 0;
       });
     } else {
-      // No players left, clear current turn
       this.gameState.currentTurn = null;
       this.gameState.currentPlayerIndex = 0;
     }
   } else {
-    // Update currentPlayerIndex if needed
     if (this.gameState.currentPlayerIndex >= playerIndex) {
       this.gameState.currentPlayerIndex = Math.max(
         0,
@@ -253,7 +242,6 @@ gameSchema.methods.removePlayer = function (userId, leftEarly = false) {
     }
   }
 
-  // Update last activity
   this.gameState.lastActivity = new Date();
   this.updatedAt = new Date();
 
@@ -265,16 +253,15 @@ gameSchema.methods.togglePlayerReady = function (userId) {
     player.isReady = !player.isReady;
   }
 
-  // Check if all players are ready
   const allReady = this.players.every((p) => p.isReady);
   if (allReady && this.players.length >= 2) {
     if (this.gameState.status === "waiting") {
       this.gameState.status = "starting";
-      this.status = "starting"; // Synchronize main game status
+      this.status = "starting";
     }
   }
   this.gameState.lastActivity = new Date();
-  this.updatedAt = new Date(); // Update the main updatedAt field
+  this.updatedAt = new Date();
 };
 
 gameSchema.methods.addChatMessage = function (
@@ -292,13 +279,11 @@ gameSchema.methods.addChatMessage = function (
     type,
   });
 
-  // Keep only last 100 messages
   if (this.chat.length > 100) {
     this.chat = this.chat.slice(-100);
   }
 };
 
-// Add database indexes for better query performance
 gameSchema.index({ "gameState.status": 1, updatedAt: -1 });
 gameSchema.index({ status: 1, updatedAt: -1 });
 gameSchema.index({ "players.userId": 1 });
@@ -307,7 +292,7 @@ gameSchema.index({ endedAt: -1 });
 gameSchema.index({ createdAt: -1 });
 gameSchema.index({ "settings.gameMode": 1 });
 gameSchema.index({ isPrivate: 1 });
-gameSchema.index({ "gameState.status": 1, "players.0": { $exists: false } }); // For empty player arrays
-gameSchema.index({ "gameState.status": 1, players: { $size: 0 } }); // For empty player arrays
+gameSchema.index({ "gameState.status": 1, "players.0": { $exists: false } });
+gameSchema.index({ "gameState.status": 1, players: { $size: 0 } });
 
 module.exports = { Game: mongoose.model("Game", gameSchema) };

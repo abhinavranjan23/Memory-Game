@@ -1,9 +1,5 @@
 import { useState, useEffect } from "react";
 
-/**
- * Custom hook to detect mobile devices and optimize animations
- * Reduces heavy animations on mobile for better performance while keeping form animations smooth
- */
 export const useMobileOptimization = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isLowEndDevice, setIsLowEndDevice] = useState(false);
@@ -53,10 +49,9 @@ export const useMobileOptimization = () => {
         complexTransitions: false,
         hoverEffects: false,
         glowEffects: false,
-        formAnimations: true, // Keep form animations smooth
+        formAnimations: true,
         buttonAnimations: false,
-        loadingAnimations: true, // Keep loading animations
-        // Performance optimizations
+        loadingAnimations: true,
         reduceMotion: true,
         simplifyTransitions: true,
         optimizeRendering: true,
@@ -72,9 +67,8 @@ export const useMobileOptimization = () => {
         hoverEffects: false,
         glowEffects: false,
         formAnimations: true, // Keep form animations smooth
-        buttonAnimations: true, // Keep button animations
-        loadingAnimations: true, // Keep loading animations
-        // Performance optimizations
+        buttonAnimations: true,
+        loadingAnimations: true,
         reduceMotion: false,
         simplifyTransitions: true,
         optimizeRendering: true,
@@ -91,7 +85,7 @@ export const useMobileOptimization = () => {
       formAnimations: true,
       buttonAnimations: true,
       loadingAnimations: true,
-      // Performance optimizations
+
       reduceMotion: false,
       simplifyTransitions: false,
       optimizeRendering: false,
@@ -104,7 +98,6 @@ export const useMobileOptimization = () => {
       return {
         ...defaultProps,
         ...mobileProps,
-        // Optimize for low-end devices
         transition: {
           ...defaultProps.transition,
           duration: Math.min(
@@ -141,7 +134,7 @@ export const useMobileOptimization = () => {
       return {
         ...defaultProps,
         ...mobileProps,
-        // Significantly reduce background animations on mobile
+
         transition: {
           ...defaultProps.transition,
           duration: (defaultProps.transition?.duration || 1) * 0.3,
@@ -153,15 +146,12 @@ export const useMobileOptimization = () => {
     return defaultProps;
   };
 
-  // Check if we should reduce motion for accessibility
   const prefersReducedMotion = window.matchMedia(
     "(prefers-reduced-motion: reduce)"
   ).matches;
 
-  // Disable motion entirely for very low-end devices or accessibility preference
   const shouldDisableMotion = isLowEndDevice || prefersReducedMotion;
 
-  // Check if we should optimize rendering
   const shouldOptimizeRendering = isMobile || isLowEndDevice;
 
   return {

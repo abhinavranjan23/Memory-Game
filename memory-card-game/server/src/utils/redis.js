@@ -38,8 +38,7 @@ class RedisManager {
         this.retryAttempts = 0;
       });
 
-      this.client.on("ready", () => {
-        });
+      this.client.on("ready", () => {});
 
       this.client.on("end", () => {
         this.isConnected = false;
@@ -117,7 +116,6 @@ class RedisManager {
     }
   }
 
-  // Game State Caching
   async cacheGameState(gameId, gameState, ttl = 1800) {
     try {
       const key = `game:${gameId}`;

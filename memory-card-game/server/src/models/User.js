@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema(
   {
     username: { type: String, required: true, unique: true, trim: true },
     email: { type: String, sparse: true, lowercase: true },
-    password: { type: String, select: false }, // Password field with select: false for security
+    password: { type: String, select: false },
     googleId: { type: String, sparse: true },
     avatar: { type: String, default: null },
     isGuest: { type: Boolean, default: false },
@@ -60,26 +60,22 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Update stats after each game
 userSchema.methods.updateStats = function (gameResult) {
   this.stats.gamesPlayed += 1;
   if (gameResult.won) {
     this.stats.gamesWon += 1;
   }
 
-  // Calculate win rate as percentage
   this.stats.winRate = Math.round(
     (this.stats.gamesWon / this.stats.gamesPlayed) * 100
   );
 
   this.stats.totalScore += gameResult.score;
 
-  // Update best score if current score is higher
   if (gameResult.score > this.stats.bestScore) {
     this.stats.bestScore = gameResult.score;
   }
 
-  // Update average flip time
   if (gameResult.flipTimes && gameResult.flipTimes.length > 0) {
     const avgTime =
       gameResult.flipTimes.reduce((a, b) => a + b, 0) /
@@ -89,27 +85,21 @@ userSchema.methods.updateStats = function (gameResult) {
     );
   }
 
-  // Update best match streak
   if (gameResult.matchStreak > this.stats.bestMatchStreak) {
     this.stats.bestMatchStreak = gameResult.matchStreak;
   }
 
-  // Update perfect games count
   if (gameResult.isPerfect) {
     this.stats.perfectGames += 1;
   }
 
-  // Update power-ups used
   this.stats.powerUpsUsed += gameResult.powerUpsUsed || 0;
 
-  // Update memory meter statistics
   if (gameResult.memoryMeter !== undefined) {
-    // Update best memory meter
     if (gameResult.memoryMeter > this.stats.bestMemoryMeter) {
       this.stats.bestMemoryMeter = gameResult.memoryMeter;
     }
 
-    // Update average memory meter
     if (this.stats.gamesPlayed === 1) {
       this.stats.averageMemoryMeter = gameResult.memoryMeter;
     } else {
@@ -124,7 +114,6 @@ userSchema.methods.updateStats = function (gameResult) {
   this.lastActive = new Date();
 };
 
-// Add achievement
 userSchema.methods.addAchievement = function (achievement) {
   const exists = this.achievements.find((a) => a.id === achievement.id);
   if (!exists) {
@@ -135,7 +124,6 @@ userSchema.methods.addAchievement = function (achievement) {
   }
 };
 
-// Add database indexes for better query performance
 userSchema.index({ username: 1 });
 userSchema.index({ email: 1 });
 userSchema.index({ isGuest: 1 });

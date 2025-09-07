@@ -86,12 +86,10 @@ const WaitingArea = () => {
     };
 
     const handleGameStarted = (data) => {
-      console.log("WaitingArea: game-started event received", data);
       navigate(`/game/${roomId}`);
     };
 
     const handleGameStart = (data) => {
-      console.log("WaitingArea: game-start event received", data);
       navigate(`/game/${roomId}`);
     };
 
@@ -118,7 +116,6 @@ const WaitingArea = () => {
     };
 
     const handleJoinRoomError = (error) => {
-      console.log("WaitingArea: join-room-error event received", error);
       if (error?.message?.includes("Invalid room password")) {
         addToast("Invalid room password. Redirecting to lobby...", "error");
         setTimeout(() => {

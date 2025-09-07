@@ -1,6 +1,5 @@
 import { useRef, useEffect } from "react";
 
-// Import audio files using Vite's new URL() syntax for proper asset resolution
 const audioUrls = {
   turn: new URL("../assets/audio/turn-notification.wav", import.meta.url).href,
   matchFound: new URL(
@@ -28,21 +27,17 @@ export const useAudio = () => {
     message: null,
   });
 
-  // Initialize audio objects with better error handling
   useEffect(() => {
     const initializeAudio = async () => {
       try {
         console.log("Initializing audio with URLs:", audioUrls);
 
-        // Create audio objects with proper error handling
         Object.keys(audioUrls).forEach((key) => {
           const audio = new Audio();
 
-          // Set audio properties for better compatibility
           audio.preload = "auto";
           audio.volume = 0.5;
 
-          // Handle load events
           audio.addEventListener("loadstart", () => {
             console.log(`Loading audio: ${key} from ${audio.src}`);
           });
@@ -66,14 +61,10 @@ export const useAudio = () => {
             }
           });
 
-          // Set the source using the imported module URL
-          console.log(`Setting audio src for ${key}: ${audioUrls[key]}`);
           audio.src = audioUrls[key];
 
-          // Store the original URL to protect against corruption
           audio._originalSrc = audioUrls[key];
 
-          // Store the audio object
           audioRefs.current[key] = audio;
         });
       } catch (error) {
@@ -98,7 +89,6 @@ export const useAudio = () => {
     try {
       const audio = audioRefs.current[audioKey];
 
-      // Check if the URL got corrupted and restore it
       if (audio && audio._originalSrc && audio.src !== audio._originalSrc) {
         console.log(
           `URL corrupted for ${audioKey}, restoring: ${audio._originalSrc}`
@@ -106,17 +96,7 @@ export const useAudio = () => {
         audio.src = audio._originalSrc;
       }
 
-      console.log(`Attempting to play ${audioKey} audio:`, {
-        audio: !!audio,
-        readyState: audio?.readyState,
-        src: audio?.src,
-        paused: audio?.paused,
-        currentTime: audio?.currentTime,
-      });
-
       if (audio && audio.readyState >= 2) {
-        // HAVE_CURRENT_DATA or higher
-        // Reset and play
         audio.currentTime = 0;
         audio
           .play()
@@ -145,13 +125,6 @@ export const useAudio = () => {
                       `Retry failed for ${audioKey} audio:`,
                       retryError
                     );
-                    // Log additional details for debugging
-                    console.error(`Final audio state:`, {
-                      src: audio.src,
-                      readyState: audio.readyState,
-                      error: audio.error,
-                      networkState: audio.networkState,
-                    });
                   });
               } catch (retryError) {
                 console.error(`Retry error for ${audioKey} audio:`, retryError);
@@ -162,10 +135,8 @@ export const useAudio = () => {
         console.warn(
           `Audio ${audioKey} not ready yet, readyState: ${audio?.readyState}`
         );
-        // Try to load the audio if it's not ready
+
         if (audio && audio.readyState === 0) {
-          // HAVE_NOTHING
-          console.log(`Attempting to load audio ${audioKey}...`);
           audio.load();
         }
       }

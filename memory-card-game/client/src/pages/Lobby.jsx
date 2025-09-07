@@ -178,13 +178,11 @@ const Lobby = () => {
   };
 
   const handleJoinedRoom = (data) => {
-    console.log("handleJoinedRoom called with data:", data);
     setJoinLoading(null);
     setSelectedRoom(null);
     setRoomPassword("");
     addToast(`Joined room successfully!`, "success");
-    // Navigate to waiting area immediately
-    console.log("Navigating to waiting area:", `/waiting/${data.roomId}`);
+
     navigate(`/waiting/${data.roomId}`);
   };
 
@@ -244,11 +242,10 @@ const Lobby = () => {
         boardSize: "4x4",
         gameMode: "classic",
         theme: "emojis",
-        powerUpsEnabled: false, // Default to false for classic mode
+        powerUpsEnabled: false,
         timeLimit: 60,
       });
 
-      // Join the created room and navigate to waiting area
       if (socket) {
         const joinData = { roomId: response.data.game.roomId };
         // Include password if it's a private room
@@ -256,7 +253,7 @@ const Lobby = () => {
           joinData.password = createForm.password.trim();
         }
         console.log("Attempting to join room with data:", joinData);
-        // Use the joinRoom function from SocketContext for proper debouncing
+
         const success = joinRoom(joinData);
         if (!success) {
           addToast("Failed to join room - Socket not connected", "error");
@@ -299,9 +296,7 @@ const Lobby = () => {
               setJoinLoading(null);
               addToast("Taking you to the room...", "info");
               navigate(`/waiting/${room.roomId}`);
-            }, 3000); // 3 second timeout
-
-            // Store timeout ID to clear if response comes back
+            }, 3000);
             socket.once("room-joined", () => {
               clearTimeout(timeoutId);
             });
@@ -326,7 +321,6 @@ const Lobby = () => {
     setJoinLoading(selectedRoom.roomId);
     if (socket) {
       try {
-        // Use the joinRoom function from SocketContext - only emit once
         const success = joinRoom({
           roomId: selectedRoom.roomId,
           password: roomPassword.trim(),
@@ -339,15 +333,12 @@ const Lobby = () => {
             "error"
           );
         } else {
-          // Add timeout for join room response
           const timeoutId = setTimeout(() => {
             console.log("Private room join timeout - navigating anyway");
             setJoinLoading(null);
             addToast("Taking you to the room...", "info");
             navigate(`/waiting/${selectedRoom.roomId}`);
-          }, 3000); // 3 second timeout
-
-          // Store timeout ID to clear if response comes back
+          }, 3000);
           socket.once("room-joined", () => {
             clearTimeout(timeoutId);
           });

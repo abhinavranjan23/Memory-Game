@@ -482,7 +482,6 @@ router.get("/anti-cheat/report", async (req, res) => {
       }
     }
 
-    // Add recommendations based on database data
     if (activeBlockedUsers.length > 0) {
       enhancedReport.recommendations.push({
         type: "blocked_users_database",
@@ -496,12 +495,11 @@ router.get("/anti-cheat/report", async (req, res) => {
         })),
       });
 
-      // Check for users blocked for a long time
       const longBlockedUsers = activeBlockedUsers.filter((user) => {
         const daysBlocked =
           (Date.now() - new Date(user.blockedAt).getTime()) /
           (1000 * 60 * 60 * 24);
-        return daysBlocked > 7; // More than 7 days
+        return daysBlocked > 7;
       });
 
       if (longBlockedUsers.length > 0) {
@@ -522,7 +520,6 @@ router.get("/anti-cheat/report", async (req, res) => {
       }
     }
 
-    // Add system health recommendations
     if (report.cacheStats) {
       if (report.cacheStats.blockedUsersInCache !== activeBlockedUsers.length) {
         enhancedReport.recommendations.push({
@@ -544,21 +541,18 @@ router.get("/anti-cheat/report", async (req, res) => {
   }
 });
 
-// Enhanced unblock user endpoint
 router.post("/anti-cheat/unblock/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const { reason } = req.body;
     const adminUserId = req.user.id;
 
-    // Unblock the user in the anti-cheat system
     const unblockedUser = await antiCheatSystem.unblockUser(
       userId,
       adminUserId,
       reason || "Admin unblocked"
     );
 
-    // Refresh the cache to ensure consistency
     await antiCheatSystem.refreshBlockedUsersCache();
 
     res.status(200).json({

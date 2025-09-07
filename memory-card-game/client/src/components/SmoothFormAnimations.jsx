@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
  * Provides optimized animations that work smoothly on all devices
  */
 export const SmoothFormAnimations = {
-  // Container animation - smooth entrance
   Container: ({ children, delay = 0, ...props }) => (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.98 }}
@@ -14,7 +13,7 @@ export const SmoothFormAnimations = {
       transition={{
         duration: 0.8,
         delay,
-        ease: [0.25, 0.46, 0.45, 0.94], // Custom easing for smooth feel
+        ease: [0.25, 0.46, 0.45, 0.94],
       }}
       {...props}
     >
@@ -22,7 +21,6 @@ export const SmoothFormAnimations = {
     </motion.div>
   ),
 
-  // Form field animation - smooth slide in
   Field: ({ children, delay = 0, direction = "left", ...props }) => (
     <motion.div
       initial={{
@@ -42,7 +40,6 @@ export const SmoothFormAnimations = {
     </motion.div>
   ),
 
-  // Button animation - smooth scale and fade
   Button: ({ children, delay = 0, ...props }) => (
     <motion.button
       initial={{ opacity: 0, y: 20, scale: 0.95 }}
@@ -65,7 +62,6 @@ export const SmoothFormAnimations = {
     </motion.button>
   ),
 
-  // Header animation - smooth fade down
   Header: ({ children, delay = 0, ...props }) => (
     <motion.div
       initial={{ opacity: 0, y: -20 }}
@@ -103,7 +99,6 @@ export const SmoothFormAnimations = {
     </motion.div>
   ),
 
-  // Staggered children animation
   StaggerContainer: ({ children, staggerDelay = 0.1, ...props }) => (
     <motion.div
       initial='hidden'
@@ -145,12 +140,7 @@ export const SmoothFormAnimations = {
   ),
 };
 
-/**
- * CSS-based smooth animations for better performance
- * Use these classes for simple animations that work on all devices
- */
 export const smoothAnimationsCSS = {
-  // Add these classes to your CSS file
   classes: `
     .smooth-fade-in {
       animation: smoothFadeIn 0.8s ease-out forwards;

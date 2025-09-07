@@ -12,34 +12,29 @@ const ServerLoadingPopup = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [loadingTime, setLoadingTime] = useState(0);
-  const [serverStatus, setServerStatus] = useState("checking"); // 'checking', 'loading', 'ready'
+  const [serverStatus, setServerStatus] = useState("checking");
   const [hasCheckedOnce, setHasCheckedOnce] = useState(false);
   const checkIntervalRef = useRef(null);
 
   useEffect(() => {
-    // Check if user has chosen to never show again
     const neverShow = localStorage.getItem("serverLoadingPopupNeverShow");
     if (neverShow === "true") {
       setIsDismissed(true);
       return;
     }
 
-    // Initial server check
     checkServerStatus();
 
-    // Show popup after 5 seconds if server is not ready
     const showPopupTimer = setTimeout(() => {
       if (!hasCheckedOnce || serverStatus === "loading") {
         setIsVisible(true);
       }
     }, 5000);
 
-    // Start loading time counter
     const loadingTimer = setInterval(() => {
       setLoadingTime((prev) => prev + 1);
     }, 1000);
 
-    // Check server status every 10 seconds (but only if popup is visible)
     checkIntervalRef.current = setInterval(() => {
       if (isVisible && serverStatus === "loading") {
         checkServerStatus();
@@ -53,10 +48,10 @@ const ServerLoadingPopup = () => {
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, []); // Empty dependency array - only run once
+  }, []);
 
   const checkServerStatus = async () => {
-    if (serverStatus === "ready") return; // Don't check if already ready
+    if (serverStatus === "ready") return;
 
     setServerStatus("checking");
     setHasCheckedOnce(true);
@@ -80,7 +75,7 @@ const ServerLoadingPopup = () => {
 
       if (response.ok) {
         setServerStatus("ready");
-        // If server responded quickly, hide popup
+
         if (responseTime < 2000) {
           setIsVisible(false);
           setIsDismissed(true);
@@ -89,7 +84,6 @@ const ServerLoadingPopup = () => {
         setServerStatus("loading");
       }
     } catch (error) {
-      // Server is likely sleeping/loading
       setServerStatus("loading");
       console.log("Server health check failed:", error.message);
     }
@@ -134,7 +128,6 @@ const ServerLoadingPopup = () => {
     }
   };
 
-  // Don't render if dismissed or if server is ready and responded quickly
   if (isDismissed || (serverStatus === "ready" && !isVisible)) {
     return null;
   }

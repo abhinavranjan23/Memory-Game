@@ -11,8 +11,8 @@ const redisManager = require("../utils/redis.js");
  */
 const redisRateLimit = (options = {}) => {
   const {
-    maxRequests = 100,
-    windowMs = 15 * 60 * 1000, // 15 minutes
+    maxRequests = 1000,
+    windowMs = 15 * 60 * 1000,
     keyGenerator = (req) => req.ip,
     skip = () => false,
     message = "Too many requests from this IP, please try again later.",
@@ -21,28 +21,23 @@ const redisRateLimit = (options = {}) => {
 
   return async (req, res, next) => {
     try {
-      // Skip rate limiting if Redis is not connected
       if (!redisManager.isConnected) {
         return next();
       }
 
-      // Skip rate limiting if skip function returns true
       if (skip(req)) {
         return next();
       }
 
-      // Generate rate limit key
       const key = keyGenerator(req);
       const identifier = `ratelimit:${key}`;
 
-      // Check rate limit
       const rateLimitResult = await redisManager.checkRateLimit(
         identifier,
         maxRequests,
         windowMs
       );
 
-      // Add rate limit headers
       res.set({
         "X-RateLimit-Limit": maxRequests,
         "X-RateLimit-Remaining": rateLimitResult.remaining,
@@ -61,15 +56,12 @@ const redisRateLimit = (options = {}) => {
       next();
     } catch (error) {
       console.error("Rate limiting error:", error);
-      // Continue without rate limiting if Redis fails
+
       next();
     }
   };
 };
 
-/**
- * Authentication-specific rate limiting
- */
 const authRateLimit = redisRateLimit({
   maxRequests: 5,
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -77,19 +69,13 @@ const authRateLimit = redisRateLimit({
   message: "Too many authentication attempts, please try again later.",
 });
 
-/**
- * Game-specific rate limiting
- */
 const gameRateLimit = redisRateLimit({
-  maxRequests: 50,
+  maxRequests: 500,
   windowMs: 15 * 60 * 1000, // 15 minutes
   keyGenerator: (req) => `game:${req.ip}`,
   message: "Too many game requests, please try again later.",
 });
 
-/**
- * API-specific rate limiting
- */
 const apiRateLimit = redisRateLimit({
   maxRequests: 100,
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -97,17 +83,14 @@ const apiRateLimit = redisRateLimit({
   message: "Too many API requests, please try again later.",
 });
 
-/**
- * User-specific rate limiting
- */
 const userRateLimit = redisRateLimit({
   maxRequests: 200,
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   keyGenerator: (req) => {
     const userId = req.user?.id || req.ip;
     return `user:${userId}`;
   },
-  skip: (req) => !req.user, // Skip if no authenticated user
+  skip: (req) => !req.user,
   message: "Too many requests for this user, please try again later.",
 });
 

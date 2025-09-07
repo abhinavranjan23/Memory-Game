@@ -7,7 +7,6 @@ const AuthContext = createContext();
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
-// Setup axios defaults
 axios.defaults.baseURL = API_BASE_URL;
 
 const AuthProvider = ({ children }) => {
@@ -15,24 +14,18 @@ const AuthProvider = ({ children }) => {
 
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => {
-    // Always try to read from localStorage first
     return localStorage.getItem("token");
   });
   const [refreshToken, setRefreshToken] = useState(() => {
-    // Always try to read from localStorage first
     return localStorage.getItem("refreshToken");
   });
   const [loading, setLoading] = useState(true);
 
-  // Update tokens when consent changes
   useEffect(() => {
     if (hasConsent) {
-      // If user has given consent, read from localStorage
       const savedToken = localStorage.getItem("token");
       const savedRefreshToken = localStorage.getItem("refreshToken");
 
-      // Only restore tokens if they exist and we don't already have them
-      // This prevents auto-restoration after logout
       if (savedToken && !token) {
         setToken(savedToken);
       }
@@ -42,11 +35,10 @@ const AuthProvider = ({ children }) => {
     }
   }, [hasConsent, token, refreshToken]);
 
-  // Set auth header when token changes
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      // Only save to localStorage if user has given consent for essential cookies
+
       if (canStore("essential")) {
         localStorage.setItem("token", token);
       }
@@ -58,10 +50,8 @@ const AuthProvider = ({ children }) => {
     }
   }, [token, canStore]);
 
-  // Store refresh token when it changes
   useEffect(() => {
     if (refreshToken) {
-      // Only save to localStorage if user has given consent for essential cookies
       if (canStore("essential")) {
         localStorage.setItem("refreshToken", refreshToken);
       }
@@ -72,23 +62,20 @@ const AuthProvider = ({ children }) => {
     }
   }, [refreshToken, canStore]);
 
-  // Ensure token is properly set before allowing API calls
   const ensureTokenSet = async () => {
     if (token && !axios.defaults.headers.common["Authorization"]) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      // Small delay to ensure headers are set
+
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   };
 
-  // Check if user is properly authenticated
   const isProperlyAuthenticated = () => {
     return (
       user && user.id && token && axios.defaults.headers.common["Authorization"]
     );
   };
 
-  // Refresh access token using refresh token
   const refreshAccessToken = async () => {
     if (!refreshToken) {
       throw new Error("No refresh token available");
@@ -106,7 +93,7 @@ const AuthProvider = ({ children }) => {
       return tokens.accessToken;
     } catch (error) {
       console.error("Failed to refresh token:", error);
-      // Clear tokens on refresh failure
+
       setToken(null);
       setRefreshToken(null);
       setUser(null);
@@ -114,7 +101,6 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  // Load user on mount if token exists
   useEffect(() => {
     const loadUser = async () => {
       if (token) {
@@ -125,11 +111,10 @@ const AuthProvider = ({ children }) => {
         } catch (error) {
           console.error("Failed to load user:", error);
 
-          // Try to refresh token if we have a refresh token
           if (refreshToken && error.response?.status === 401) {
             try {
               await refreshAccessToken();
-              // Retry loading user after token refresh
+
               const retryResponse = await axios.get("/auth/me");
               setUser(retryResponse.data.user);
             } catch (refreshError) {
@@ -167,7 +152,6 @@ const AuthProvider = ({ children }) => {
         user: userData,
       } = response.data;
 
-      // Set token, refresh token and user atomically
       setToken(newToken);
       setRefreshToken(newRefreshToken);
       setUser(userData);
@@ -194,7 +178,6 @@ const AuthProvider = ({ children }) => {
         user: userData,
       } = response.data;
 
-      // Set token, refresh token and user atomically
       setToken(newToken);
       setRefreshToken(newRefreshToken);
       setUser(userData);
@@ -221,7 +204,6 @@ const AuthProvider = ({ children }) => {
         user: userData,
       } = response.data;
 
-      // Set token, refresh token and user atomically
       setToken(newToken);
       setRefreshToken(newRefreshToken);
       setUser(userData);
@@ -231,28 +213,27 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const googleLogin = async (googleData) => {
-    try {
-      const response = await axios.post("/auth/google", {
-        googleId: googleData.googleId,
-        email: googleData.email,
-        name: googleData.name,
-        picture: googleData.picture,
-      });
-      const {
-        token: newToken,
-        refreshToken: newRefreshToken,
-        user: userData,
-      } = response.data;
+  // const googleLogin = async (googleData) => {
+  //   try {
+  //     const response = await axios.post("/auth/google", {
+  //       googleId: googleData.googleId,
+  //       email: googleData.email,
+  //       name: googleData.name,
+  //       picture: googleData.picture,
+  //     });
+  //     const {
+  //       token: newToken,
+  //       refreshToken: newRefreshToken,
+  //       user: userData,
+  //     } = response.data;
 
-      // Set token, refresh token and user atomically
-      setToken(newToken);
-      setRefreshToken(newRefreshToken);
-      setUser(userData);
-    } catch (error) {
-      throw new Error(error.response?.data?.message || "Google login failed");
-    }
-  };
+  //     setToken(newToken);
+  //     setRefreshToken(newRefreshToken);
+  //     setUser(userData);
+  //   } catch (error) {
+  //     throw new Error(error.response?.data?.message || "Google login failed");
+  //   }
+  // };
 
   const logout = async () => {
     try {
@@ -262,18 +243,15 @@ const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // Clear tokens and user state
       setToken(null);
       setRefreshToken(null);
       setUser(null);
 
-      // Clear localStorage immediately to prevent auto-restoration
       if (canStore("essential")) {
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
       }
 
-      // Clear axios headers
       delete axios.defaults.headers.common["Authorization"];
     }
   };
@@ -305,7 +283,6 @@ const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// Export both the provider and hook
 export { AuthProvider };
 
 const useAuth = () => {

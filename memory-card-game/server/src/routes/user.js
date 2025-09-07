@@ -4,7 +4,6 @@ const auth = require("../middleware/auth.js");
 
 const router = express.Router();
 
-// Get user's personal stats - REQUIRES AUTH
 router.get("/stats", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("stats achievements");
@@ -15,7 +14,7 @@ router.get("/stats", auth, async (req, res) => {
     res.status(200).json({
       stats: {
         ...user.stats.toObject(),
-        // Ensure memory meter fields are included
+
         bestMemoryMeter: user.stats.bestMemoryMeter || 0,
         averageMemoryMeter: user.stats.averageMemoryMeter || 0,
       },
@@ -27,7 +26,6 @@ router.get("/stats", auth, async (req, res) => {
   }
 });
 
-// Get public user profile by ID - NO AUTH REQUIRED
 router.get("/:userId/profile", async (req, res) => {
   try {
     const { userId } = req.params;
@@ -42,14 +40,12 @@ router.get("/:userId/profile", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Don't show detailed stats for guest users for privacy
     if (user.isGuest) {
       return res
         .status(404)
         .json({ message: "Profile not available for guest users" });
     }
 
-    // Check if user has privacy settings that hide their profile
     if (
       user.privacySettings &&
       user.privacySettings.showInLeaderboards === false

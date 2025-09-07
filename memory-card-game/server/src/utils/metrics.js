@@ -1,12 +1,9 @@
 const promClient = require("prom-client");
 
-// Create a Registry to register metrics
 const register = new promClient.Registry();
 
-// Enable default metrics (CPU, memory, etc.)
 promClient.collectDefaultMetrics({ register });
 
-// Custom metrics for the memory card game
 const metrics = {
   // Game metrics
   activeGames: new promClient.Gauge({
@@ -86,7 +83,6 @@ const metrics = {
     registers: [register],
   }),
 
-  // Power-up metrics
   powerUpsUsed: new promClient.Counter({
     name: "memory_game_powerups_used",
     help: "Total number of power-ups used",
@@ -94,7 +90,6 @@ const metrics = {
     registers: [register],
   }),
 
-  // Achievement metrics
   achievementsUnlocked: new promClient.Counter({
     name: "memory_game_achievements_unlocked",
     help: "Total number of achievements unlocked",
@@ -102,7 +97,6 @@ const metrics = {
     registers: [register],
   }),
 
-  // Room metrics
   activeRooms: new promClient.Gauge({
     name: "memory_game_active_rooms",
     help: "Number of currently active rooms",
@@ -132,7 +126,6 @@ const metrics = {
     registers: [register],
   }),
 
-  // Database metrics
   dbOperations: new promClient.Counter({
     name: "memory_game_db_operations_total",
     help: "Total number of database operations",
@@ -185,29 +178,24 @@ const updateMetrics = {
     metrics.cardFlipTime.observe({ game_mode: gameMode }, time);
   },
 
-  // Error metrics
   incrementErrors: (errorType) => {
     metrics.gameErrors.inc({ error_type: errorType });
   },
 
-  // Socket metrics
   incrementSocketConnections: () => metrics.socketConnections.inc(),
   decrementSocketConnections: () => metrics.socketConnections.dec(),
   setSocketConnections: (count) => metrics.socketConnections.set(count),
 
   incrementSocketDisconnections: () => metrics.socketDisconnections.inc(),
 
-  // Power-up metrics
   incrementPowerUpsUsed: (powerUpType) => {
     metrics.powerUpsUsed.inc({ powerup_type: powerUpType });
   },
 
-  // Achievement metrics
   incrementAchievements: (achievementType) => {
     metrics.achievementsUnlocked.inc({ achievement_type: achievementType });
   },
 
-  // Room metrics
   incrementActiveRooms: () => metrics.activeRooms.inc(),
   decrementActiveRooms: () => metrics.activeRooms.dec(),
   setActiveRooms: (count) => metrics.activeRooms.set(count),
@@ -216,7 +204,6 @@ const updateMetrics = {
     metrics.roomCreationTime.observe({}, time);
   },
 
-  // API metrics
   incrementApiRequests: (method, endpoint, statusCode) => {
     metrics.apiRequests.inc({
       method: method.toUpperCase(),
@@ -235,7 +222,6 @@ const updateMetrics = {
     );
   },
 
-  // Database metrics
   incrementDbOperations: (operation, collection) => {
     metrics.dbOperations.inc({ operation: operation, collection: collection });
   },

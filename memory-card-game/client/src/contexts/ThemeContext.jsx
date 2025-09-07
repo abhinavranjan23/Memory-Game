@@ -12,14 +12,12 @@ export const ThemeProvider = ({ children }) => {
     if (saved) {
       return saved === "dark";
     }
-    // Fall back to system preference if no saved theme
+
     return window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
 
-  // Update theme when consent changes
   useEffect(() => {
     if (hasConsent) {
-      // If user has given consent, read from localStorage
       const saved = localStorage.getItem("theme");
       if (saved) {
         setIsDark(saved === "dark");
@@ -30,13 +28,13 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add("dark");
-      // Only save to localStorage if user has given consent for preferences
+
       if (canStore("preferences")) {
         localStorage.setItem("theme", "dark");
       }
     } else {
       document.documentElement.classList.remove("dark");
-      // Only save to localStorage if user has given consent for preferences
+
       if (canStore("preferences")) {
         localStorage.setItem("theme", "light");
       }

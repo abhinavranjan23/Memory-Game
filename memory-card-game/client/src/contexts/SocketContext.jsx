@@ -37,12 +37,10 @@ export const SocketProvider = ({ children }) => {
       return;
     }
 
-    // Prevent duplicate socket connections
     if (hasConnectedRef.current && socketRef.current) {
       return;
     }
 
-    // Reset connection attempts if we have a new user/token
     connectionAttemptsRef.current = 0;
     hasConnectedRef.current = true;
 
@@ -62,14 +60,13 @@ export const SocketProvider = ({ children }) => {
     const onConnect = () => {
       console.log("Socket connected successfully");
       setIsConnected(true);
-      connectionAttemptsRef.current = 0; // Reset attempts on successful connection
+      connectionAttemptsRef.current = 0;
     };
 
     const onDisconnect = (reason) => {
       console.log("Socket disconnected:", reason);
       setIsConnected(false);
 
-      // If it's a manual disconnect or max attempts reached, don't try to reconnect
       if (
         reason === "io client disconnect" ||
         connectionAttemptsRef.current >= maxConnectionAttempts
@@ -94,7 +91,6 @@ export const SocketProvider = ({ children }) => {
     };
 
     const onError = (error) => {
-      // Suppress benign start-game race messages and temporary failures
       if (
         error?.message === "Game already started or not enough players" ||
         /already started/i.test(error?.message || "") ||
@@ -129,7 +125,6 @@ export const SocketProvider = ({ children }) => {
     };
   }, [user, token]);
 
-  // Debounced join to avoid flooding the server
   const joinRoom = (roomData) => {
     console.log("joinRoom called with data:", roomData);
     console.log("Socket connected:", isConnected);
@@ -145,7 +140,7 @@ export const SocketProvider = ({ children }) => {
       lastJoinPayloadRef.current &&
       JSON.stringify(lastJoinPayloadRef.current) === JSON.stringify(roomData);
 
-    // 200ms cooldown for same join payload (reduced from 500ms)
+    // 200ms cooldown for same join payload
     if (samePayload && now - joinCooldownRef.current < 200) {
       console.log("Join request throttled due to cooldown");
       return true;

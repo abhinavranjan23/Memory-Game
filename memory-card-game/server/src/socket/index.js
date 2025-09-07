@@ -12,22 +12,17 @@ const activePlayers = new Set();
 const userRooms = new Map();
 const socketCleanup = new Map();
 const operationLocks = new Map();
-const disconnectedUsers = new Map(); // Track disconnected users for reconnection detection
+const disconnectedUsers = new Map();
 
 function initializeSocket(io) {
-  // Authentication middleware
   io.use(authenticateSocket);
 
-  // Clean up old completed games and mark stale games as finished
   const cleanupOldGames = async () => {
     try {
       const now = new Date();
       const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const twoHoursAgo = new Date(now.getTime() - 1 * 60 * 60 * 1000);
 
-      console.log("🔄 Starting database cleanup...");
-
-      // Delete games older than 10 days that are completed/finished
       const deleteResult = await Game.deleteMany({
         $or: [
           { status: "completed", updatedAt: { $lt: tenDaysAgo } },
@@ -43,7 +38,6 @@ function initializeSocket(io) {
         );
       }
 
-      // Mark games as finished/completed if they've been playing or waiting for more than 2 hours
       const staleGames = await Game.find({
         $or: [
           { "gameState.status": "playing", updatedAt: { $lt: twoHoursAgo } },
@@ -63,17 +57,15 @@ function initializeSocket(io) {
       for (const game of staleGames) {
         try {
           console.log(
-            `⏰ Marking stale game ${game.roomId} as completed (status: ${game.gameState.status}, updated: ${game.updatedAt})`
+            ` Marking stale game ${game.roomId} as completed (status: ${game.gameState.status}, updated: ${game.updatedAt})`
           );
 
-          // Update game status
           game.gameState.status = "finished";
           game.status = "completed";
           game.endedAt = new Date();
           game.updatedAt = new Date();
           await game.save();
 
-          // Clean up game engine if it exists
           const gameEngine = activeGames.get(game.roomId);
           if (gameEngine) {
             gameEngine.cleanup();
@@ -83,7 +75,6 @@ function initializeSocket(io) {
             );
           }
 
-          // Broadcast room deletion to all clients
           io.emit("room-deleted", game.roomId);
         } catch (error) {
           console.error(
@@ -97,7 +88,6 @@ function initializeSocket(io) {
         console.log(`✅ Marked ${staleGames.length} stale games as completed`);
       }
 
-      // Also clean up any games that have been in "waiting" status for more than 1 hour
       const longWaitingGames = await Game.find({
         "gameState.status": "waiting",
         updatedAt: { $lt: new Date(now.getTime() - 60 * 60 * 1000) }, // 1 hour ago
@@ -132,17 +122,16 @@ function initializeSocket(io) {
 
       if (longWaitingGames.length > 0) {
         console.log(
-          `✅ Marked ${longWaitingGames.length} long-waiting games as completed`
+          ` Marked ${longWaitingGames.length} long-waiting games as completed`
         );
       }
 
-      console.log("✅ Database cleanup completed");
+      console.log(" Database cleanup completed");
     } catch (error) {
-      console.error("❌ Error cleaning up old games:", error);
+      console.error(" Error cleaning up old games:", error);
     }
   };
 
-  // Run cleanup every 15 minutes (more frequent to catch stale games)
   setInterval(cleanupOldGames, 15 * 60 * 1000);
 
   // Run initial cleanup
@@ -176,7 +165,6 @@ function initializeSocket(io) {
     socketCleanup.set(socket.id, new Set());
 
     if (socket.userId) {
-      // Remove old socket if user already has one
       const oldSocketId = userSockets.get(socket.userId);
       if (oldSocketId && oldSocketId !== socket.id) {
         const oldSocket = io.sockets.sockets.get(oldSocketId);
@@ -192,38 +180,26 @@ function initializeSocket(io) {
       socketUsers.set(socket.id, socket.userId);
       activePlayers.add(socket.userId);
 
-      // Update metrics
       updateMetrics.incrementSocketConnections();
       updateMetrics.setActivePlayers(activePlayers.size);
 
       console.log(
         `User ${socket.username} connected. Active players count: ${activePlayers.size}`
       );
-      // Emit active players count to all clients with a small delay to ensure client is ready
+
       setTimeout(() => {
         io.emit("active-players", { count: activePlayers.size });
       }, 50);
     }
 
-    //socket listen to get active players count
     socket.on("get-active-players", () => {
-      console.log(
-        `Active players requested by ${socket.username}, current count: ${activePlayers.size}`
-      );
       io.emit("active-players", { count: activePlayers.size });
     });
 
-    // Join a game room
     socket.on("join-room", async (data) => {
       try {
-        console.log(`Join room request from ${socket.username}:`, data);
-        console.log("Socket user info:", {
-          userId: socket.userId,
-          username: socket.username,
-        });
         const { roomId, password } = data;
 
-        // Anti-cheat validation: Check if user is blocked - Made async
         if (socket.userId) {
           try {
             const isBlocked = await antiCheatSystem.isUserBlocked(
@@ -231,7 +207,7 @@ function initializeSocket(io) {
             );
             if (isBlocked) {
               console.warn(
-                `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to join room`
+                ` Blocked user ${socket.username} (${socket.userId}) attempted to join room`
               );
               socket.emit("error", {
                 message:
@@ -248,7 +224,6 @@ function initializeSocket(io) {
               `Error checking if user ${socket.userId} is blocked:`,
               error
             );
-            // Continue with the request if blocking check fails
           }
         }
 
@@ -259,17 +234,13 @@ function initializeSocket(io) {
           return;
         }
 
-        // Quick response to client to indicate request received
         socket.emit("join-room-received", { roomId });
 
-        // Check if user is already in a room
         const currentRoom = userRooms.get(socket.userId);
         if (currentRoom && currentRoom !== roomId) {
-          // Leave current room first
           await handleLeaveRoom(socket, currentRoom);
         }
 
-        // Check if this is a reconnection (user was in grace period)
         const disconnectedUser = disconnectedUsers.get(socket.userId);
         console.log(`Reconnection check for user ${socket.userId}:`, {
           hasDisconnectedUser: !!disconnectedUser,
@@ -285,68 +256,40 @@ function initializeSocket(io) {
             `User ${socket.username} reconnecting, cancelling grace period`
           );
 
-          // Cancel any pending disconnect processing for this user
           const cleanupFunction = socketCleanup.get(socket.userId);
-          console.log(`Reconnection cleanup check for user ${socket.userId}:`, {
-            hasCleanupFunction: !!cleanupFunction,
-            cleanupFunctionType: typeof cleanupFunction,
-            socketCleanupKeys: Array.from(socketCleanup.keys()),
-          });
 
           if (cleanupFunction) {
-            console.log(
-              `Cancelling grace period timeout for user ${socket.userId}`
-            );
             try {
               cleanupFunction();
-              console.log(
-                `Successfully cancelled grace period timeout for user ${socket.userId}`
-              );
             } catch (error) {
               console.error("Error during reconnection cleanup:", error);
             }
             socketCleanup.delete(socket.userId);
           } else {
-            console.log(
-              `No cleanup function found for user ${socket.userId} - grace period may still be running`
-            );
           }
 
-          // Disconnect the old socket if it still exists
           const oldSocket = io.sockets.sockets.get(disconnectedUser.socketId);
           if (oldSocket) {
             oldSocket.disconnect(true);
           }
 
-          // Update userRooms to reflect the current room they're trying to join
-          // This prevents the "leave current room" logic from being triggered
           userRooms.set(socket.userId, roomId);
 
-          // Mark this as a reconnection to skip normal join logic
           socket.isReconnecting = true;
 
-          // Clean up disconnected user info
           disconnectedUsers.delete(socket.userId);
         }
 
-        // Check if this is a reconnection attempt
-        // IMPORTANT: We should only block reconnection if the game has ended
-        // During grace period, users should be able to reconnect freely
         const existingGame = await Game.findOne({ roomId });
         if (existingGame) {
           const isStillActivePlayer = existingGame.players.find(
             (p) => p.userId === socket.userId
           );
 
-          // Check if the game has ended - if so, block reconnection
           if (
             existingGame.gameState.status === "finished" ||
             existingGame.gameState.status === "completed"
           ) {
-            console.log(
-              `User ${socket.username} attempting to rejoin finished game ${roomId} - BLOCKED`
-            );
-
             socket.emit("error", {
               message: "This game has ended. Redirecting to lobby...",
               code: "GAME_ENDED",
@@ -358,11 +301,9 @@ function initializeSocket(io) {
               message: "This game has ended. Please find a new game.",
             });
 
-            return; // Exit early, don't process normal join logic
+            return;
           }
 
-          // If user is not in active players but game is still active, allow reconnection
-          // This handles both grace period reconnection and late reconnection cases
           if (
             !isStillActivePlayer &&
             (existingGame.gameState.status === "waiting" ||
@@ -372,15 +313,10 @@ function initializeSocket(io) {
             console.log(
               `User ${socket.username} rejoining active game ${roomId} - ALLOWED (game status: ${existingGame.gameState.status})`
             );
-            // Continue with normal join logic - this will re-add the user to the game
           }
         }
 
-        // For reconnections, check if user is already in the game database FIRST
         if (socket.isReconnecting) {
-          console.log(
-            `Processing reconnection for user ${socket.username} to room ${roomId}`
-          );
           try {
             const existingGame = await Game.findOne({ roomId });
             console.log(`Found existing game for reconnection:`, {
@@ -394,17 +330,8 @@ function initializeSocket(io) {
               const playerInGame = existingGame.players.find(
                 (p) => p.userId === socket.userId
               );
-              console.log(`Player in game check for reconnection:`, {
-                userId: socket.userId,
-                playerInGame: !!playerInGame,
-                playerUsername: playerInGame?.username,
-              });
 
               if (playerInGame) {
-                console.log(
-                  `User ${socket.username} reconnecting to existing game ${roomId}`
-                );
-                // Join the socket room and emit room state
                 socket.join(roomId);
                 socket.currentRoom = roomId;
                 userRooms.set(socket.userId, roomId);
@@ -421,26 +348,14 @@ function initializeSocket(io) {
                   message: "Reconnected to existing game",
                 };
 
-                console.log(
-                  `Emitting room-joined event to reconnecting user ${socket.username}:`,
-                  {
-                    roomId,
-                    playerCount: existingGame.players.length,
-                    gameState: existingGame.gameState.status,
-                    socketId: socket.id,
-                  }
-                );
-
                 socket.emit("room-joined", roomJoinedData);
 
-                // Notify other players about reconnection
                 socket.to(roomId).emit("player-reconnected", {
                   playerId: socket.userId,
                   playerName: socket.username,
                   message: `${socket.username} has reconnected`,
                 });
 
-                // Clear the reconnection flag after processing
                 socket.isReconnecting = false;
 
                 return;
@@ -460,10 +375,7 @@ function initializeSocket(io) {
           }
         }
 
-        // Check if user is already in this room (for non-reconnections)
         if (currentRoom === roomId) {
-          console.log(`User ${socket.username} is already in room ${roomId}`);
-          // Just emit the current room state
           const existingGame = await Game.findOne({ roomId });
           if (existingGame) {
             socket.emit("room-joined", {
@@ -480,21 +392,19 @@ function initializeSocket(io) {
           return;
         }
 
-        // Find the game
         let game = await Game.findOne({ roomId });
 
         if (!game) {
-          // Create new game if it doesn't exist
           game = new Game({
             roomId,
-            hostId: socket.userId, // Set the host ID
+            hostId: socket.userId,
             settings: {
               boardSize: "4x4",
               theme: "emojis",
               gameMode: "classic",
               timeLimit: 300,
               maxPlayers: 2,
-              powerUpsEnabled: false, // Default to false for classic mode
+              powerUpsEnabled: false,
               chatEnabled: true,
               isRanked: true,
             },
@@ -517,20 +427,17 @@ function initializeSocket(io) {
           await game.save();
         }
 
-        // Check if player is already in the game to prevent duplicates
         const existingPlayerInDB = game.players.find(
           (p) => p.userId === socket.userId
         );
 
-        // Check password for private rooms (only if user is not already in the room and not the host)
         if (
           !existingPlayerInDB &&
           game.isPrivate &&
           game.password &&
-          game.hostId !== socket.userId && // Skip password check for host
+          game.hostId !== socket.userId &&
           game.password.trim() !== (password || "").trim()
         ) {
-          console.log(`Join room error: Invalid password for room ${roomId}`);
           socket.emit("error", { message: "Invalid room password" });
           socket.emit("join-room-error", { message: "Invalid room password" });
           return;
@@ -538,12 +445,11 @@ function initializeSocket(io) {
 
         // Add player to the game (actual push to DB)
         try {
-          // Check if player is already in the game to prevent duplicates
           if (existingPlayerInDB) {
             console.log(
               `User ${socket.username} already exists in game ${roomId}`
             );
-            // Update the existing player's socket info
+
             socket.join(roomId);
             socket.currentRoom = roomId;
             userRooms.set(socket.userId, roomId);
@@ -556,12 +462,8 @@ function initializeSocket(io) {
             return;
           }
 
-          // Double-check with fresh database query to prevent race conditions
           const freshGame = await Game.findOne({ roomId });
           if (freshGame.players.find((p) => p.userId === socket.userId)) {
-            console.log(
-              `User ${socket.username} already exists in fresh game query`
-            );
             socket.join(roomId);
             socket.currentRoom = roomId;
             userRooms.set(socket.userId, roomId);
@@ -573,7 +475,6 @@ function initializeSocket(io) {
             return;
           }
 
-          // Check if room is full
           if (freshGame.players.length >= freshGame.settings.maxPlayers) {
             socket.emit("error", {
               message: "Room is full",
@@ -619,12 +520,10 @@ function initializeSocket(io) {
           return;
         }
 
-        // Join the socket room
         socket.join(roomId);
         socket.currentRoom = roomId;
         userRooms.set(socket.userId, roomId);
 
-        // Ensure game engine exists for this room
         if (!activeGames.has(roomId)) {
           const { GameEngine } = require("./gameEngine.js");
           const gameEngine = new GameEngine(roomId, io);
@@ -632,15 +531,11 @@ function initializeSocket(io) {
           console.log(`Created game engine for room ${roomId}`);
         }
 
-        // Clean up any duplicate players that might exist (only if we detect duplicates)
         try {
           const playerIds = game.players.map((p) => p.userId);
           const uniquePlayerIds = [...new Set(playerIds)];
 
           if (playerIds.length !== uniquePlayerIds.length) {
-            console.log(
-              `Detected duplicate players in room ${roomId}, cleaning up...`
-            );
             const uniquePlayers = [];
             const seenUserIds = new Set();
 
@@ -656,33 +551,27 @@ function initializeSocket(io) {
               { $set: { players: uniquePlayers } }
             );
             game.players = uniquePlayers;
-            console.log(`Cleaned up duplicate players in room ${roomId}`);
           }
         } catch (error) {
           console.error("Error cleaning up duplicate players:", error);
         }
 
-        console.log("Emitting room-joined event to client");
         socket.emit("room-joined", {
           roomId,
           game,
           message: "Successfully joined game",
         });
 
-        // Check if this was a reconnection and notify other players
         if (socket.isReconnecting) {
-          console.log(`User ${socket.username} reconnected to room ${roomId}`);
-          // Notify other players about reconnection
           socket.to(roomId).emit("player-reconnected", {
             playerId: socket.userId,
             playerName: socket.username,
             message: `${socket.username} has reconnected`,
           });
-          // Clear the reconnection flag after processing
+
           socket.isReconnecting = false;
         }
 
-        // Notify other players
         socket.to(roomId).emit("player-joined", {
           player: {
             userId: socket.userId,
@@ -693,7 +582,6 @@ function initializeSocket(io) {
           },
         });
 
-        // Notify all clients about the room update
         io.emit("room-updated", {
           roomId: game.roomId,
           playerCount: game.players.length,
@@ -713,15 +601,11 @@ function initializeSocket(io) {
           isPrivate: game.isPrivate,
         });
 
-        // Auto-start game if room has reached max players
         if (
           game.players.length >= game.settings.maxPlayers &&
           game.gameState.status === "waiting"
         ) {
           try {
-            console.log(`Auto-starting game in room ${roomId} - Room is full`);
-
-            // Mark all players as ready
             await Game.findOneAndUpdate(
               { roomId },
               {
@@ -731,30 +615,18 @@ function initializeSocket(io) {
               }
             );
 
-            console.log("All players marked as ready");
-
-            // Get or create game engine
             let gameEngine = activeGames.get(roomId);
             if (!gameEngine) {
-              console.log("Creating new game engine for auto-start...");
               const { GameEngine } = require("./gameEngine.js");
               gameEngine = new GameEngine(roomId, io);
               activeGames.set(roomId, gameEngine);
             }
 
-            console.log("Initializing game engine for auto-start...");
-            // Initialize the game engine (this will load the updated game state)
             await gameEngine.initialize();
 
-            console.log(
-              "Auto-start game engine initialized, starting game in 3 seconds..."
-            );
-            // Add delay to allow client to process
             setTimeout(async () => {
               try {
-                console.log("Auto-starting game now...");
                 await gameEngine.startGame();
-                console.log("Auto-start game started successfully");
               } catch (error) {
                 console.error("Auto-start game error:", error);
                 console.error("Auto-start error stack:", error.stack);
@@ -765,30 +637,22 @@ function initializeSocket(io) {
             console.error("Auto-start error stack:", error.stack);
           }
         }
-
-        console.log(`${socket.username} joined room ${roomId}`);
       } catch (error) {
-        console.error("Join room error:", error);
         const errorMessage = error.message || "Failed to join room";
-        console.log(`Join room error: ${errorMessage}`);
+
         socket.emit("error", { message: errorMessage });
         socket.emit("join-room-error", { message: errorMessage });
       }
     });
 
-    // Leave current room
     socket.on("leave-room", async () => {
       if (socket.currentRoom) {
-        console.log(
-          `🔍 SERVER: Processing leave-room request from ${socket.username}`
-        );
         await handleLeaveRoom(socket, socket.currentRoom);
-        // Emit confirmation to the leaving player
+
         socket.emit("leave-room-confirmed", { roomId: socket.currentRoom });
       }
     });
 
-    // Start game
     socket.on("start-game", async () => {
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
@@ -796,26 +660,18 @@ function initializeSocket(io) {
       }
 
       try {
-        console.log(`Starting game for room ${socket.currentRoom}`);
-
         const game = await Game.findOne({ roomId: socket.currentRoom });
         if (!game) {
           socket.emit("error", { message: "Game not found" });
           return;
         }
 
-        console.log(`Found game with ${game.players.length} players`);
-
-        // Check if all players are ready
         const allReady = game.players.every((p) => p.isReady);
         if (!allReady) {
           socket.emit("error", { message: "All players must be ready" });
           return;
         }
 
-        console.log("All players are ready, creating game engine...");
-
-        // Get or create game engine
         let gameEngine = activeGames.get(socket.currentRoom);
         if (!gameEngine) {
           console.log("Creating new game engine...");
@@ -823,26 +679,16 @@ function initializeSocket(io) {
           activeGames.set(socket.currentRoom, gameEngine);
         }
 
-        console.log("Initializing game engine...");
-        // Initialize the game engine (this will load the current game state)
         await gameEngine.initialize();
 
-        console.log("Starting game...");
-        // Start the game
         await gameEngine.startGame();
-
-        console.log("Game started successfully");
-        // Don't emit additional game-start event as gameEngine.startGame() already emits game-started
       } catch (error) {
-        console.error("Start game error:", error);
-        console.error("Error stack:", error.stack);
         socket.emit("error", {
           message: "Failed to start game: " + error.message,
         });
       }
     });
 
-    // Toggle ready status
     socket.on("toggle-ready", async () => {
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
@@ -859,19 +705,16 @@ function initializeSocket(io) {
         game.togglePlayerReady(socket.userId);
         await game.save();
 
-        // Emit updated game state
         io.to(socket.currentRoom).emit("game-state", {
           players: game.players,
           gameState: game.gameState,
         });
 
-        // Start game if all players are ready
         if (game.gameState.status === "starting") {
           const gameEngine = activeGames.get(socket.currentRoom);
           if (gameEngine) {
             setTimeout(async () => {
               try {
-                // Re-initialize to get the latest game state
                 await gameEngine.initialize();
                 await gameEngine.startGame();
               } catch (e) {
@@ -886,21 +729,16 @@ function initializeSocket(io) {
       }
     });
 
-    // Flip a card
     socket.on("flip-card", async (data) => {
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
         return;
       }
 
-      // Anti-cheat validation: Check if user is blocked - Made async
       if (socket.userId) {
         try {
           const isBlocked = await antiCheatSystem.isUserBlocked(socket.userId);
           if (isBlocked) {
-            console.warn(
-              `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to flip card`
-            );
             socket.emit("error", {
               message:
                 "Your account has been blocked due to suspicious activity",
@@ -912,7 +750,6 @@ function initializeSocket(io) {
             `Error checking if user ${socket.userId} is blocked:`,
             error
           );
-          // Continue with the request if blocking check fails
         }
       }
 
@@ -931,28 +768,16 @@ function initializeSocket(io) {
       }
     });
 
-    // Use a power-up
     socket.on("use-powerup", async (data) => {
-      console.log("=== POWER-UP EVENT RECEIVED ===");
-      console.log("Power-up event received:", data);
-      console.log("User ID:", socket.userId);
-      console.log("Current room:", socket.currentRoom);
-      console.log("Socket ID:", socket.id);
-      console.log("Socket connected:", socket.connected);
-
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
         return;
       }
 
-      // Anti-cheat validation: Check if user is blocked - Made async
       if (socket.userId) {
         try {
           const isBlocked = await antiCheatSystem.isUserBlocked(socket.userId);
           if (isBlocked) {
-            console.warn(
-              `🚫 Blocked user ${socket.username} (${socket.userId}) attempted to use power-up`
-            );
             socket.emit("error", {
               message:
                 "Your account has been blocked due to suspicious activity",
@@ -964,33 +789,25 @@ function initializeSocket(io) {
             `Error checking if user ${socket.userId} is blocked:`,
             error
           );
-          // Continue with the request if blocking check fails
         }
       }
 
       const { powerUpType, target } = data;
-      console.log("Power-up type:", powerUpType);
-      console.log("Target:", target);
 
       const gameEngine = activeGames.get(socket.currentRoom);
 
       if (!gameEngine) {
-        console.log("No game engine found for room:", socket.currentRoom);
         socket.emit("error", { message: "Game not active" });
         return;
       }
 
       try {
-        console.log("Calling gameEngine.usePowerUp...");
         await gameEngine.usePowerUp(socket.userId, powerUpType, target);
-        console.log("Power-up used successfully");
       } catch (error) {
-        console.error("Power-up error:", error);
         socket.emit("error", { message: error.message });
       }
     });
 
-    // Get current game state
     socket.on("get-game-state", async () => {
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
@@ -1004,7 +821,6 @@ function initializeSocket(io) {
           return;
         }
 
-        // Emit the current game state
         socket.emit("game-state", {
           gameState: game.gameState,
           players: game.players,
@@ -1015,7 +831,6 @@ function initializeSocket(io) {
       }
     });
 
-    // Send chat message
     socket.on("send-chat", async (data) => {
       if (!socket.currentRoom) {
         socket.emit("error", { message: "Not in a room" });
@@ -1049,7 +864,6 @@ function initializeSocket(io) {
         game.addChatMessage(socket.userId, socket.username, message.trim());
         await game.save();
 
-        // Broadcast chat message
         io.to(socket.currentRoom).emit("chat-message", {
           id: game.chat[game.chat.length - 1].id,
           userId: socket.userId,
@@ -1064,7 +878,6 @@ function initializeSocket(io) {
       }
     });
 
-    // Get available rooms
     socket.on("get-rooms", async () => {
       try {
         const rooms = await Game.find({
@@ -1085,7 +898,6 @@ function initializeSocket(io) {
           .sort({ createdAt: -1 })
           .exec();
 
-        // Emit to the requesting client
         socket.emit("rooms-list", {
           rooms: rooms.map((game) => ({
             roomId: game.roomId,
@@ -1115,7 +927,6 @@ function initializeSocket(io) {
           })),
         });
 
-        // Also emit individual room-updated events for each room
         rooms.forEach((game) => {
           io.emit("room-updated", {
             roomId: game.roomId,
@@ -1144,7 +955,6 @@ function initializeSocket(io) {
       }
     });
 
-    // Create private room
     socket.on("create-private-room", async (data) => {
       try {
         const { password, settings = {} } = data;
@@ -1168,7 +978,6 @@ function initializeSocket(io) {
           password: password || undefined,
         });
 
-        // Add creator as first player
         game.addPlayer(socket.userId, socket.username, socket.data?.avatar);
         await game.save();
 
@@ -1178,7 +987,6 @@ function initializeSocket(io) {
           settings: gameSettings,
         });
 
-        // Emit room-updated event for the new private room
         io.emit("room-updated", {
           roomId: game.roomId,
           playerCount: game.players.length,
@@ -1198,22 +1006,12 @@ function initializeSocket(io) {
           isPrivate: true,
           createdAt: game.createdAt,
         });
-
-        console.log(`Private room ${roomId} created by ${socket.username}`);
       } catch (error) {
-        console.error("Create private room error:", error);
         socket.emit("error", { message: "Failed to create private room" });
       }
     });
 
-    // Turn continue event handling removed - this was causing duplicate extra turns
-    // The server should only emit turn-continue events, not listen to them from clients
-
-    // Handle disconnection
     socket.on("disconnect", async () => {
-      console.log(`User disconnected: ${socket.username} (${socket.id})`);
-      console.log(`Active players before disconnect: ${activePlayers.size}`);
-
       // Clean up socket resources
       const cleanupFunctions = socketCleanup.get(socket.id);
       if (cleanupFunctions) {
@@ -1227,14 +1025,9 @@ function initializeSocket(io) {
         socketCleanup.delete(socket.id);
       }
 
-      // Clear reconnection flag on disconnect
       socket.isReconnecting = false;
 
-      // Don't clean up grace period timeout here - let it run naturally
-      // The grace period timeout will be cancelled only when user reconnects
-
       if (socket.userId) {
-        // Store disconnected user info for reconnection detection
         const disconnectedUserInfo = {
           socketId: socket.id,
           username: socket.username,
@@ -1242,15 +1035,7 @@ function initializeSocket(io) {
           disconnectedAt: new Date(),
         };
         disconnectedUsers.set(socket.userId, disconnectedUserInfo);
-        console.log(`Stored disconnected user info for ${socket.username}:`, {
-          userId: socket.userId,
-          socketId: socket.id,
-          roomId: disconnectedUserInfo.roomId,
-          disconnectedUsersSize: disconnectedUsers.size,
-        });
 
-        // Store user info for potential reconnection
-        // Use socket.currentRoom as the primary source since it's more reliable
         const userInfo = {
           userId: socket.userId,
           username: socket.username,
@@ -1259,84 +1044,39 @@ function initializeSocket(io) {
           socketId: socket.id,
         };
 
-        // Only apply grace period if user is in a game room
-        console.log(
-          `User ${socket.username} disconnect - roomId: ${
-            userInfo.roomId
-          }, userRooms.get: ${userRooms.get(
-            socket.userId
-          )}, socket.currentRoom: ${socket.currentRoom}`
-        );
         if (userInfo.roomId) {
-          console.log(
-            `User ${socket.username} disconnected from game room ${userInfo.roomId} - applying 60 second grace period`
-          );
-
-          // Add grace period for mobile reconnection (60 seconds) - ONLY for game rooms
           const gracePeriodTimeout = setTimeout(async () => {
-            console.log(
-              `Grace period expired for user ${socket.username}, processing disconnect`
-            );
-
-            // Remove from active tracking after grace period
             userSockets.delete(socket.userId);
             socketUsers.delete(socket.id);
             activePlayers.delete(socket.userId);
             userRooms.delete(socket.userId);
             disconnectedUsers.delete(socket.userId);
 
-            // Update metrics
             updateMetrics.decrementSocketConnections();
             updateMetrics.incrementSocketDisconnections();
             updateMetrics.setActivePlayers(activePlayers.size);
 
-            // Emit updated active players count to all clients with a small delay
             setTimeout(() => {
               io.emit("active-players", { count: activePlayers.size });
             }, 50);
 
-            // Handle game room disconnect after grace period
             await handleLeaveRoomAfterGracePeriod(userInfo);
-          }, 60000); // 60 second grace period (1 minute)
-
-          // Store timeout for potential cancellation on reconnection
-          // Use userId as key instead of socket.id since socket.id changes on reconnection
+          }, 60000);
           const cleanupFunction = () => {
-            console.log(
-              `Clearing grace period timeout for user ${socket.userId}`
-            );
             clearTimeout(gracePeriodTimeout);
           };
           socketCleanup.set(socket.userId, cleanupFunction);
-          console.log(
-            `Stored grace period cleanup function for user ${socket.userId}:`,
-            {
-              userId: socket.userId,
-              socketId: socket.id,
-              roomId: userInfo.roomId,
-              cleanupFunctionType: typeof cleanupFunction,
-              socketCleanupSize: socketCleanup.size,
-            }
-          );
         } else {
-          // User is in lobby - remove immediately (no grace period)
-          console.log(
-            `User ${socket.username} disconnected from lobby - removing immediately (no grace period)`
-          );
-
-          // Remove from active tracking immediately
           userSockets.delete(socket.userId);
           socketUsers.delete(socket.id);
           activePlayers.delete(socket.userId);
           userRooms.delete(socket.userId);
           disconnectedUsers.delete(socket.userId);
 
-          // Update metrics
           updateMetrics.decrementSocketConnections();
           updateMetrics.incrementSocketDisconnections();
           updateMetrics.setActivePlayers(activePlayers.size);
 
-          // Emit updated active players count to all clients with a small delay
           setTimeout(() => {
             io.emit("active-players", { count: activePlayers.size });
           }, 50);
@@ -1345,56 +1085,30 @@ function initializeSocket(io) {
     });
   });
 
-  // Helper function to handle leaving room after grace period
   async function handleLeaveRoomAfterGracePeriod(userInfo) {
     const { userId, username, roomId } = userInfo;
 
     try {
-      console.log(
-        `Processing delayed disconnect for user ${username} from room ${roomId}`
-      );
-
       // Check if user has reconnected in the meantime
       if (userSockets.has(userId)) {
-        console.log(
-          `User ${username} reconnected, cancelling disconnect processing`
-        );
         return;
       }
 
-      // Double-check: get fresh game state to ensure user hasn't reconnected
       const game = await Game.findOne({ roomId });
       if (!game) {
-        console.log(`Game ${roomId} not found during grace period processing`);
         return;
       }
 
-      // Check if user is still in the game (they might have reconnected and rejoined)
       const playerStillInGame = game.players.find((p) => p.userId === userId);
-      console.log(`Grace period processing for user ${username}:`, {
-        playerStillInGame: !!playerStillInGame,
-        hasActiveSocket: userSockets.has(userId),
-        userSocketsKeys: Array.from(userSockets.keys()),
-      });
 
       if (playerStillInGame) {
-        // User is still in the game database, but we need to check if they have an active socket
-        // If they don't have an active socket, they should be removed from the game
         const hasActiveSocket = userSockets.has(userId);
         if (hasActiveSocket) {
-          console.log(
-            `User ${username} is still in game ${roomId} and has active socket, skipping grace period processing`
-          );
           return;
         } else {
-          console.log(
-            `User ${username} is still in game ${roomId} but has no active socket, processing disconnect`
-          );
-          // Continue with disconnect processing
         }
       }
 
-      // Get the game engine and handle disconnect
       const gameEngine = activeGames.get(roomId);
       if (gameEngine) {
         try {
@@ -1404,18 +1118,12 @@ function initializeSocket(io) {
         }
       }
 
-      // Remove player from database (reuse the game object from above)
       if (game) {
-        // Check if player is still in the game (might have been removed by manual leave)
         const playerStillInGame = game.players.find((p) => p.userId === userId);
         if (!playerStillInGame) {
-          console.log(
-            `Player ${username} already removed from game ${roomId}, skipping grace period processing`
-          );
           return;
         }
 
-        // Get opponents BEFORE removal (including the leaving player)
         const opponentsBeforeRemoval = game.players.map((opponent) => ({
           userId: opponent.userId,
           username: opponent.username,
@@ -1427,7 +1135,6 @@ function initializeSocket(io) {
             opponent.userId === userId ? new Date() : opponent.disconnectedAt,
         }));
 
-        // Emit player left event BEFORE removing player from database
         io.to(roomId).emit("player-left", {
           roomId,
           userId: userId,
@@ -1436,40 +1143,23 @@ function initializeSocket(io) {
           reason: "disconnected_after_grace_period",
         });
 
-        // Remove player from database with leftEarly flag
-        const playerRemoved = await game.removePlayer(userId, true); // true = leftEarly
+        const playerRemoved = await game.removePlayer(userId, true);
         if (playerRemoved) {
           try {
             await game.save();
-            console.log(
-              `Player ${username} removed from room ${roomId} after grace period (leftEarly: true)`
-            );
           } catch (saveError) {
             if (saveError.name === "VersionError") {
-              console.log(
-                `VersionError during grace period processing for user ${username} - game may have been modified by another operation (game engine)`
-              );
-              // The game may have been ended by the game engine, which is fine
               return;
             } else {
               throw saveError; // Re-throw if it's not a VersionError
             }
           }
 
-          // Handle game completion when only one player remains after grace period
           if (game.players.length === 1) {
-            console.log(
-              `Only one player remains in game ${roomId} after grace period - declaring winner`
-            );
-
-            // Get the game engine and end the game with the remaining player as winner
             const gameEngine = activeGames.get(roomId);
             if (gameEngine) {
               try {
                 await gameEngine.endGame("last_player_winner");
-                console.log(
-                  `Game ${roomId} ended after grace period - remaining player declared winner`
-                );
               } catch (error) {
                 console.error(
                   `Error ending game ${roomId} after grace period:`,
@@ -1477,10 +1167,6 @@ function initializeSocket(io) {
                 );
               }
             } else {
-              // If no game engine, manually end the game
-              console.log(
-                `No game engine found for ${roomId} after grace period, manually ending game`
-              );
               game.gameState.status = "finished";
               game.status = "completed";
               game.endedAt = new Date();
@@ -1490,16 +1176,12 @@ function initializeSocket(io) {
                 await game.save();
               } catch (saveError) {
                 if (saveError.name === "VersionError") {
-                  console.log(
-                    `VersionError during manual game ending for ${roomId} - game may have been ended by game engine`
-                  );
                   return;
                 } else {
                   throw saveError;
                 }
               }
 
-              // Emit game over event
               io.to(roomId).emit("game-over", {
                 reason: "last_player_winner",
                 winners: game.players,
@@ -1513,35 +1195,19 @@ function initializeSocket(io) {
               });
             }
           } else if (game.players.length === 0) {
-            console.log(
-              `Last player left game ${roomId} after grace period - deleting from database`
-            );
-
-            // Clean up game engine first
             const gameEngine = activeGames.get(roomId);
             if (gameEngine) {
               gameEngine.cleanup();
               activeGames.delete(roomId);
-              console.log(
-                `Cleaned up game engine for deleted game ${roomId} after grace period`
-              );
             }
 
             // Delete the game from database
             try {
               await Game.findByIdAndDelete(game._id);
-              console.log(
-                `Successfully deleted game ${roomId} from database after grace period`
-              );
 
               // Broadcast room deletion to all clients
               io.emit("room-deleted", roomId);
-            } catch (error) {
-              console.error(
-                `Error deleting game ${roomId} from database after grace period:`,
-                error
-              );
-            }
+            } catch (error) {}
           }
         }
       }
@@ -1553,43 +1219,29 @@ function initializeSocket(io) {
     }
   }
 
-  // Helper function to handle leaving room
   async function handleLeaveRoom(socket, roomId) {
     const releaseLock = await acquireOperationLock(roomId, "leave-room");
 
     try {
-      // Check if user has reconnected (new socket exists) - if so, don't process leave
       const currentSocketId = userSockets.get(socket.userId);
       if (currentSocketId && currentSocketId !== socket.id) {
-        console.log(
-          `User ${socket.username} has reconnected with new socket, skipping leave room processing`
-        );
         return;
       }
 
-      // Set user's room to null instead of deleting from userRooms
-      // This prevents them from being treated as a disconnected lobby user
       userRooms.set(socket.userId, null);
 
-      // Get current game state before removing player
       const game = await Game.findOne({ roomId });
       if (!game) {
-        console.log(`Game ${roomId} not found during leave room`);
         return;
       }
 
-      // Check if player is still in the game
       const playerStillInGame = game.players.find(
         (p) => p.userId === socket.userId
       );
       if (!playerStillInGame) {
-        console.log(
-          `Player ${socket.username} already removed from game ${roomId}, skipping manual leave processing`
-        );
         return;
       }
 
-      // If active game engine exists, notify it about disconnect BEFORE removing player from database
       const gameEngine = activeGames.get(roomId);
       if (gameEngine) {
         try {
@@ -1599,7 +1251,6 @@ function initializeSocket(io) {
         }
       }
 
-      // Get opponents BEFORE removal (including the leaving player)
       const opponentsBeforeRemoval = game.players.map((opponent) => ({
         userId: opponent.userId,
         username: opponent.username,
@@ -1608,26 +1259,19 @@ function initializeSocket(io) {
         matches: opponent.matches || 0,
       }));
 
-      console.log(
-        `🔍 DEBUG: Manual leave - Player ${socket.username} (${socket.userId}) leaving room ${roomId}`
-      );
-
-      // Emit player left event BEFORE removing player from database
       const playerLeftData = {
         userId: socket.userId,
         username: socket.username,
-        remainingPlayers: game.players.length - 1, // Will be remaining after removal
+        remainingPlayers: game.players.length - 1,
         opponents: opponentsBeforeRemoval.filter(
           (p) => p.userId !== socket.userId
-        ), // Exclude leaving player
+        ),
         gameStatus: game.gameState?.status || game.status,
         reason: "manual_leave",
       };
 
-      // Primary emission to room
       io.to(roomId).emit("player-left", playerLeftData);
 
-      // Also emit to individual players as fallback
       const remainingPlayerIds = game.players
         .filter((p) => p.userId !== socket.userId)
         .map((p) => p.userId);
@@ -1642,35 +1286,21 @@ function initializeSocket(io) {
         }
       });
 
-      // Now remove the player from database (manual leave = leftEarly)
       const playerRemoved = game.removePlayer(socket.userId, true);
 
       if (playerRemoved) {
         await game.save();
         console.log(`Player ${socket.username} manually left room ${roomId}`);
 
-        // Handle game completion when only one player remains
         if (game.players.length === 1) {
-          console.log(
-            `Only one player remains in game ${roomId} - declaring winner`
-          );
-
-          // Get the game engine and end the game with the remaining player as winner
           const gameEngine = activeGames.get(roomId);
           if (gameEngine) {
             try {
               await gameEngine.endGame("last_player_winner");
-              console.log(
-                `Game ${roomId} ended - remaining player declared winner`
-              );
             } catch (error) {
               console.error(`Error ending game ${roomId}:`, error);
             }
           } else {
-            // If no game engine, manually end the game
-            console.log(
-              `No game engine found for ${roomId}, manually ending game`
-            );
             game.gameState.status = "finished";
             game.status = "completed";
             game.endedAt = new Date();
@@ -1692,24 +1322,15 @@ function initializeSocket(io) {
             });
           }
         } else if (game.players.length === 0) {
-          console.log(
-            `Last player left game ${roomId} - deleting from database`
-          );
-
-          // Clean up game engine first
           const gameEngine = activeGames.get(roomId);
           if (gameEngine) {
             gameEngine.cleanup();
             activeGames.delete(roomId);
-            console.log(`Cleaned up game engine for deleted game ${roomId}`);
           }
 
-          // Delete the game from database
           try {
             await Game.findByIdAndDelete(game._id);
-            console.log(`Successfully deleted game ${roomId} from database`);
 
-            // Broadcast room deletion to all clients
             io.emit("room-deleted", roomId);
           } catch (error) {
             console.error(
@@ -1726,7 +1347,6 @@ function initializeSocket(io) {
     }
   }
 
-  // Helper function to add cleanup function to socket
   function addSocketCleanup(socketId, cleanupFunction) {
     const cleanupSet = socketCleanup.get(socketId);
     if (cleanupSet) {
@@ -1734,15 +1354,13 @@ function initializeSocket(io) {
     }
   }
 
-  // Helper function to acquire operation lock
   async function acquireOperationLock(roomId, operation, timeout = 5000) {
     const lockKey = `${roomId}-${operation}`;
     const existingLock = operationLocks.get(lockKey);
 
     if (existingLock) {
-      // Wait for existing operation to complete
       await existingLock;
-      return () => {}; // Return empty function if no lock needed
+      return () => {};
     }
 
     let resolveLock;
@@ -1752,7 +1370,6 @@ function initializeSocket(io) {
 
     operationLocks.set(lockKey, lockPromise);
 
-    // Set timeout to prevent deadlocks
     setTimeout(() => {
       if (operationLocks.get(lockKey) === lockPromise) {
         operationLocks.delete(lockKey);
@@ -1760,7 +1377,6 @@ function initializeSocket(io) {
       }
     }, timeout);
 
-    // Return a function that releases the lock
     return () => {
       const currentLock = operationLocks.get(lockKey);
       if (currentLock === lockPromise) {
@@ -1770,59 +1386,44 @@ function initializeSocket(io) {
     };
   }
 
-  // Helper function to release operation lock
   function releaseOperationLock(roomId, operation) {
     const lockKey = `${roomId}-${operation}`;
     const lockPromise = operationLocks.get(lockKey);
     if (lockPromise) {
       operationLocks.delete(lockKey);
-      // Resolve the promise to release waiting operations
+
       lockPromise.then((resolve) => resolve());
     }
   }
 
-  // Helper function to generate room ID
   function generateRoomId() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
 }
 
-// Clean up inactive games periodically
 setInterval(async () => {
   try {
-    // Clean up empty rooms after 10 minutes
     const emptyRoomCutoffTime = new Date(Date.now() - 10 * 60 * 1000); // 10 minutes
 
-    // Clean up playing/waiting games after 1 hour
     const inactiveGameCutoffTime = new Date(Date.now() - 1 * 60 * 60 * 1000); // 1 hour
 
-    // Clean up empty rooms (0 players)
     const emptyRooms = await Game.find({
       $or: [
         {
           "gameState.status": { $in: ["waiting", "starting"] },
           updatedAt: { $lt: emptyRoomCutoffTime },
-          players: { $size: 0 }, // Empty players array
+          players: { $size: 0 },
         },
         {
           "gameState.status": { $in: ["waiting", "starting"] },
           updatedAt: { $lt: emptyRoomCutoffTime },
-          "players.0": { $exists: false }, // No players
+          "players.0": { $exists: false },
         },
       ],
     });
 
-    if (emptyRooms.length > 0) {
-      console.log(
-        `Found ${emptyRooms.length} empty rooms to cleanup (10 minutes old)`
-      );
-    }
-
     for (const game of emptyRooms) {
       try {
-        console.log(
-          `Cleaning up empty room: ${game.roomId} (status: ${game.gameState.status}, players: ${game.players.length})`
-        );
         await Game.findByIdAndDelete(game._id);
         const gameEngine = activeGames.get(game.roomId);
         if (gameEngine) {
@@ -1835,7 +1436,6 @@ setInterval(async () => {
       }
     }
 
-    // Clean up inactive games (playing/waiting for too long)
     const inactiveGames = await Game.find({
       $or: [
         {
@@ -1845,19 +1445,8 @@ setInterval(async () => {
       ],
     });
 
-    if (inactiveGames.length > 0) {
-      console.log(
-        `Found ${inactiveGames.length} inactive games to cleanup (1 hour old)`
-      );
-    }
-
     for (const game of inactiveGames) {
       try {
-        console.log(
-          `Cleaning up inactive game: ${game.roomId} (status: ${game.gameState.status}, players: ${game.players.length})`
-        );
-
-        // Mark game as completed instead of deleting
         game.status = "completed";
         game.gameState.status = "finished";
         game.endedAt = new Date();
@@ -1874,22 +1463,14 @@ setInterval(async () => {
       }
     }
 
-    // Clean up completed games after 10 days
     const completedCutoffTime = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000); //10 days
     const completedGames = await Game.find({
       $or: [{ status: "completed" }, { "gameState.status": "finished" }],
       updatedAt: { $lt: completedCutoffTime },
     });
 
-    if (completedGames.length > 0) {
-      console.log(
-        `Found ${completedGames.length} old completed games to cleanup`
-      );
-    }
-
     for (const game of completedGames) {
       try {
-        console.log(`Cleaning up old completed game: ${game.roomId}`);
         await Game.findByIdAndDelete(game._id);
         const gameEngine = activeGames.get(game.roomId);
         if (gameEngine) {
@@ -1902,21 +1483,17 @@ setInterval(async () => {
       }
     }
 
-    // Clean up active games map - only remove if game doesn't exist in DB
     for (const [roomId, gameEngine] of activeGames) {
       try {
         const game = await Game.findOne({ roomId });
         if (!game) {
-          console.log(
-            `Game ${roomId} not found in DB, cleaning up from active games`
-          );
           gameEngine.cleanup();
           activeGames.delete(roomId);
           io.emit("room-deleted", roomId);
         }
       } catch (error) {
         console.error(`Error checking game ${roomId} for cleanup:`, error);
-        // If we can't find the game, remove it from active games
+
         gameEngine.cleanup();
         activeGames.delete(roomId);
       }
@@ -1924,6 +1501,6 @@ setInterval(async () => {
   } catch (error) {
     console.error("Game cleanup error:", error);
   }
-}, 30 * 60 * 1000); // Every 30 minutes (increased from 10 minutes)
+}, 20 * 60 * 1000);
 
 module.exports = { initializeSocket };

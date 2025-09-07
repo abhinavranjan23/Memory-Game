@@ -7,7 +7,6 @@ const CookieConsent = () => {
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    // Check if user has already given consent
     const consentGiven = localStorage.getItem("cookieConsent");
     if (!consentGiven) {
       setShowConsent(true);
@@ -29,7 +28,7 @@ const CookieConsent = () => {
   const handleDecline = () => {
     localStorage.setItem("cookieConsent", "declined");
     localStorage.setItem("cookieConsentDate", new Date().toISOString());
-    // Clear non-essential data
+
     localStorage.removeItem("theme");
     localStorage.removeItem("serverLoadingPopupDismissed");
     localStorage.removeItem("serverLoadingPopupNeverShow");

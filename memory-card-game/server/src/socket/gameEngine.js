@@ -27,7 +27,7 @@ class GameEngine {
     this.isSaving = false;
     this.suddenDeathMode = false;
     this.currentPlayerId = null;
-    this.gameCompleted = false; // Flag to track if game has been completed
+    this.gameCompleted = false;
   }
 
   async initialize() {
@@ -42,16 +42,12 @@ class GameEngine {
         error
       );
       if (error.name === "DocumentNotFoundError") {
-        console.log(
-          `Game document not found for room ${this.roomId}, cleaning up game engine`
-        );
         this.cleanup();
       }
       throw error;
     }
   }
 
-  // Protected save method to prevent duplicate saves
   async protectedSave() {
     if (this.isSaving) {
       console.log(
@@ -62,10 +58,8 @@ class GameEngine {
     this.isSaving = true;
     try {
       if (this.game) {
-        // Always update the updatedAt field when saving
         this.game.updatedAt = new Date();
 
-        // Ensure game state is properly structured
         if (!this.game.gameState) {
           this.game.gameState = {};
         }
@@ -73,7 +67,6 @@ class GameEngine {
         // Update last activity
         this.game.gameState.lastActivity = new Date();
 
-        // Ensure all required fields are present
         if (!this.game.gameState.board) {
           this.game.gameState.board = [];
         }
@@ -97,7 +90,6 @@ class GameEngine {
         await this.game.save();
         console.log(`Game saved successfully for room ${this.roomId}`);
 
-        // Verify the saved state by fetching from database
         const savedGame = await Game.findOne({ roomId: this.roomId });
         if (savedGame) {
           console.log(`Database verification for room ${this.roomId}:`, {
@@ -126,57 +118,37 @@ class GameEngine {
   async startGame() {
     if (this.isStarting) {
       console.log(`Game is already starting in room ${this.roomId}`);
-      return; // Don't throw error, just return
+      return;
     }
 
-    // Check if game is already playing
     if (this.game && this.game.gameState.status === "playing") {
       console.log(`Game is already playing in room ${this.roomId}`);
-      return; // Don't throw error, just return
+      return;
     }
 
     this.isStarting = true;
 
     try {
-      // Always refresh the game state from database to ensure we have latest player info
       await this.initialize();
-
-      // Check if we have enough players
-      console.log(
-        `Starting game with ${this.game.players.length} players:`,
-        this.game.players.map((p) => ({
-          userId: p.userId,
-          username: p.username,
-          isReady: p.isReady,
-        }))
-      );
 
       if (this.game.players.length < 2) {
         throw new Error("Need at least 2 players to start");
       }
 
-      // Check if all players are ready
       const readyPlayers = this.game.players.filter((p) => p.isReady);
-      console.log(
-        `Ready players: ${readyPlayers.length}/${this.game.players.length}`
-      );
 
       if (readyPlayers.length !== this.game.players.length) {
         throw new Error("All players must be ready to start");
       }
 
-      // Enable power-ups if user has selected them in settings
-      // Power-ups are enabled by default in powerup-frenzy mode, but can also be enabled in other modes
       if (this.game.settings.gameMode === "powerup-frenzy") {
         this.game.settings.powerUpsEnabled = true;
       }
-      // For other modes, respect the user's power-up setting
-      // If powerUpsEnabled is not explicitly set, default to false for classic/sudden-death
+
       if (this.game.settings.powerUpsEnabled === undefined) {
         this.game.settings.powerUpsEnabled = false;
       }
 
-      // Generate game board
       const board = generateBoard(
         this.game.settings.boardSize,
         this.game.settings.theme,
@@ -186,12 +158,11 @@ class GameEngine {
 
       let powerUpPool = [];
       if (this.game.settings.powerUpsEnabled) {
-        // Extract all power-ups from the generated board
         const cardsWithPowerUps = board.filter((card) => card.powerUp);
         powerUpPool = cardsWithPowerUps.map((card) => ({
           ...card.powerUp,
-          cardId: card.id, // Track which card has this power-up
-          collected: false, // Track if power-up has been collected
+          cardId: card.id,
+          collected: false,
         }));
 
         console.log(`Generated ${powerUpPool.length} power-ups for board`);
@@ -217,7 +188,6 @@ class GameEngine {
         powerUpPool: powerUpPool,
       };
 
-      // Update main game status to match gameState status
       this.game.status = "playing";
 
       // Update metrics
@@ -228,9 +198,12 @@ class GameEngine {
         this.game.settings.gameMode
       );
 
-      // Reset all players' turn status and set first player's turn
+      const randomPlayerIndex = Math.floor(
+        Math.random() * (this.game.players.length - 1)
+      );
+
       this.game.players.forEach((p, index) => {
-        p.isCurrentTurn = index === 0;
+        p.isCurrentTurn = index === randomPlayerIndex;
         p.score = 0;
         p.matches = 0;
         p.flips = 0;
@@ -238,60 +211,38 @@ class GameEngine {
         p.memoryMeter = 0;
         p.powerUps = [];
         p.powerUpsUsed = 0;
-        p.extraTurns = 0; // Initialize extraTurns to 0
+        p.extraTurns = 0;
         p.lastFlipTime = null;
       });
 
-      // Ensure we have players before setting currentTurn
       if (this.game.players.length > 0) {
         this.game.gameState.currentTurn = this.game.players[0].userId;
-        this.currentPlayerId = this.game.players[0].userId; // Set current player ID
-        console.log(
-          `Set currentTurn to: ${this.game.gameState.currentTurn} for player: ${this.game.players[0].username}`
-        );
+        this.currentPlayerId = this.game.players[0].userId;
       } else {
-        console.error("No players found when setting currentTurn");
         this.game.gameState.currentTurn = null;
         this.currentPlayerId = null;
       }
 
-      // Reset any existing flipped cards
       this.currentFlippedCards = [];
       this.isProcessingFlip = false;
 
       await this.protectedSave();
 
-      // Start game timer only for time-based modes (not classic or sudden-death)
       if (
         this.game.gameState.timeLeft !== null &&
         ["blitz", "powerup-frenzy"].includes(this.game.settings.gameMode)
       ) {
         this.startGameTimer();
 
-        // Send immediate time update to fix initial display issue
         this.io.to(this.roomId).emit("time-update", {
           timeLeft: this.game.gameState.timeLeft,
         });
       }
 
-      // Notify all players
-      console.log(
-        `Emitting game-started event with currentTurn: ${this.game.gameState.currentTurn}`
-      );
-      console.log(
-        `Players in game-started event:`,
-        this.game.players.map((p) => ({
-          userId: p.userId,
-          username: p.username,
-        }))
-      );
-
       this.io.to(this.roomId).emit("game-started", {
         gameState: this.game.gameState,
         players: this.game.players,
       });
-
-      console.log(`Game started in room ${this.roomId}`);
     } catch (error) {
       console.error(`Error starting game in room ${this.roomId}:`, error);
       throw error;
@@ -309,7 +260,6 @@ class GameEngine {
       throw new Error("Please wait for the current flip to complete");
     }
 
-    // Anti-cheat validation - Only run if board is properly initialized
     if (
       this.game?.gameState?.board &&
       Array.isArray(this.game.gameState.board) &&
@@ -318,7 +268,6 @@ class GameEngine {
       Array.isArray(this.game.players)
     ) {
       try {
-        // Create a complete game state object for anti-cheat validation
         const completeGameState = {
           board: this.game.gameState.board,
           status: this.game.gameState.status,
@@ -342,52 +291,25 @@ class GameEngine {
         );
       } catch (error) {
         console.warn(
-          `🚨 Anti-cheat violation for user ${userId}: ${error.message}`
+          ` Anti-cheat violation for user ${userId}: ${error.message}`
         );
         throw new Error(`Action blocked: ${error.message}`);
       }
     } else {
-      console.log(
-        "⚠️ Skipping anti-cheat validation - board not properly initialized yet"
-      );
     }
 
-    // Check if it's the player's turn
     const currentPlayer = this.game.players.find((p) => p.isCurrentTurn);
     const gameStateCurrentTurn = this.game.gameState.currentTurn;
 
-    console.log(`Turn validation for user ${userId}:`, {
-      currentPlayer: currentPlayer
-        ? { userId: currentPlayer.userId, username: currentPlayer.username }
-        : null,
-      gameStateCurrentTurn: gameStateCurrentTurn,
-      currentPlayerId: this.currentPlayerId,
-      allPlayers: this.game.players.map((p) => ({
-        userId: p.userId,
-        username: p.username,
-        isCurrentTurn: p.isCurrentTurn,
-      })),
-      gameStatus: this.game.gameState.status,
-    });
-
-    // Check if it's the player's turn using multiple validation methods
     const isPlayerTurn =
       (currentPlayer && currentPlayer.userId === userId) ||
       gameStateCurrentTurn === userId ||
       this.currentPlayerId === userId;
 
     if (!isPlayerTurn) {
-      console.log(`Turn validation failed for user ${userId}:`, {
-        currentPlayerFound: !!currentPlayer,
-        currentPlayerUserId: currentPlayer?.userId,
-        gameStateCurrentTurn: gameStateCurrentTurn,
-        currentPlayerId: this.currentPlayerId,
-        requestingUserId: userId,
-      });
       throw new Error("Not your turn");
     }
 
-    // Check if game is in playing state
     if (
       this.game.gameState.status !== "playing" &&
       this.game.gameState.status !== "sudden-death"
@@ -395,18 +317,15 @@ class GameEngine {
       throw new Error("Game is not in playing state");
     }
 
-    // Find the card
     const card = this.game.gameState.board.find((c) => c.id === cardId);
     if (!card) {
       throw new Error("Card not found");
     }
 
-    // Check if card can be flipped
     if (card.isFlipped || card.isMatched) {
       throw new Error("Card cannot be flipped");
     }
 
-    // Check if already two cards are flipped
     const currentlyFlipped = this.game.gameState.board.filter(
       (c) => c.isFlipped && !c.isMatched
     ).length;
@@ -417,33 +336,24 @@ class GameEngine {
     this.isProcessingFlip = true;
 
     try {
-      // Flip the card
       card.isFlipped = true;
       this.currentFlippedCards.push(card);
       currentPlayer.flips += 1;
       currentPlayer.lastFlipTime = new Date();
 
-      // Update memory meter
       currentPlayer.memoryMeter = calculateMemoryMeter(
         currentPlayer.matches,
         currentPlayer.flips,
         currentPlayer.matchStreak
       );
 
-      // Update flippedCards array in game state
       if (!this.game.gameState.flippedCards.includes(card.id)) {
         this.game.gameState.flippedCards.push(card.id);
-        console.log(
-          `Added card ${card.id} to flippedCards array. Current flipped cards:`,
-          this.game.gameState.flippedCards
-        );
       }
 
-      // Update activity
       this.game.gameState.lastActivity = new Date();
-      this.game.updatedAt = new Date(); // Update the main updatedAt field
+      this.game.updatedAt = new Date();
 
-      // Emit card flip to all players
       this.io.to(this.roomId).emit("card-flipped", {
         cardId: card.id,
         value: card.value,
@@ -451,9 +361,7 @@ class GameEngine {
         playerId: userId,
       });
 
-      // Check if this is the second card
       if (this.currentFlippedCards.length === 2) {
-        // Wait a moment for visual effect
         this.flipTimer = setTimeout(async () => {
           await this.processCardMatch();
         }, 1500);
@@ -485,11 +393,7 @@ class GameEngine {
         return;
       }
 
-      // Check if cards match
       if (cardsMatch(card1, card2)) {
-        console.log(`Match found: ${card1.value} (${card1.id}, ${card2.id})`);
-
-        // Anti-cheat validation for card match - Only run if board is properly initialized
         if (
           this.game?.gameState?.board &&
           Array.isArray(this.game.gameState.board) &&
@@ -529,13 +433,11 @@ class GameEngine {
           }
         }
 
-        // Mark cards as matched
         card1.isMatched = true;
         card2.isMatched = true;
         card1.isFlipped = true;
         card2.isFlipped = true;
 
-        // Update matchedPairs array in game state
         if (!this.game.gameState.matchedPairs.includes(card1.id)) {
           this.game.gameState.matchedPairs.push(card1.id);
         }
@@ -543,22 +445,11 @@ class GameEngine {
           this.game.gameState.matchedPairs.push(card2.id);
         }
 
-        // Remove cards from flippedCards array since they're now matched
         this.game.gameState.flippedCards =
           this.game.gameState.flippedCards.filter(
             (id) => id !== card1.id && id !== card2.id
           );
 
-        console.log(
-          `Cards ${card1.id} and ${card2.id} matched. Updated matchedPairs:`,
-          this.game.gameState.matchedPairs
-        );
-        console.log(
-          `Removed matched cards from flippedCards. Current flipped cards:`,
-          this.game.gameState.flippedCards
-        );
-
-        // Update current player's stats
         currentPlayer.matches += 1;
         currentPlayer.score += calculateScore(
           this.game.settings.gameMode,
@@ -566,36 +457,24 @@ class GameEngine {
           currentPlayer.lastFlipTime
         );
 
-        // Update match streak
         currentPlayer.matchStreak += 1;
 
-        // Update last flip time for streak calculation
         currentPlayer.lastFlipTime = new Date();
 
-        // Update memory meter
         currentPlayer.memoryMeter = calculateMemoryMeter(
           currentPlayer.matches,
           currentPlayer.flips,
           currentPlayer.matchStreak
         );
 
-        // Check for power-ups on matched cards
         if (card1.powerUp) {
           currentPlayer.powerUps.push(card1.powerUp);
-          console.log(
-            `Power-up collected: ${card1.powerUp.name} by ${currentPlayer.username}`
-          );
         }
         if (card2.powerUp) {
           currentPlayer.powerUps.push(card2.powerUp);
-          console.log(
-            `Power-up collected: ${card2.powerUp.name} by ${currentPlayer.username}`
-          );
         }
 
-        // Emit power-up update immediately if power-ups were collected
         if (card1.powerUp || card2.powerUp) {
-          // Emit power-up collection event
           this.io.to(this.roomId).emit("power-up-collected", {
             playerId: currentPlayer.userId,
             playerName: currentPlayer.username,
@@ -604,7 +483,6 @@ class GameEngine {
             cardId: card1.powerUp ? card1.id : card2.id,
           });
 
-          // Emit power-up update for the current player
           this.io.to(this.roomId).emit("power-up-update", {
             playerId: currentPlayer.userId,
             powerUps: currentPlayer.powerUps,
@@ -612,7 +490,6 @@ class GameEngine {
           });
         }
 
-        // Emit match event
         this.io.to(this.roomId).emit("cards-matched", {
           cards: [card1.id, card2.id],
           playerId: currentPlayer.userId,
@@ -621,66 +498,28 @@ class GameEngine {
           matchStreak: currentPlayer.matchStreak,
         });
 
-        // Check if game is complete
         const matchedCards = this.game.gameState.board.filter(
           (c) => c.isMatched
         );
-        const matchedPairs = matchedCards.length / 2; // Divide by 2 to get actual pairs
+        const matchedPairs = matchedCards.length / 2;
         const totalPairs = this.game.gameState.board.length / 2;
 
-        console.log(
-          `Game completion check: ${matchedPairs}/${totalPairs} pairs matched`
-        );
-        console.log(
-          `Game mode: ${this.game.settings.gameMode}, Status: ${this.game.gameState.status}`
-        );
-        console.log(
-          `Matched cards count: ${matchedCards.length}, Matched pairs: ${matchedPairs}`
-        );
-
-        // For sudden death mode, any match ends the game
         if (this.game.gameState.status === "sudden-death") {
-          console.log("Sudden death match found - game complete!");
-          console.log("Winner:", currentPlayer.username);
           await this.endGame("sudden_death_winner");
           return;
         }
 
-        // For regular games, check if all pairs are matched
         if (matchedPairs >= totalPairs) {
-          console.log("All pairs matched - game complete!");
-          console.log(
-            "Matched cards:",
-            this.game.gameState.board
-              .filter((c) => c.isMatched)
-              .map((c) => ({ id: c.id, value: c.value }))
-          );
           await this.endGame("game_completed");
           return;
         }
 
-        // Give extra turn for match
         this.giveExtraTurn(currentPlayer.userId, "match_found");
 
-        // Save game state immediately after match
         await this.protectedSave();
-
-        console.log(`After giving extra turn to ${currentPlayer.username}:`, {
-          extraTurns: currentPlayer.extraTurns,
-          currentTurn: this.game.gameState.currentTurn,
-          currentPlayerId: this.currentPlayerId,
-        });
       } else {
         console.log(`No match: ${card1.value} vs ${card2.value}`);
 
-        // Log current player's extra turns before switching
-        console.log(
-          `Before switching turn - ${currentPlayer.username} has ${
-            currentPlayer.extraTurns || 0
-          } extra turns`
-        );
-
-        // Reset match streak for current player
         currentPlayer.matchStreak = 0;
         currentPlayer.lastFlipTime = new Date();
 
@@ -691,11 +530,9 @@ class GameEngine {
           currentPlayer.matchStreak
         );
 
-        // Set cards back to not flipped in the game state
         card1.isFlipped = false;
         card2.isFlipped = false;
 
-        // Remove cards from flippedCards array since they're flipped back
         this.game.gameState.flippedCards =
           this.game.gameState.flippedCards.filter(
             (id) => id !== card1.id && id !== card2.id
@@ -706,12 +543,10 @@ class GameEngine {
           this.game.gameState.flippedCards
         );
 
-        // Emit cards flipped back event
         this.io.to(this.roomId).emit("cards-flipped-back", {
           cards: [card1.id, card2.id],
         });
 
-        // Sudden death mode: eliminate player on wrong match
         if (
           this.game.settings.gameMode === "sudden-death" ||
           this.game.gameState.status === "sudden-death"
@@ -720,24 +555,16 @@ class GameEngine {
             `Sudden death: Eliminating player ${currentPlayer.username} for wrong match`
           );
 
-          // Emit player eliminated event
           this.io.to(this.roomId).emit("player-eliminated", {
             playerId: currentPlayer.userId,
             username: currentPlayer.username,
             reason: "wrong_match_sudden_death",
           });
 
-          // Move eliminated player to opponentsForHistory (sudden death elimination)
-          console.log(
-            `Moving eliminated player ${currentPlayer.username} to opponentsForHistory`
-          );
-
-          // Ensure opponentsForHistory is initialized
           if (!this.game.gameState.opponentsForHistory) {
             this.game.gameState.opponentsForHistory = [];
           }
 
-          // Check if player already exists in opponentsForHistory
           const existingOpponent = this.game.gameState.opponentsForHistory.find(
             (opp) => opp.userId === currentPlayer.userId
           );
@@ -748,91 +575,53 @@ class GameEngine {
               username: currentPlayer.username,
               score: currentPlayer.score || 0,
               matches: currentPlayer.matches || 0,
-              leftEarly: false, // Eliminated, not abandoned
+              leftEarly: false,
               disconnectedAt: null,
             });
-            console.log(
-              `Added eliminated player ${currentPlayer.username} to opponentsForHistory`
-            );
           }
 
-          // Remove player from active players array
           const playerIndex = this.game.players.findIndex(
             (p) => p.userId === currentPlayer.userId
           );
           if (playerIndex !== -1) {
             this.game.players.splice(playerIndex, 1);
-            console.log(
-              `Player ${currentPlayer.username} removed from active players`
-            );
-            console.log(
-              `Remaining active players: ${this.game.players.length}`
-            );
 
-            // Update currentPlayerIndex if the removed player was before the current turn
             if (playerIndex <= this.game.gameState.currentPlayerIndex) {
               this.game.gameState.currentPlayerIndex = Math.max(
                 0,
                 this.game.gameState.currentPlayerIndex - 1
               );
-              console.log(
-                `Updated currentPlayerIndex to ${this.game.gameState.currentPlayerIndex} after elimination`
-              );
             }
           }
 
-          // Save the game state immediately after player removal
           await this.protectedSave();
 
           // Check if only one player remains (winner)
           if (this.game.players.length === 1) {
-            console.log("Only one player remains - game complete!");
             await this.endGame("sudden_death_winner");
             return;
           }
 
-          // Check if no players remain (tie)
           if (this.game.players.length === 0) {
-            console.log("No players remain - game complete!");
             await this.endGame("sudden_death_tie");
             return;
           }
 
-          // Update currentPlayerId to the new current turn
           this.currentPlayerId = this.game.gameState.currentTurn;
 
-          // Emit updated game state
           this.io.to(this.roomId).emit("game-state", {
             players: this.game.players,
             gameState: this.game.gameState,
           });
 
-          // Save again after updating game state
           await this.protectedSave();
         } else {
-          // Regular mode: only switch to next player if no extra turns
-          console.log(
-            `Checking extra turns for ${
-              currentPlayer.username
-            } before switching: ${currentPlayer.extraTurns || 0} extra turns`
-          );
-
           if ((currentPlayer.extraTurns || 0) > 0) {
-            // Player has extra turns, use one and keep the same player's turn
-            console.log(
-              `Player ${currentPlayer.username} has extra turns - using one extra turn and keeping turn`
-            );
             currentPlayer.extraTurns -= 1;
 
-            // Keep the same player's turn active
             this.game.gameState.currentTurn = currentPlayer.userId;
             this.currentPlayerId = currentPlayer.userId;
 
-            console.log(
-              `Extra turn used. Remaining extra turns: ${currentPlayer.extraTurns}`
-            );
-
-            // Emit turn continue event
             this.io.to(this.roomId).emit("turn-continue", {
               currentPlayer: currentPlayer.userId,
               reason: "extra_turn_used",
@@ -845,34 +634,19 @@ class GameEngine {
               gameState: this.game.gameState,
             });
           } else {
-            // Player has no extra turns, switch to next player
-            console.log(
-              `Player ${currentPlayer.username} has no extra turns - switching to next player`
-            );
             this.switchToNextPlayer();
           }
-
-          console.log(
-            `After turn handling - current turn: ${this.game.gameState.currentTurn}`
-          );
-          console.log(
-            `After turn handling - current player ID: ${this.currentPlayerId}`
-          );
         }
       }
 
-      // Clear flipped cards
       this.currentFlippedCards = [];
       this.flipTimer = null;
 
       await this.protectedSave();
-    } catch (error) {
-      console.error("Error processing card match:", error);
-    }
+    } catch (error) {}
   }
 
   calculateScore() {
-    // Basic score calculation - can be enhanced based on game mode
     const baseScore = 10;
     const currentPlayer = this.game.players.find(
       (p) => p.userId === this.currentPlayerId
@@ -890,17 +664,7 @@ class GameEngine {
       player.isCurrentTurn = player.userId === currentTurnPlayerId;
     });
 
-    // Update currentPlayerId
     this.currentPlayerId = currentTurnPlayerId;
-
-    console.log(`Synchronized turn state:`, {
-      currentTurn: currentTurnPlayerId,
-      currentPlayerId: this.currentPlayerId,
-      isCurrentTurnFlags: this.game.players.map((p) => ({
-        username: p.username,
-        isCurrentTurn: p.isCurrentTurn,
-      })),
-    });
   }
 
   giveExtraTurn(playerId, reason) {
@@ -910,42 +674,25 @@ class GameEngine {
       return;
     }
 
-    // Initialize extraTurns if not set
     if (player.extraTurns === undefined || player.extraTurns === null) {
       player.extraTurns = 0;
     }
 
-    // Handle different reasons for extra turns
     if (reason === "match_found") {
-      // When player finds a match, they get exactly 1 extra turn (don't accumulate)
-      // player.extraTurns = 1;
-      console.log(
-        `Match found! ${player.username} gets exactly 1 extra turn (${reason})`
-      );
     } else {
       // For other reasons (like power-ups), add 1 extra turn
       player.extraTurns += 1;
-      console.log(
-        `Extra turn added to ${player.username} (${playerId}) for reason: ${reason}`
-      );
     }
 
-    console.log(
-      `Player ${player.username} now has ${player.extraTurns} extra turns`
-    );
-
-    // Keep the same player's turn active
     this.game.gameState.currentTurn = playerId;
     this.currentPlayerId = playerId; // Update current player ID
 
-    // Emit turn continue event
     this.io.to(this.roomId).emit("turn-continue", {
       currentPlayer: playerId,
       reason: reason,
       remainingExtraTurns: player.extraTurns,
     });
 
-    // Also emit game state to ensure consistency
     this.io.to(this.roomId).emit("game-state", {
       players: this.game.players,
       gameState: this.game.gameState,
@@ -953,50 +700,21 @@ class GameEngine {
   }
 
   switchToNextPlayer() {
-    console.log("=== SWITCH TO NEXT PLAYER CALLED ===");
-    console.log(
-      "Current extra turns for players:",
-      this.game.players.map((p) => ({
-        username: p.username,
-        extraTurns: p.extraTurns || 0,
-        isCurrentTurn: p.isCurrentTurn,
-      }))
-    );
-
     const currentIndex = this.game.gameState.currentPlayerIndex;
     const currentPlayer = this.game.players[currentIndex];
 
-    console.log(`Current player index: ${currentIndex}`);
-    console.log(`Current player: ${currentPlayer?.username || "Unknown"}`);
-    console.log(
-      `Current player extra turns: ${currentPlayer?.extraTurns || 0}`
-    );
-
-    // Check if current player has extra turns (must be > 0, not >= 0)
     if (currentPlayer && (currentPlayer.extraTurns || 0) > 0) {
-      console.log(
-        `Player ${currentPlayer.username} has ${currentPlayer.extraTurns} extra turns - keeping turn`
-      );
-
-      // Use one extra turn
       currentPlayer.extraTurns -= 1;
 
-      // Keep the same player's turn active
       this.game.gameState.currentTurn = currentPlayer.userId;
       this.currentPlayerId = currentPlayer.userId;
 
-      console.log(
-        `Extra turn used. Remaining extra turns: ${currentPlayer.extraTurns}`
-      );
-
-      // Emit turn continue event
       this.io.to(this.roomId).emit("turn-continue", {
         currentPlayer: currentPlayer.userId,
         reason: "extra_turn_used",
         remainingExtraTurns: currentPlayer.extraTurns,
       });
 
-      // Also emit game state to ensure consistency
       this.io.to(this.roomId).emit("game-state", {
         players: this.game.players,
         gameState: this.game.gameState,
@@ -1005,34 +723,14 @@ class GameEngine {
       return; // Don't switch to next player
     }
 
-    // No extra turns (0 or undefined), switch to next player
-    console.log(
-      `Player ${
-        currentPlayer?.username || "Unknown"
-      } has no extra turns - switching to next player`
-    );
-    console.log(`This should trigger turn-changed event to next player`);
-
     const nextIndex = (currentIndex + 1) % this.game.players.length;
 
-    console.log(`Switching turn from player ${currentIndex} to ${nextIndex}`);
-    console.log(
-      `Current player: ${
-        this.game.players[currentIndex]?.username || "Unknown"
-      }`
-    );
-    console.log(
-      `Next player: ${this.game.players[nextIndex]?.username || "Unknown"}`
-    );
-
-    // Clear flipped cards when switching turns
     this.currentFlippedCards = [];
     if (this.flipTimer) {
       clearTimeout(this.flipTimer);
       this.flipTimer = null;
     }
 
-    // Safety check: ensure indices are valid
     if (currentIndex >= 0 && currentIndex < this.game.players.length) {
       this.game.players[currentIndex].isCurrentTurn = false;
     }
@@ -1052,39 +750,20 @@ class GameEngine {
         this.game.gameState.currentPlayerIndex = 0;
         this.game.gameState.currentTurn = this.game.players[0].userId;
         this.currentPlayerId = this.game.players[0].userId;
-        console.log(
-          `Fallback: Set turn to first player ${this.game.players[0].username}`
-        );
       }
     }
 
-    console.log(`Turn switched to: ${this.game.gameState.currentTurn}`);
-    console.log(`Current player ID set to: ${this.currentPlayerId}`);
-    console.log(
-      `Updated isCurrentTurn flags:`,
-      this.game.players.map((p) => ({
-        username: p.username,
-        isCurrentTurn: p.isCurrentTurn,
-      }))
-    );
-
-    // Emit turn change
-    console.log(
-      `Emitting turn-changed event: ${this.game.players[currentIndex]?.username} -> ${this.game.players[nextIndex]?.username}`
-    );
     this.io.to(this.roomId).emit("turn-changed", {
       playerId: this.game.players[nextIndex].userId,
       previousPlayerId: this.game.players[currentIndex].userId,
       gameState: this.game.gameState,
     });
 
-    // Also emit game state to ensure consistency
     this.io.to(this.roomId).emit("game-state", {
       players: this.game.players,
       gameState: this.game.gameState,
     });
 
-    // Synchronize turn state to ensure consistency
     this.synchronizeTurnState();
   }
 
@@ -1098,25 +777,15 @@ class GameEngine {
       throw new Error("Player not found");
     }
 
-    // Check if player has the power-up FIRST
-    console.log(`Checking power-up availability for player ${userId}:`, {
-      powerUpType,
-      playerPowerUps: player.powerUps,
-      powerUpsLength: player.powerUps?.length || 0,
-      currentExtraTurns: player.extraTurns || 0,
-    });
-
     const powerUpIndex = player.powerUps.findIndex(
       (p) => p.type === powerUpType
     );
     if (powerUpIndex === -1) {
-      console.log(`Power-up ${powerUpType} not found for player ${userId}`);
       throw new Error("Power-up not available");
     }
 
     const powerUp = player.powerUps[powerUpIndex];
 
-    // Anti-cheat validation for power-up usage - Only run if board is properly initialized
     if (
       this.game?.gameState?.board &&
       Array.isArray(this.game.gameState.board) &&
@@ -1125,7 +794,6 @@ class GameEngine {
       Array.isArray(this.game.players)
     ) {
       try {
-        // Create a complete game state object for anti-cheat validation
         const livePlayer = this.game.players.find((p) => p.userId === userId);
 
         if (!livePlayer) {
@@ -1147,31 +815,11 @@ class GameEngine {
           players: this.game.players,
         };
 
-        // Add debugging to see what's being passed
-        console.log("�� Debug - before Anti-cheat validation data:", {
-          userId,
-          powerUpType,
-          powerUpPool: this.game.gameState.powerUpPool,
-          allPlayers: completeGameState.players.map((p) => ({
-            userId: p.userId,
-            username: p.username,
-            powerUps: p.powerUps?.length || 0,
-            powerUpsDetails: p.powerUps,
-          })),
-        });
-
         await antiCheatSystem.validatePowerUpUsage(
           userId,
           powerUpType,
           completeGameState
         );
-
-        console.log("🔍 AFTER anti-cheat validation - Player power-ups:", {
-          userId,
-          powerUpType,
-          playerPowerUps: this.game.players.find((p) => p.userId === userId)
-            ?.powerUps,
-        });
 
         antiCheatSystem.trackAction(
           userId,
@@ -1186,23 +834,21 @@ class GameEngine {
       }
     } else {
       console.log(
-        "⚠️ Skipping power-up anti-cheat validation - board not properly initialized yet"
+        "Skipping power-up anti-cheat validation - board not properly initialized yet"
       );
     }
 
     try {
       switch (powerUpType) {
         case "extraTurn":
-          // Player gets an extra turn (adds to existing extra turns)
           this.giveExtraTurn(userId, "extra_turn_powerup");
           break;
 
         case "peek":
-          // Reveal all unmatched cards for 3 seconds
           const unmatched = this.game.gameState.board.filter(
             (c) => !c.isMatched
           );
-          // Emit to all players but with user-specific data
+
           this.io.to(this.roomId).emit("powerup-peek", {
             duration: 3000,
             playerId: userId,
@@ -1212,11 +858,7 @@ class GameEngine {
           break;
 
         case "swap":
-          // Swap positions of two cards
-          console.log("Swap power-up called with target:", target);
-
           if (!target || !target.card1Id || !target.card2Id) {
-            // For now, just swap two random unmatched cards
             const unmatchedCards = this.game.gameState.board.filter(
               (c) => !c.isMatched
             );
@@ -1227,12 +869,6 @@ class GameEngine {
             const card1 = unmatchedCards[0];
             const card2 = unmatchedCards[1];
 
-            console.log("Swapping random cards:", {
-              card1: { id: card1.id, value: card1.value, theme: card1.theme },
-              card2: { id: card2.id, value: card2.value, theme: card2.theme },
-            });
-
-            // Swap card values and themes
             [card1.value, card2.value] = [card2.value, card1.value];
             [card1.theme, card2.theme] = [card2.theme, card1.theme];
 
@@ -1258,28 +894,12 @@ class GameEngine {
               (c) => c.id === target.card2Id
             );
 
-            console.log("Swapping targeted cards:", {
-              target: target,
-              card1: card1
-                ? { id: card1.id, value: card1.value, theme: card1.theme }
-                : null,
-              card2: card2
-                ? { id: card2.id, value: card2.value, theme: card2.theme }
-                : null,
-            });
-
             if (!card1 || !card2 || card1.isMatched || card2.isMatched) {
               throw new Error("Invalid cards for swap");
             }
 
-            // Swap card values and themes
             [card1.value, card2.value] = [card2.value, card1.value];
             [card1.theme, card2.theme] = [card2.theme, card1.theme];
-
-            console.log("After targeted swap:", {
-              card1: { id: card1.id, value: card1.value, theme: card1.theme },
-              card2: { id: card2.id, value: card2.value, theme: card2.theme },
-            });
 
             this.io.to(this.roomId).emit("powerup-swap", {
               card1Id: card1.id,
@@ -1294,9 +914,7 @@ class GameEngine {
           break;
 
         case "revealOne":
-          // Permanently reveal one card
           if (!target || !target.cardId) {
-            // For now, just reveal a random unmatched card
             const unmatchedCards = this.game.gameState.board.filter(
               (c) => !c.isMatched && !c.isFlipped
             );
@@ -1305,17 +923,12 @@ class GameEngine {
             }
 
             const revealCard = unmatchedCards[0];
-            // Don't mark as flipped - just reveal it temporarily
-            console.log("Server sending reveal data (random card):", {
-              cardId: revealCard.id,
-              value: revealCard.value,
-              playerId: userId,
-            });
+
             this.io.to(this.roomId).emit("powerup-reveal", {
               cardId: revealCard.id,
               value: revealCard.value,
               playerId: userId,
-              targetUserId: userId, // Add target user ID for client-side filtering
+              targetUserId: userId,
             });
           } else {
             const revealCard = this.game.gameState.board.find(
@@ -1325,29 +938,22 @@ class GameEngine {
               throw new Error("Invalid card for reveal");
             }
 
-            // Don't mark as flipped - just reveal it temporarily
-            console.log("Server sending reveal data (targeted card):", {
-              cardId: revealCard.id,
-              value: revealCard.value,
-              playerId: userId,
-            });
             this.io.to(this.roomId).emit("powerup-reveal", {
               cardId: revealCard.id,
               value: revealCard.value,
               playerId: userId,
-              targetUserId: userId, // Add target user ID for client-side filtering
+              targetUserId: userId,
             });
           }
           break;
 
         case "freeze":
-          // Freeze timer for 10 seconds (blitz mode only)
           if (this.game.settings.gameMode === "blitz") {
             this.freezeTimer(10000);
             this.io.to(this.roomId).emit("powerup-freeze", {
               duration: 10000,
               playerId: userId,
-              targetUserId: userId, // Add target user ID for client-side filtering
+              targetUserId: userId,
             });
           } else {
             throw new Error("Freeze power-up can only be used in Blitz mode");
@@ -1355,19 +961,10 @@ class GameEngine {
           break;
 
         case "shuffle":
-          // Shuffle unmatched cards
           console.log("Shuffle power-up called");
 
           const unmatchedCards = this.game.gameState.board.filter(
             (c) => !c.isMatched
-          );
-          console.log(
-            "Unmatched cards before shuffle:",
-            unmatchedCards.map((c) => ({
-              id: c.id,
-              value: c.value,
-              theme: c.theme,
-            }))
           );
 
           const values = unmatchedCards.map((c) => ({
@@ -1387,16 +984,6 @@ class GameEngine {
             );
           });
 
-          console.log(
-            "Board after shuffle:",
-            this.game.gameState.board.map((c) => ({
-              id: c.id,
-              value: c.value,
-              theme: c.theme,
-            }))
-          );
-
-          // Emit the updated board to all players
           this.io.to(this.roomId).emit("powerup-shuffle", {
             playerId: userId,
             board: this.game.gameState.board,
@@ -1411,20 +998,12 @@ class GameEngine {
         );
 
         if (powerUpIndex !== -1) {
-          // Increment power-up used count
           player.powerUpsUsed = (player.powerUpsUsed || 0) + 1;
 
-          //add power up collected name
           player.powerUpsCollected.push(powerUpType);
 
-          // Remove the used power-up
-
           player.powerUps.splice(powerUpIndex, 1);
-          console.log(
-            `Power-up ${powerUpType} consumed for player ${player.username}`
-          );
 
-          // Emit power-up update to all players
           this.io.to(this.roomId).emit("power-up-update", {
             playerId: userId,
             powerUps: player.powerUps,
@@ -1433,51 +1012,27 @@ class GameEngine {
         }
       }
 
-      // Save game state after power-up consumption
       await this.protectedSave();
 
-      // Check if player has extra turns before changing turn
-      console.log(`Power-up turn management for ${player.username}:`, {
-        powerUpType,
-        currentExtraTurns: player.extraTurns,
-        currentTurn: this.game.gameState.currentTurn,
-        isCurrentTurn: player.userId === this.game.gameState.currentTurn,
-        playerId: player.userId,
-      });
-
       if (powerUpType === "extraTurn") {
-        // For extraTurn power-up, keep the same player's turn active
         this.game.gameState.currentTurn = player.userId;
         this.currentPlayerId = player.userId;
-        console.log(
-          `${player.username} used extraTurn power-up. Extra turns: ${player.extraTurns}`
-        );
 
-        // Emit turn-continue to ensure the client maintains the turn
         this.io.to(this.roomId).emit("turn-continue", {
           currentPlayer: player.userId,
           reason: "extra_turn_powerup_used",
           remainingExtraTurns: player.extraTurns,
         });
       } else {
-        // For all other power-ups (peek, swap, shuffle, revealOne, freeze),
-        // they should NOT consume extra turns and should NOT change the turn
-        console.log(
-          `${player.username} used ${powerUpType} power-up. This does not consume extra turns or change turn.`
-        );
-
-        // Keep the same player's turn active without consuming extra turns
         this.game.gameState.currentTurn = player.userId;
         this.currentPlayerId = player.userId;
       }
 
-      // Emit game state to ensure consistency
       this.io.to(this.roomId).emit("game-state", {
         players: this.game.players,
         gameState: this.game.gameState,
       });
 
-      // Notify other players about power-up usage with toast
       this.io.to(this.roomId).emit("power-up-used-notification", {
         playerId: userId,
         playerName: player.username,
@@ -1485,10 +1040,6 @@ class GameEngine {
         powerUpName: powerUp.name,
         powerUpIcon: powerUp.icon,
       });
-
-      console.log(
-        `${player.username} used power-up ${powerUpType} in room ${this.roomId}`
-      );
     } catch (error) {
       console.error("Power-up error:", error);
       throw error;
@@ -1502,7 +1053,6 @@ class GameEngine {
 
     this.gameTimer = setInterval(async () => {
       if (this.game.gameState.timeLeft <= 0) {
-        // Check if sudden death should trigger (only for blitz mode)
         if (this.game.settings.gameMode === "blitz" && !this.suddenDeathMode) {
           if (
             shouldTriggerSuddenDeath(
@@ -1515,36 +1065,24 @@ class GameEngine {
           }
         }
 
-        // For sudden death game mode or when in sudden death status, handle timeout appropriately
         if (
           this.game.settings.gameMode === "sudden-death" ||
           this.game.gameState.status === "sudden-death"
         ) {
           if (this.game.gameState.status === "sudden-death") {
-            // In Sudden Death status, when time runs out, end the game with no winners
-            console.log(
-              "Sudden Death time ran out - ending game with no winners"
-            );
             await this.endGame("sudden_death_timeout");
             return;
           } else {
-            // In Sudden Death game mode, time running out should not end the game
-            // The game should only end when players are eliminated
-            console.log(
-              "Time ran out in Sudden Death mode, but game continues until elimination"
-            );
             return;
           }
         }
 
-        // For other modes, end game on timeout
         await this.endGame("timeout");
         return;
       }
 
       this.game.gameState.timeLeft -= 1;
 
-      // Emit time update every 10 seconds or every second in last 10 seconds
       if (
         this.game.gameState.timeLeft % 10 === 0 ||
         this.game.gameState.timeLeft <= 10
@@ -1562,55 +1100,33 @@ class GameEngine {
     try {
       this.suddenDeathMode = true;
 
-      // Generate sudden death board (single pair)
       const suddenDeathBoard = generateSuddenDeathCards(
         this.game.settings.theme
       );
 
-      // Update game state
       this.game.gameState.board = suddenDeathBoard;
       this.game.gameState.status = "sudden-death";
-      this.game.status = "playing"; // Keep main game status as playing during sudden death
-      this.game.gameState.timeLeft = 30; // 30 seconds for sudden death
+      this.game.status = "playing";
+      this.game.gameState.timeLeft = 30;
       this.game.gameState.matchedPairs = [];
 
-      // Reset all players' current turn status
       this.game.players.forEach((p) => (p.isCurrentTurn = false));
 
-      // Set first player's turn
       this.game.players[0].isCurrentTurn = true;
       this.game.gameState.currentPlayerIndex = 0;
       this.game.gameState.currentTurn = this.game.players[0].userId;
 
-      console.log(`Sudden death turn setup:`, {
-        firstPlayer: {
-          userId: this.game.players[0].userId,
-          username: this.game.players[0].username,
-        },
-        currentTurn: this.game.gameState.currentTurn,
-        allPlayers: this.game.players.map((p) => ({
-          userId: p.userId,
-          username: p.username,
-          isCurrentTurn: p.isCurrentTurn,
-        })),
-      });
-
-      // Clear any flipped cards
       this.currentFlippedCards = [];
 
       await this.protectedSave();
 
-      // Notify players about sudden death
       this.io.to(this.roomId).emit("sudden-death-triggered", {
         gameState: this.game.gameState,
         players: this.game.players,
         message: "Sudden Death Mode! Find the last pair to win!",
       });
 
-      // Restart timer for sudden death
       this.startGameTimer();
-
-      console.log(`Sudden death triggered in room ${this.roomId}`);
     } catch (error) {
       console.error("Error triggering sudden death:", error);
       await this.endGame("error");
@@ -1629,10 +1145,6 @@ class GameEngine {
 
   async endGame(reason) {
     try {
-      console.log(
-        `endGame called with reason: ${reason} for room ${this.roomId}`
-      );
-
       if (this.gameTimer) {
         clearInterval(this.gameTimer);
         this.gameTimer = null;
@@ -1643,17 +1155,14 @@ class GameEngine {
         this.flipTimer = null;
       }
 
-      // Check if game still exists
       if (!this.game) {
         console.log(`Game not found for room ${this.roomId} during endGame`);
         this.cleanup();
         return;
       }
 
-      // Store original players before any modifications for opponent tracking
       const originalPlayers = [...this.game.players];
 
-      // Anti-cheat validation for game completion - Only run if board is properly initialized
       if (
         this.game?.gameState?.board &&
         Array.isArray(this.game.gameState.board) &&
@@ -1682,7 +1191,6 @@ class GameEngine {
             players: this.game.players,
           };
 
-          // Validate for all players in the game
           for (const player of this.game.players) {
             if (player && player.userId) {
               // TODO: Fix validateGameCompletion method in antiCheatSystem
@@ -1697,25 +1205,22 @@ class GameEngine {
           console.warn(
             `🚨 Anti-cheat violation during game completion: ${error.message}`
           );
-          // Don't throw error here as game is ending, just log the violation
         }
       } else {
         console.log(
-          "⚠️ Skipping game completion anti-cheat validation - board not properly initialized yet"
+          " Skipping game completion anti-cheat validation - board not properly initialized yet"
         );
       }
 
-      // Update game state
       this.game.gameState.status = "finished";
       this.game.status = "completed";
       this.game.endedAt = new Date();
 
-      // Calculate game duration for metrics
       const gameDuration = this.game.startedAt
         ? (this.game.endedAt - this.game.startedAt) / 1000
         : 0;
 
-      // Update metrics
+      //
       updateMetrics.decrementActiveGames();
       updateMetrics.incrementGamesCompleted(
         this.game.settings.gameMode,
@@ -1727,47 +1232,35 @@ class GameEngine {
         this.game.settings.boardSize
       );
 
-      // Determine winners based on game mode and reason
       let winners = [];
       const sortedPlayers = [...this.game.players].sort(
         (a, b) => b.score - a.score
       );
 
       if (reason === "last_player_winner") {
-        // When only one player remains, they are the winner
-        console.log("Last player remaining - they are the winner");
         winners = this.game.players;
 
         // Set the game state winner field for match history
         if (this.game.players.length === 1) {
           this.game.gameState.winner = this.game.players[0].userId;
           this.game.gameState.completionReason = "opponents_left";
-          console.log(
-            `Winner set to: ${this.game.players[0].username} (${this.game.players[0].userId})`
-          );
         }
       } else if (reason === "all_players_left") {
-        // When all players left, no winners
-        console.log("All players left - no winners");
         winners = [];
         this.game.gameState.completionReason = "all_players_left";
       } else if (
         reason === "timeout" &&
         this.game.settings.gameMode === "blitz"
       ) {
-        // For Blitz mode timeout, check if anyone has matches
         const playersWithMatches = sortedPlayers.filter((p) => p.matches > 0);
         if (playersWithMatches.length === 0) {
-          // No one has matches - no winners
           winners = [];
           this.game.gameState.completionReason = "timeout_no_matches";
         } else {
-          // Find players with the most matches
           const maxMatches = playersWithMatches[0].matches;
           winners = playersWithMatches.filter((p) => p.matches === maxMatches);
           this.game.gameState.completionReason = "timeout_with_matches";
 
-          // Set winner if there's exactly one winner
           if (winners.length === 1) {
             this.game.gameState.winner = winners[0].userId;
           }
@@ -1780,28 +1273,21 @@ class GameEngine {
         winners = [];
         this.game.gameState.completionReason = "sudden_death_timeout";
       } else if (reason === "sudden_death_timeout") {
-        // For Sudden Death timeout (from blitz mode), no winners
         winners = [];
         this.game.gameState.completionReason = "sudden_death_timeout";
 
-        // Keep players in the array for match history, but mark game as finished
         console.log("Sudden death timeout - keeping players for match history");
-        // Don't clear players array - keep them for match history display
       } else if (reason === "sudden_death_winner") {
-        // For Sudden Death elimination, the remaining player is the winner
         winners = this.game.players;
         this.game.gameState.completionReason = "sudden_death_winner";
         if (this.game.players.length === 1) {
           this.game.gameState.winner = this.game.players[0].userId;
         }
 
-        // Keep players in the array for match history, but mark game as finished
         console.log(
           "Sudden death completed - keeping players for match history"
         );
-        // Don't clear players array - keep them for match history display
       } else {
-        // For other cases, use score-based winner determination
         winners = sortedPlayers.filter(
           (p) => p.score === sortedPlayers[0].score && p.score > 0
         );
@@ -1814,16 +1300,12 @@ class GameEngine {
         }
       }
 
-      // Store opponents information for match history
-      // This ensures we have opponent data even if players left during the game
       if (!this.game.gameState.opponentsForHistory) {
         this.game.gameState.opponentsForHistory = [];
       }
 
-      // Get all original players (including those who left)
       const allPlayers = [...originalPlayers];
 
-      // Add any players from opponentsForHistory that aren't in originalPlayers
       if (this.game.gameState.opponentsForHistory.length > 0) {
         const existingOpponentIds = allPlayers.map((p) => p.userId);
         const additionalOpponents =
@@ -1833,10 +1315,8 @@ class GameEngine {
         allPlayers.push(...additionalOpponents);
       }
 
-      // Create a clean opponents list without duplicates
       const opponentMap = new Map();
 
-      // Add all players to the map, with the most recent data taking precedence
       allPlayers.forEach((player) => {
         opponentMap.set(player.userId, {
           userId: player.userId,
@@ -1852,15 +1332,12 @@ class GameEngine {
         });
       });
 
-      // Convert map back to array
       this.game.gameState.opponentsForHistory = Array.from(
         opponentMap.values()
       );
 
-      // Update user statistics and check achievements
       for (const player of this.game.players) {
         try {
-          // Skip guest users as they don't have persistent stats
           if (player.userId.startsWith("guest_")) {
             continue;
           }
@@ -1885,7 +1362,6 @@ class GameEngine {
 
             user.updateStats(gameResult);
 
-            // Check for achievements
             const { checkAchievements } = require("../utils/gameLogic.js");
             const newAchievements = checkAchievements(user, gameResult);
             newAchievements.forEach((achievement) => {
@@ -1904,24 +1380,9 @@ class GameEngine {
 
       await this.protectedSave();
 
-      // Add additional save verification
-      console.log(`Final game state before save:`, {
-        roomId: this.roomId,
-        status: this.game.gameState.status,
-        completionReason: this.game.gameState.completionReason,
-        winner: this.game.gameState.winner,
-        matchedPairs:
-          this.game.gameState.board.filter((c) => c.isMatched).length / 2,
-        totalPairs: this.game.gameState.board.length / 2,
-        players: this.game.players.length,
-        endedAt: this.game.endedAt,
-      });
-
-      // Force an additional save to ensure data persistence
       try {
         this.game.updatedAt = new Date();
         await this.game.save();
-        console.log(`Final game save completed for room ${this.roomId}`);
       } catch (error) {
         console.error(
           `Error in final game save for room ${this.roomId}:`,
@@ -1929,16 +1390,9 @@ class GameEngine {
         );
       }
 
-      // Emit game end
-      console.log(`About to emit game-over event for room ${this.roomId}`);
-      console.log(
-        `Winners:`,
-        winners.map((w) => w.username)
-      );
-
       this.io.to(this.roomId).emit("game-over", {
         reason,
-        winners: winners, // Send all winners (empty array if no winners)
+        winners: winners,
         finalStats: sortedPlayers.map((p) => ({
           userId: p.userId,
           username: p.username,
@@ -1953,18 +1407,10 @@ class GameEngine {
         gameState: this.game.gameState,
       });
 
-      console.log(
-        `Game-over event emitted for room ${this.roomId}. Reason: ${reason}`
-      );
-
-      // Mark game as completed to prevent premature cleanup
       this.gameCompleted = true;
     } catch (error) {
       console.error(`Error ending game for room ${this.roomId}:`, error);
       if (error.name === "DocumentNotFoundError") {
-        console.log(
-          `Game document not found for room ${this.roomId} during endGame, cleaning up`
-        );
         this.cleanup();
       }
     }
@@ -1973,26 +1419,16 @@ class GameEngine {
   async handlePlayerDisconnect(userId) {
     try {
       if (!this.game) {
-        console.log(`❌ No game found for room ${this.roomId}`);
         return;
       }
 
-      // Refresh game state from database to ensure we have latest data
       await this.initialize();
 
       const player = this.game.players.find((p) => p.userId === userId);
       if (!player) {
-        console.log(
-          `Player ${userId} not found in game engine - may have already been removed`
-        );
         return;
       }
 
-      console.log(
-        `Player ${player.username} disconnected from room ${this.roomId}`
-      );
-
-      // Store opponent information before removing player
       const disconnectedPlayer = {
         userId: player.userId,
         username: player.username,
@@ -2002,80 +1438,52 @@ class GameEngine {
         disconnectedAt: new Date(),
       };
 
-      // Initialize opponentsForHistory if it doesn't exist
       if (!this.game.gameState.opponentsForHistory) {
         this.game.gameState.opponentsForHistory = [];
       }
 
-      // Check if this player is already in opponents history
       const existingOpponent = this.game.gameState.opponentsForHistory.find(
         (opp) => opp.userId === userId
       );
 
       if (!existingOpponent) {
-        // Add the disconnected player to opponents history
         this.game.gameState.opponentsForHistory.push(disconnectedPlayer);
       } else {
-        // Update existing opponent with latest information
         existingOpponent.leftEarly = true;
         existingOpponent.disconnectedAt = new Date();
         existingOpponent.score = player.score || 0;
         existingOpponent.matches = player.matches || 0;
       }
 
-      // Remove the player from the game engine's player list
       const playerIndex = this.game.players.findIndex(
         (p) => p.userId === userId
       );
       if (playerIndex !== -1) {
         this.game.players.splice(playerIndex, 1);
-        console.log(
-          `Removed player ${player.username} from game engine. Remaining: ${this.game.players.length}`
-        );
 
-        // Update currentPlayerIndex if the removed player was before the current turn
         if (playerIndex <= this.game.gameState.currentPlayerIndex) {
           this.game.gameState.currentPlayerIndex = Math.max(
             0,
             this.game.gameState.currentPlayerIndex - 1
           );
-          console.log(
-            `Updated currentPlayerIndex to ${this.game.gameState.currentPlayerIndex} after player removal`
-          );
         }
       }
 
-      // If game is in progress and player was current turn, skip to next player
       if (this.game.gameState.status === "playing" && player.isCurrentTurn) {
-        console.log(
-          "Disconnected player was current turn, switching to next player"
-        );
-
-        // Only switch to next player if there are still players remaining
         if (this.game.players.length > 0) {
           this.switchToNextPlayer();
           await this.protectedSave();
         } else {
-          console.log("No players remaining, cannot switch turn");
+          // console.log("No players remaining, cannot switch turn");
         }
       }
 
-      // Determine if game should continue or end based on remaining players
       const remainingPlayers = this.game.players.length;
 
       if (remainingPlayers === 0) {
-        // 🔧 NEW: No players left - game will be deleted by handleLeaveRoom
-        console.log(
-          "No players remaining - game will be deleted by handleLeaveRoom"
-        );
-        // Don't call endGame here as the game will be deleted
       } else if (remainingPlayers === 1) {
-        // Only one player left - they are the winner
-        console.log("Only one player remaining, making them the winner");
         await this.endGame("last_player_winner");
       } else if (remainingPlayers >= 2) {
-        // 2 or more players remaining - continue the game
-        console.log("2+ players remaining, continuing the game");
         await this.protectedSave();
       }
     } catch (error) {
@@ -2087,12 +1495,7 @@ class GameEngine {
   }
 
   cleanup() {
-    // If game was completed, ensure it's saved before cleanup
     if (this.gameCompleted && this.game) {
-      console.log(
-        `Game ${this.roomId} was completed - ensuring final save before cleanup`
-      );
-      // The game should already be saved by endGame, but we can add additional verification here
     }
 
     // Clear all timers to prevent memory leaks
@@ -2106,7 +1509,6 @@ class GameEngine {
       this.flipTimer = null;
     }
 
-    // Clear any other potential timers
     if (this.suddenDeathTimer) {
       clearTimeout(this.suddenDeathTimer);
       this.suddenDeathTimer = null;
@@ -2117,20 +1519,16 @@ class GameEngine {
       this.powerUpTimer = null;
     }
 
-    // Clear any other intervals
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
       this.cleanupTimer = null;
     }
 
-    // Reset game state references
     this.game = null;
     this.currentFlippedCards = [];
     this.isProcessingFlip = false;
     this.suddenDeathMode = false;
-    this.gameCompleted = false; // Reset completion flag
-
-    console.log("🧹 Cleaned up game engine for room " + this.roomId);
+    this.gameCompleted = false;
   }
 }
 

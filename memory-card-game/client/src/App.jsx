@@ -52,7 +52,6 @@ function AppContent() {
     if (path === "/dashboard") return <DashboardShimmer />;
     if (path === "/profile") return <ProfileShimmer />;
 
-    // Default loading screen for other pages
     return <GameLoadingScreen />;
   };
 

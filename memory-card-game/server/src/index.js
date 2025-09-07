@@ -8,39 +8,30 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const morgan = require("morgan");
 
-// Load environment variables
 dotenv.config();
 
-// Import routes
 const authRoutes = require("./routes/auth.js");
 const gameRoutes = require("./routes/game.js");
 const userRoutes = require("./routes/user.js");
 const adminRoutes = require("./routes/admin.js");
 
-// Import socket handlers
 const { initializeSocket } = require("./socket/index.js");
 
-// Import metrics
 const { getMetrics, apiMetricsMiddleware } = require("./utils/metrics.js");
 
-// Import Redis manager
 const redisManager = require("./utils/redis.js");
 
 const app = express();
 const server = createServer(app);
 
-// Global error handlers
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  // Don't exit the process, just log the error
 });
 
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
-  // Don't exit the process, just log the error
 });
 
-// Increase max listeners to prevent warnings
 require("events").EventEmitter.defaultMaxListeners = 20;
 
 // CORS configuration
@@ -57,22 +48,17 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Log CORS configuration
 console.log("CORS configuration:", corsOptions);
 
-// Initialize Socket.IO with CORS
 const io = new SocketIOServer(server, {
   cors: corsOptions,
   transports: ["websocket", "polling"],
 });
 
-// Log Socket.IO configuration
 console.log("Socket.IO initialized with CORS:", corsOptions);
 
-// Trust proxy middleware
 app.set("trust proxy", 1);
 
-// Security middleware
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false,
@@ -87,7 +73,6 @@ app.use(
   })
 );
 
-// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 1000, // limit each IP to 1000 requests per windowMs
@@ -98,21 +83,17 @@ const limiter = rateLimit({
 
 app.use("/api/", limiter);
 
-// Logging
 if (process.env.NODE_ENV !== "test") {
   app.use(morgan("combined"));
 }
 
-// Body parsing middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// API metrics middleware
 if (process.env.ENABLE_METRICS === "true") {
   app.use(apiMetricsMiddleware);
 }
 
-// Beautiful root endpoint
 app.get("/", (req, res) => {
   const uptime = process.uptime();
   const hours = Math.floor(uptime / 3600);
@@ -424,7 +405,6 @@ if (process.env.ENABLE_METRICS === "true") {
   });
 }
 
-// Set socket.io instance for game routes
 gameRoutes.setSocketIO(io);
 
 // API routes
@@ -433,7 +413,6 @@ app.use("/api/game", gameRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
 
-// Error handling middleware
 app.use((err, req, res, next) => {
   console.error("Error:", err);
 
@@ -470,10 +449,8 @@ app.use("*", (req, res) => {
   });
 });
 
-// Initialize Socket.IO
 initializeSocket(io);
 
-// Database connection
 const connectDB = async () => {
   try {
     const mongoURI =
@@ -483,13 +460,11 @@ const connectDB = async () => {
 
     console.log("✅ MongoDB connected successfully");
 
-    // Log database info
     const dbName = mongoose.connection.db.databaseName;
     console.log(`📊 Connected to database: ${dbName}`);
   } catch (error) {
     console.error("❌ MongoDB connection error:", error.message);
 
-    // Retry connection after 5 seconds
     setTimeout(connectDB, 5000);
   }
 };
@@ -526,7 +501,6 @@ const gracefulShutdown = async (signal) => {
     }
 
     try {
-      // Close Redis connection
       await redisManager.disconnect();
       console.log("Redis connection closed.");
     } catch (error) {
@@ -536,7 +510,6 @@ const gracefulShutdown = async (signal) => {
     process.exit(0);
   });
 
-  // Force close after 10 seconds
   setTimeout(() => {
     console.error(
       "Could not close connections in time, forcefully shutting down"
@@ -545,11 +518,9 @@ const gracefulShutdown = async (signal) => {
   }, 10000);
 };
 
-// Handle shutdown signals
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-// Handle uncaught exceptions
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
   gracefulShutdown("UNCAUGHT_EXCEPTION");
@@ -577,18 +548,21 @@ const startServer = async () => {
           process.env.CLIENT_URL || "https://memory-game-pink-six.vercel.app/"
         }`
       );
-      console.log(`🔗 API Base: http://localhost:${PORT}/api`);
-      console.log(`💚 Health Check: http://localhost:${PORT}/health`);
+      console.log(`🔗 API Base: https://memory-game-pink-six.vercel.app/api`);
+      console.log(
+        `💚 Health Check: https://memory-game-pink-six.vercel.app/health`
+      );
 
       if (process.env.ENABLE_METRICS === "true") {
-        console.log(`📊 Metrics: http://localhost:${PORT}/metrics`);
         console.log(
-          `📈 Prometheus Metrics: http://localhost:${METRICS_PORT}/metrics`
+          `📊 Metrics: https://memory-game-pink-six.vercel.app/metrics`
+        );
+        console.log(
+          `📈 Prometheus Metrics: https://memory-game-pink-six.vercel.app/metrics`
         );
       }
     });
 
-    // Start metrics server if enabled
     if (process.env.ENABLE_METRICS === "true") {
       const metricsApp = express();
       const metricsServer = require("http").createServer(metricsApp);

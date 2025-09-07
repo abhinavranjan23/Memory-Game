@@ -1,12 +1,11 @@
-const Joi = require('joi');
-const xss = require('xss');
+const Joi = require("joi");
+const xss = require("xss");
 
-// Input sanitization
 const sanitizeInput = (input) => {
-  if (typeof input === 'string') {
+  if (typeof input === "string") {
     return xss(input.trim());
   }
-  if (typeof input === 'object' && input !== null) {
+  if (typeof input === "object" && input !== null) {
     const sanitized = {};
     for (const [key, value] of Object.entries(input)) {
       sanitized[key] = sanitizeInput(value);
@@ -16,7 +15,6 @@ const sanitizeInput = (input) => {
   return input;
 };
 
-// Validation schemas
 const userSchema = Joi.object({
   username: Joi.string()
     .min(3)
@@ -24,73 +22,52 @@ const userSchema = Joi.object({
     .pattern(/^[a-zA-Z0-9_]+$/)
     .required()
     .messages({
-      'string.pattern.base': 'Username can only contain letters, numbers, and underscores',
-      'string.min': 'Username must be at least 3 characters long',
-      'string.max': 'Username cannot exceed 20 characters',
+      "string.pattern.base":
+        "Username can only contain letters, numbers, and underscores",
+      "string.min": "Username must be at least 3 characters long",
+      "string.max": "Username cannot exceed 20 characters",
     }),
-  email: Joi.string()
-    .email()
-    .max(100)
-    .required()
-    .messages({
-      'string.email': 'Please provide a valid email address',
-    }),
+  email: Joi.string().email().max(100).required().messages({
+    "string.email": "Please provide a valid email address",
+  }),
   password: Joi.string()
     .min(8)
     .max(128)
     .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
     .required()
     .messages({
-      'string.pattern.base': 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
-      'string.min': 'Password must be at least 8 characters long',
+      "string.pattern.base":
+        "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      "string.min": "Password must be at least 8 characters long",
     }),
 });
 
 const gameSettingsSchema = Joi.object({
-  boardSize: Joi.string()
-    .valid('4x4', '6x6', '8x8')
-    .required(),
-  theme: Joi.string()
-    .valid('emojis', 'animals', 'fruits', 'shapes')
-    .required(),
+  boardSize: Joi.string().valid("4x4", "6x6", "8x8").required(),
+  theme: Joi.string().valid("emojis", "animals", "fruits", "shapes").required(),
   gameMode: Joi.string()
-    .valid('classic', 'blitz', 'sudden-death', 'powerup-frenzy')
+    .valid("classic", "blitz", "sudden-death", "powerup-frenzy")
     .required(),
-  timeLimit: Joi.number()
-    .integer()
-    .min(60)
-    .max(1800)
-    .required(),
-  maxPlayers: Joi.number()
-    .integer()
-    .min(2)
-    .max(4)
-    .required(),
+  timeLimit: Joi.number().integer().min(60).max(1800).required(),
+  maxPlayers: Joi.number().integer().min(2).max(4).required(),
   powerUpsEnabled: Joi.boolean().required(),
   chatEnabled: Joi.boolean().required(),
   isRanked: Joi.boolean().required(),
 });
 
 const chatMessageSchema = Joi.object({
-  message: Joi.string()
-    .min(1)
-    .max(500)
-    .required()
-    .messages({
-      'string.max': 'Message cannot exceed 500 characters',
-    }),
+  message: Joi.string().min(1).max(500).required().messages({
+    "string.max": "Message cannot exceed 500 characters",
+  }),
 });
 
 const cardActionSchema = Joi.object({
-  cardId: Joi.number()
-    .integer()
-    .min(0)
-    .required(),
+  cardId: Joi.number().integer().min(0).required(),
 });
 
 const powerUpSchema = Joi.object({
   powerUpType: Joi.string()
-    .valid('extraTurn', 'peek', 'swap', 'revealOne', 'freeze', 'shuffle')
+    .valid("extraTurn", "peek", "swap", "revealOne", "freeze", "shuffle")
     .required(),
   target: Joi.object({
     cardId: Joi.number().integer().min(0),
@@ -144,7 +121,10 @@ const validatePowerUp = (data) => {
 const validateRateLimit = (userId, action, limits) => {
   const now = Date.now();
   const userLimits = limits.get(userId) || {};
-  const actionLimits = userLimits[action] || { count: 0, resetTime: now + 60000 };
+  const actionLimits = userLimits[action] || {
+    count: 0,
+    resetTime: now + 60000,
+  };
 
   if (now > actionLimits.resetTime) {
     actionLimits.count = 0;
@@ -155,21 +135,19 @@ const validateRateLimit = (userId, action, limits) => {
   userLimits[action] = actionLimits;
   limits.set(userId, userLimits);
 
-  return actionLimits.count <= 10; // Max 10 actions per minute per user
+  return actionLimits.count <= 10;
 };
 
-// Anti-cheat validation
 const validateGameAction = (userId, action, gameState, lastActionTime) => {
   const now = Date.now();
-  const minInterval = 100; // Minimum 100ms between actions
+  const minInterval = 100;
 
   if (lastActionTime && now - lastActionTime < minInterval) {
-    throw new Error('Action too frequent');
+    throw new Error("Action too frequent");
   }
 
-  // Validate game state consistency
-  if (gameState.status === 'finished') {
-    throw new Error('Game has ended');
+  if (gameState.status === "finished") {
+    throw new Error("Game has ended");
   }
 
   return true;

@@ -17,7 +17,6 @@ const useUsernameValidation = (initialUsername = "") => {
       return;
     }
 
-    // Check for valid characters (letters, numbers, hyphens, underscores only)
     const validUsernameRegex = /^[a-zA-Z0-9_-]+$/;
     if (!validUsernameRegex.test(usernameToCheck.trim())) {
       setIsAvailable(false);
@@ -45,7 +44,6 @@ const useUsernameValidation = (initialUsername = "") => {
     }
   }, []);
 
-  // Debounced effect - only run if user has interacted
   useEffect(() => {
     if (!hasUserInteracted) return;
 
@@ -54,14 +52,12 @@ const useUsernameValidation = (initialUsername = "") => {
       clearTimeout(debounceTimer);
     }
 
-    // Set new timer
     const timer = setTimeout(() => {
       checkUsernameAvailability(username);
-    }, 500); // 500ms debounce
+    }, 500);
 
     setDebounceTimer(timer);
 
-    // Cleanup
     return () => {
       if (timer) {
         clearTimeout(timer);
@@ -69,7 +65,6 @@ const useUsernameValidation = (initialUsername = "") => {
     };
   }, [username, checkUsernameAvailability, hasUserInteracted]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (debounceTimer) {

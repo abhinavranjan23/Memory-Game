@@ -483,7 +483,10 @@ function initializeSocket(io) {
           }
 
           const updatedGame = await Game.findOneAndUpdate(
-            { roomId },
+            {
+              roomId,
+              $expr: { $lt: [{ $size: "$players" }, "$settings.maxPlayers"] },
+            },
             {
               $push: {
                 players: {

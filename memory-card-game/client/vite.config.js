@@ -4,10 +4,11 @@ import react from "@vitejs/plugin-react";
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  publicDir: "public",
   build: {
     sourcemap: false,
 
-    assestsInclude: ["**/*.{png,wav,mp3}"],
+    assetsInclude: ["**/*.{png,wav,mp3,xml,txt,ico,webmanifest}"],
 
     rollupOptions: {
       output: {
@@ -20,7 +21,22 @@ export default defineConfig({
         },
         chunkFileNames: "assets/js/[name]-[hash].js",
         entryFileNames: "assets/js/[name]-[hash].js",
-        assetFileNames: "assets/[ext]/[name]-[hash].[ext]",
+        assetFileNames: (assetInfo) => {
+          // Keep static files in root directory
+          if (
+            assetInfo.name &&
+            [
+              "sitemap.xml",
+              "robots.txt",
+              "favicon.ico",
+              "cardGames.png",
+              "site.webmanifest",
+            ].includes(assetInfo.name)
+          ) {
+            return "[name].[ext]";
+          }
+          return "assets/[ext]/[name]-[hash].[ext]";
+        },
       },
     },
 

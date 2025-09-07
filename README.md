@@ -1,5 +1,13 @@
 # 🎮 Memory Masters - Multiplayer Memory Card Game
 
+## 🌐 Live Demo
+
+**🎮 [Play Memory Masters Now](https://memory-game-pink-six.vercel.app/)**
+
+Experience the full multiplayer memory card game with real-time gameplay, power-ups, and beautiful animations!
+
+---
+
 A feature-rich, secure, and visually stunning multiplayer memory card game built with modern web technologies. Experience engaging gameplay with real-time multiplayer, power-ups, achievements, and beautiful animations.
 
 ## ✨ Key Features
@@ -1099,10 +1107,6 @@ Ensure all production environment variables are properly configured:
 - Ensure all tests pass before submitting PR
 - Include screenshots for UI changes
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🆘 Support
 
 For support and questions:
@@ -1318,7 +1322,6 @@ For support and questions:
 
 ### **v1.1.0** - Upcoming Features
 
-- 🎵 **Audio System**: Notification sounds and background music
 - 🌍 **i18n Support**: Multi-language internationalization
 - 🎨 **Enhanced Themes**: Custom theme selection and premium themes
 - 🏆 **Expanded Achievements**: New achievement categories and rewards
@@ -1347,9 +1350,7 @@ For support and questions:
 
 ## 🌐 Community & Links
 
-- 📧 **Email**: support@memorymasters.com
-- 🐦 **Twitter**: [@MemoryMasters](https://twitter.com/MemoryMasters)
-- 📱 **Reddit**: [r/MemoryMasters](https://reddit.com/r/MemoryMasters)
+- 📧 **Email**: abhinavranjan1523@gmail.com
 
 ---
 

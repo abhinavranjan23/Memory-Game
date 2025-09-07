@@ -49,7 +49,7 @@ const Login = () => {
     try {
       await loginAsGuest();
       addToast("Welcome, guest player!", "success");
-      navigate("/dashboard");
+      navigate("/lobby");
     } catch (error) {
       addToast(error.message, "error");
     } finally {

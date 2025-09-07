@@ -54,12 +54,14 @@ const Navbar = () => {
 
             {user && (
               <>
-                <Link
-                  to='/dashboard'
-                  className='text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors'
-                >
-                  Dashboard
-                </Link>
+                {!user.isGuest && (
+                  <Link
+                    to='/dashboard'
+                    className='text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors'
+                  >
+                    Dashboard
+                  </Link>
+                )}
                 <Link
                   to='/lobby'
                   className='text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors'
@@ -124,13 +126,15 @@ const Navbar = () => {
 
                 {isMenuOpen && (
                   <div className='absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 z-50'>
-                    <Link
-                      to='/profile'
-                      onClick={() => setIsMenuOpen(false)}
-                      className='block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors'
-                    >
-                      Profile
-                    </Link>
+                    {!user.isGuest && (
+                      <Link
+                        to='/profile'
+                        onClick={() => setIsMenuOpen(false)}
+                        className='block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors'
+                      >
+                        Profile
+                      </Link>
+                    )}
                     <button
                       onClick={handleLogout}
                       className='block w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors'
@@ -203,13 +207,15 @@ const Navbar = () => {
               </Link>
               {user ? (
                 <>
-                  <Link
-                    to='/dashboard'
-                    onClick={() => setIsMenuOpen(false)}
-                    className='block px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer touch-manipulation'
-                  >
-                    Dashboard
-                  </Link>
+                  {!user.isGuest && (
+                    <Link
+                      to='/dashboard'
+                      onClick={() => setIsMenuOpen(false)}
+                      className='block px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer touch-manipulation'
+                    >
+                      Dashboard
+                    </Link>
+                  )}
                   <Link
                     to='/lobby'
                     onClick={() => setIsMenuOpen(false)}
@@ -217,13 +223,15 @@ const Navbar = () => {
                   >
                     Play
                   </Link>
-                  <Link
-                    to='/profile'
-                    onClick={() => setIsMenuOpen(false)}
-                    className='block px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer touch-manipulation'
-                  >
-                    Profile
-                  </Link>
+                  {!user.isGuest && (
+                    <Link
+                      to='/profile'
+                      onClick={() => setIsMenuOpen(false)}
+                      className='block px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors cursor-pointer touch-manipulation'
+                    >
+                      Profile
+                    </Link>
+                  )}
                   {user.isAdmin && (
                     <Link
                       to='/admin'

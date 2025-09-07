@@ -728,8 +728,9 @@ const Lobby = () => {
           onClick={() =>
             addToast(
               `There are ${
-                rooms.filter((room) => room.isJoinable).length
-              } rooms you can join!`,
+                rooms.filter((room) => room.isJoinable && !room.isPrivate)
+                  .length
+              } open rooms you can join!`,
               "info"
             )
           }
@@ -758,12 +759,18 @@ const Lobby = () => {
                   Open Rooms
                 </p>
                 <motion.p
-                  key={rooms.filter((room) => room.isJoinable).length}
+                  key={
+                    rooms.filter((room) => room.isJoinable && !room.isPrivate)
+                      .length
+                  }
                   initial={{ scale: 1.2 }}
                   animate={{ scale: 1 }}
                   className='text-xl sm:text-3xl font-bold'
                 >
-                  {rooms.filter((room) => room.isJoinable).length}
+                  {
+                    rooms.filter((room) => room.isJoinable && !room.isPrivate)
+                      .length
+                  }
                 </motion.p>
               </div>
             </div>

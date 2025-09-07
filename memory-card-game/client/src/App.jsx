@@ -13,6 +13,7 @@ import { ToastProvider } from "./contexts/ToastContext.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import PublicRoute from "./components/PublicRoute.jsx";
+import RegisteredUserRoute from "./components/RegisteredUserRoute.jsx";
 import ServerLoadingPopup from "./components/ServerLoadingPopup.jsx";
 import Navbar from "./components/layout/Navbar.jsx";
 import CookieConsent from "./components/CookieConsent";
@@ -39,7 +40,7 @@ const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 function AppContent() {
   const location = useLocation();
-  const isGamePage = location.pathname.startsWith("/game/");
+  const isGamePage = location.pathname.startsWith("/game/" || "/waiting");
 
   const getLoadingComponent = () => {
     const path = location.pathname;
@@ -84,9 +85,9 @@ function AppContent() {
             <Route
               path='/dashboard'
               element={
-                <ProtectedRoute>
+                <RegisteredUserRoute>
                   <Dashboard />
-                </ProtectedRoute>
+                </RegisteredUserRoute>
               }
             />
             <Route
@@ -116,9 +117,9 @@ function AppContent() {
             <Route
               path='/profile'
               element={
-                <ProtectedRoute>
+                <RegisteredUserRoute>
                   <Profile />
-                </ProtectedRoute>
+                </RegisteredUserRoute>
               }
             />
             <Route

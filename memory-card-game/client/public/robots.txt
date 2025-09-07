@@ -1,0 +1,32 @@
+User-agent: *
+Allow: /
+
+# Allow all major search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
+
+# Disallow admin and private areas
+Disallow: /admin
+Disallow: /api/
+Disallow: /socket.io/
+
+# Allow important game pages
+Allow: /game
+Allow: /lobby
+Allow: /dashboard
+Allow: /leaderboard
+Allow: /profile
+Allow: /login
+Allow: /register
+
+# Sitemap location
+Sitemap: https://memory-game-pink-six.vercel.app/sitemap.xml
+
+# Crawl delay (optional - be respectful to your server)
+Crawl-delay: 1

@@ -1,41 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { copyFileSync, existsSync } from "fs";
-import { join } from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    {
-      name: "copy-static-files",
-      closeBundle() {
-        const staticFiles = [
-          "sitemap.xml",
-          "robots.txt",
-          "favicon.ico",
-          "cardGames.png",
-          "site.webmanifest",
-        ];
-
-        console.log("🔧 Copying static files to dist folder...");
-        
-        staticFiles.forEach((file) => {
-          const srcPath = join(process.cwd(), "public", file);
-          const destPath = join(process.cwd(), "dist", file);
-
-          if (existsSync(srcPath)) {
-            copyFileSync(srcPath, destPath);
-            console.log(`✅ Copied ${file} to dist`);
-          } else {
-            console.warn(`⚠️  ${file} not found in public folder`);
-          }
-        });
-        
-        console.log("🎉 Static files copy completed!");
-      },
-    },
-  ],
+  plugins: [react()],
   publicDir: "public",
   build: {
     sourcemap: false,
@@ -54,7 +22,7 @@ export default defineConfig({
         chunkFileNames: "assets/js/[name]-[hash].js",
         entryFileNames: "assets/js/[name]-[hash].js",
         assetFileNames: (assetInfo) => {
-          // Keep static files in root directory
+          // Keep static files in root directory without hashing
           if (
             assetInfo.name &&
             [

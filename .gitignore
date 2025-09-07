@@ -50,6 +50,8 @@ pids/
 *.seed
 *.pid.lock
 
+/client/backup/
+/client/SEO-README.md
 # ===========================================
 # Coverage directory used by tools like istanbul
 # ===========================================
@@ -157,7 +159,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+
 
 # Storybook build outputs
 .out

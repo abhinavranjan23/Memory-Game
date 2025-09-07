@@ -1,14 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/sitemap.xml",
-      "destination": "/sitemap.xml"
-    },
-    {
-      "source": "/robots.txt",
-      "destination": "/robots.txt"
-    },
-    {
       "source": "/((?!assets/|sitemap\\.xml|robots\\.txt|favicon\\.ico|cardGames\\.png|site\\.webmanifest).*)",
       "destination": "/index.html"
     }

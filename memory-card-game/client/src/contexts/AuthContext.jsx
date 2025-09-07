@@ -271,7 +271,6 @@ const AuthProvider = ({ children }) => {
     login,
     register,
     loginAsGuest,
-    googleLogin,
     logout,
     updateProfile,
     loading,

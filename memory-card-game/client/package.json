@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && npm run copy-static",
-    "copy-static": "node scripts/copy-static.js",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {

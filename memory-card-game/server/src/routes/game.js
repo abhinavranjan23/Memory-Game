@@ -679,7 +679,7 @@ router.get("/history/matches", auth, async (req, res) => {
             { "players.userId": req.user.id.toString() },
 
             {
-              "opponentsForHistory.userId": req.user.id.toString(),
+              "gameState.opponentsForHistory.userId": req.user.id.toString(),
             },
           ],
         },
@@ -694,7 +694,7 @@ router.get("/history/matches", auth, async (req, res) => {
 
             {
               "gameState.status": {
-                $in: ["finished", "completed", "sudden-death"],
+                $in: ["finished", "completed"],
               },
             },
             { status: { $in: ["finished", "completed"] } },
@@ -702,15 +702,6 @@ router.get("/history/matches", auth, async (req, res) => {
             {
               $and: [
                 { startedAt: { $exists: true, $ne: null } },
-                { "gameState.status": { $nin: ["waiting", "starting"] } },
-                { status: { $nin: ["waiting", "starting"] } },
-              ],
-            },
-
-            { "players.score": { $gt: 0 } },
-
-            {
-              $and: [
                 { "gameState.status": { $nin: ["waiting", "starting"] } },
                 { status: { $nin: ["waiting", "starting"] } },
               ],
@@ -731,6 +722,7 @@ router.get("/history/matches", auth, async (req, res) => {
       .lean();
 
     if (games.length === 0) {
+      console.log("Games length is 0 query");
       const simpleQuery = {
         $and: [
           {
@@ -763,13 +755,13 @@ router.get("/history/matches", auth, async (req, res) => {
         .lean();
     }
 
-    const allUserGames = await Game.find({
-      "players.userId": req.user.id.toString(),
-    })
-      .select(
-        "roomId gameState.status status startedAt endedAt players.score updatedAt"
-      )
-      .limit(5);
+    // const allUserGames = await Game.find({
+    //   "players.userId": req.user.id.toString(),
+    // })
+    //   .select(
+    //     "roomId gameState.status status startedAt endedAt players.score updatedAt"
+    //   )
+    //   .limit(5);
 
     const matches = games
       .map((game) => {
@@ -788,8 +780,8 @@ router.get("/history/matches", auth, async (req, res) => {
                 username: userInHistory.username,
                 score: userInHistory.score || 0,
                 matches: userInHistory.matches || 0,
-                flips: 0, // Not stored in opponentsForHistory, use 0
-                leftEarly: userInHistory.leftEarly || false,
+                flips: userInHistory.flips || 0, // Not stored in opponentsForHistory, use 0
+                // leftEarly: userInHistory.leftEarly || false,
                 disconnectedAt: userInHistory.disconnectedAt || null,
               };
             }
@@ -820,7 +812,7 @@ router.get("/history/matches", auth, async (req, res) => {
                   userId: opponent.userId,
                   score: opponent.score || 0,
                   matches: opponent.matches || 0,
-                  leftEarly: opponent.leftEarly || false,
+                  // leftEarly: opponent.leftEarly || false,
                   disconnectedAt: opponent.disconnectedAt || null,
                 }))
             : [];
@@ -940,8 +932,6 @@ router.post("/cleanup", auth, async (req, res) => {
       "gameState.status": { $in: ["waiting", "starting"] },
       updatedAt: { $lt: oneHourAgo },
     });
-
-    console.log(`🔍 Found ${oldGames.length} old inactive games to cleanup`);
 
     const result = await Game.deleteMany({
       "gameState.status": { $in: ["waiting", "starting"] },

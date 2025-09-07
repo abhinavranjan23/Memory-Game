@@ -1312,7 +1312,6 @@ class GameEngine {
 
         this.game.gameState.completionReason = "game_completed";
 
-        // Set winner in game state if there's exactly one winner
         if (winners.length === 1) {
           this.game.gameState.winner = winners[0].userId;
         }
@@ -1443,6 +1442,16 @@ class GameEngine {
 
       await this.initialize();
 
+      if (
+        this.game.gameState.status === "finished" ||
+        this.game.gameState.status === "completed"
+      ) {
+        console.log(
+          `Game ${this.roomId} is already completed, skipping disconnect handling`
+        );
+        return;
+      }
+
       const player = this.game.players.find((p) => p.userId === userId);
       if (!player) {
         return;
@@ -1500,8 +1509,19 @@ class GameEngine {
       const remainingPlayers = this.game.players.length;
 
       if (remainingPlayers === 0) {
+        // Game is empty, no action needed
       } else if (remainingPlayers === 1) {
-        await this.endGame("last_player_winner");
+        // Only call endGame if the game is not already completed
+        if (
+          this.game.gameState.status !== "finished" &&
+          this.game.gameState.status !== "completed"
+        ) {
+          await this.endGame("last_player_winner");
+        } else {
+          console.log(
+            `Game ${this.roomId} is already completed, skipping endGame call`
+          );
+        }
       } else if (remainingPlayers >= 2) {
         await this.protectedSave();
       }

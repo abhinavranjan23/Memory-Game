@@ -259,17 +259,9 @@ const Lobby = () => {
           addToast("Failed to join room - Socket not connected", "error");
         } else {
           console.log("Join room request sent successfully");
-          // Add timeout for join room response
-          const timeoutId = setTimeout(() => {
-            console.log("Create room join timeout - navigating anyway");
-            addToast("Taking you to the room...", "info");
-            navigate(`/waiting/${response.data.game.roomId}`);
-          }, 3000); // 3 second timeout
 
-          // Store timeout ID to clear if response comes back
-          socket.once("room-joined", () => {
-            clearTimeout(timeoutId);
-          });
+          addToast("Taking you to the room...", "info");
+          navigate(`/waiting/${response.data.game.roomId}`);
         }
       }
     } catch (error) {

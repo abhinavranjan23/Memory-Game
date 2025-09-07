@@ -7,7 +7,7 @@
   <!-- Home Page - Highest Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
@@ -15,7 +15,7 @@
   <!-- Game Page - High Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/game</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -23,7 +23,7 @@
   <!-- Dashboard Page - High Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/dashboard</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -31,7 +31,7 @@
   <!-- Lobby Page - High Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/lobby</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -39,7 +39,7 @@
   <!-- Leaderboard Page - Medium-High Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/leaderboard</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -47,7 +47,7 @@
   <!-- Profile Page - Medium Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/profile</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -55,7 +55,7 @@
   <!-- Login Page - Medium Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/login</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -63,7 +63,7 @@
   <!-- Register Page - Medium Priority -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/register</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
@@ -71,7 +71,7 @@
   <!-- Admin Dashboard - Lower Priority (Protected) -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/admin</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -79,7 +79,7 @@
   <!-- Waiting Area - Lower Priority (Game State) -->
   <url>
     <loc>https://memory-game-pink-six.vercel.app/waiting</loc>
-    <lastmod>2025-01-01</lastmod>
+    <lastmod>2025-01-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>

@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     {
       name: "copy-static-files",
-      writeBundle() {
+      closeBundle() {
         const staticFiles = [
           "sitemap.xml",
           "robots.txt",
@@ -18,6 +18,8 @@ export default defineConfig({
           "site.webmanifest",
         ];
 
+        console.log("🔧 Copying static files to dist folder...");
+        
         staticFiles.forEach((file) => {
           const srcPath = join(process.cwd(), "public", file);
           const destPath = join(process.cwd(), "dist", file);
@@ -25,8 +27,12 @@ export default defineConfig({
           if (existsSync(srcPath)) {
             copyFileSync(srcPath, destPath);
             console.log(`✅ Copied ${file} to dist`);
+          } else {
+            console.warn(`⚠️  ${file} not found in public folder`);
           }
         });
+        
+        console.log("🎉 Static files copy completed!");
       },
     },
   ],

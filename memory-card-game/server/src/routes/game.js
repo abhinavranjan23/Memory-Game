@@ -25,16 +25,24 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
+// {
+//   $or: [
+//     {
+//       $expr: {
+//         $lt: [{ $size: "$players" }, "$settings.maxPlayers"],
+//       },
+//     },
+//     { "gameState.status": "playing" },
+//   ],
+// },
+
 router.get("/rooms", optionalAuth, async (req, res) => {
   try {
     const games = await Game.find({
       $and: [
-        { "gameState.status": { $in: ["waiting", "starting"] } },
+        { "gameState.status": { $in: ["waiting", "starting", "playing"] } },
         { status: { $nin: ["completed", "finished"] } },
         { "gameState.status": { $nin: ["completed", "finished"] } },
-
-        { $expr: { $lt: [{ $size: "$players" }, "$settings.maxPlayers"] } },
-
         { createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
 
         { updatedAt: { $gt: new Date(Date.now() - 1 * 60 * 60 * 1000) } },
@@ -54,7 +62,9 @@ router.get("/rooms", optionalAuth, async (req, res) => {
       theme: game.settings.theme,
       status: game.gameState.status,
       createdAt: game.createdAt,
-      isJoinable: game.players.length < game.settings.maxPlayers,
+      isJoinable:
+        game.players.length < game.settings.maxPlayers &&
+        game.gameState.status !== "playing",
       isPrivate: game.isPrivate,
       hasPassword: game.isPrivate,
       settings: game.settings,

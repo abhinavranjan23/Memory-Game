@@ -243,6 +243,24 @@ class GameEngine {
         gameState: this.game.gameState,
         players: this.game.players,
       });
+      this.io.emit("room-updated", {
+        roomId: this.roomId,
+        playerCount: this.game.players.length,
+        maxPlayers: this.game.settings.maxPlayers,
+        isJoinable: false,
+        gameMode: this.game.settings.gameMode,
+        status: "playing",
+        boardSize: this.game.settings.boardSize,
+        theme: this.game.settings.theme,
+        isPrivate: this.game.isPrivate,
+        hasPassword: this.game.isPrivate,
+        settings: {
+          powerUpsEnabled: this.game.settings.powerUpsEnabled,
+          chatEnabled: this.game.settings.chatEnabled,
+          isRanked: this.game.settings.isRanked,
+        },
+        createdAt: this.game.createdAt,
+      });
     } catch (error) {
       console.error(`Error starting game in room ${this.roomId}:`, error);
       throw error;
@@ -1406,6 +1424,7 @@ class GameEngine {
         })),
         gameState: this.game.gameState,
       });
+      this.io.emit("room-deleted", this.roomId);
 
       this.gameCompleted = true;
     } catch (error) {

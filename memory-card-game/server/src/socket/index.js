@@ -586,7 +586,9 @@ function initializeSocket(io) {
           roomId: game.roomId,
           playerCount: game.players.length,
           maxPlayers: game.settings.maxPlayers,
-          isJoinable: game.players.length < game.settings.maxPlayers,
+          isJoinable:
+            game.players.length < game.settings.maxPlayers &&
+            game.gameState.status !== "playing",
           gameMode: game.settings.gameMode,
           status: game.gameState.status,
           boardSize: game.settings.boardSize,
@@ -882,11 +884,20 @@ function initializeSocket(io) {
       try {
         const rooms = await Game.find({
           $and: [
-            { "gameState.status": { $in: ["waiting", "starting"] } },
+            { "gameState.status": { $in: ["waiting", "starting", "playing"] } },
             { status: { $nin: ["completed", "finished"] } },
             { "gameState.status": { $nin: ["completed", "finished"] } },
-            // Only show rooms that are not full
-            { $expr: { $lt: [{ $size: "$players" }, "$settings.maxPlayers"] } },
+            // Show rooms that are either not full OR are currently playing
+            // {
+            //   $or: [
+            //     {
+            //       $expr: {
+            //         $lt: [{ $size: "$players" }, "$settings.maxPlayers"],
+            //       },
+            //     },
+            //     { "gameState.status": "playing" },
+            //   ],
+            // },
             // Not older than 24 hours
             { createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
             // Not stale (updated within last 2 hours)
@@ -907,7 +918,9 @@ function initializeSocket(io) {
             boardSize: game.settings.boardSize,
             theme: game.settings.theme,
             status: game.gameState.status,
-            isJoinable: game.players.length < game.settings.maxPlayers,
+            isJoinable:
+              game.players.length < game.settings.maxPlayers &&
+              game.gameState.status !== "playing",
             isPrivate: game.isPrivate,
             hasPassword: game.isPrivate,
             settings: {
@@ -932,7 +945,9 @@ function initializeSocket(io) {
             roomId: game.roomId,
             playerCount: game.players.length,
             maxPlayers: game.settings.maxPlayers,
-            isJoinable: game.players.length < game.settings.maxPlayers,
+            isJoinable:
+              game.players.length < game.settings.maxPlayers &&
+              game.gameState.status !== "playing",
             gameMode: game.settings.gameMode,
             status: game.gameState.status,
             boardSize: game.settings.boardSize,
